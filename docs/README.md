@@ -4,6 +4,10 @@
 ## 1. Visión global
 Objetivo: plataforma SaaS modular para educación. Tres dominios: User Portal, Admin Portal, Mobile App. **TODO** confirmar alcance MVP por dominio.
 
+## 1.1 Guías consolidadas
+- [Guía de arquitectura unificada](architecture/guidelines.md): principios, patrones y convenciones obligatorias a nivel de diseño.
+- [Política operativa y de CI/CD](operations/ci-cd.md): expectativas de pipelines, gates de calidad y protocolos de despliegue.
+
 ## 2. Áreas críticas detectadas
 - JWKS rotation incompleta.
 - Broker y DLQ pendientes.
@@ -23,6 +27,7 @@ Funciones: autenticación, perfil, notificaciones. **TODO** alcance inicial.
 ## 4. Arquitectura global
 Resumen en `ARCHITECTURE.md`. Diagramas en `docs/mermaid/*`.
 Ver `docs/mermaid/network-ports.mmd` para puertos y relaciones, y `plans/gateway/gateway-service.md` para el BFF.
+Lineamientos completos: ver [Guía de arquitectura unificada](architecture/guidelines.md).
 
 ## 5. Catálogo de funciones y endpoints
 | Dominio | Función | Servicio | Endpoint | Método | Auth |
@@ -44,6 +49,7 @@ Ver `docs/mermaid/network-ports.mmd` para puertos y relaciones, y `plans/gateway
 
 ## 8. Buenas prácticas
 Un servicio = una responsabilidad. Seguridad por defecto. Observabilidad integral. CI/CD con rollback. Límites de costo definidos.
+Protocolos detallados en [Política operativa y de CI/CD](operations/ci-cd.md).
 
 ## 9. ADRs globales
 - ADR-0007 JWKS rotation. **TODO** ADR mensajería, multitenancy, autorización.

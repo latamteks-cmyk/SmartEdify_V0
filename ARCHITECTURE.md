@@ -2,6 +2,8 @@
 
 ## Visión
 Plataforma SaaS con dominios: User Portal, Admin Portal, Mobile App. Servicios base: auth, user, tenant. Integración asincrónica con outbox y broker. Seguridad por defecto.
+Resumen guía consolidada: servicios independientes, contratos versionados, seguridad *least privilege*, observabilidad end-to-end y CI/CD con gates estrictos.
+Detalles ampliados en [docs/architecture/guidelines.md](docs/architecture/guidelines.md).
 
 ## Contexto (C4 nivel 1)
 - Usuarios finales → User Portal y Mobile.
