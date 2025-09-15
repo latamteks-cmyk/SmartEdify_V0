@@ -45,4 +45,4 @@ Plataforma SaaS con dominios: User Portal, Admin Portal, Mobile App. Servicios b
 - CI monorepo. SBOM. Escaneo contenedores. Despliegue canario con rollback.
 
 ## Diagramas
-Ver `docs/mermaid/*`.
+Ver `docs/design/diagrams/*`.
