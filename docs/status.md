@@ -100,6 +100,7 @@ Riesgos abiertos: ausencia de rotación automática de claves JWT (alto), falta 
 - Evitar introducir mocks globales nuevos sin revisar documento de política (ver sección 8 spec.md).
 - Mantener documentación actualizada post-merge (README + spec + status).
 - Revisar testTimeout warnings en Jest (ajustar si persisten tras refactor config).
+- Revisar hallazgos de `docs/audits/2025-09-16-structure.md` y definir ajustes en spec/roadmap para cerrar brechas.
 
 ---
 Responsable CTO Snapshot: (auto-generado asistente) 2025-09-15
