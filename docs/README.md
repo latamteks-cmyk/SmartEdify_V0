@@ -5,8 +5,9 @@
 Objetivo: plataforma SaaS modular para educación. Tres dominios: User Portal, Admin Portal, Mobile App. **TODO** confirmar alcance MVP por dominio.
 
 ## 1.1 Guías consolidadas
-- [Guía de arquitectura unificada](architecture/guidelines.md): principios, patrones y convenciones obligatorias a nivel de diseño.
-- [Política operativa y de CI/CD](operations/ci-cd.md): expectativas de pipelines, gates de calidad y protocolos de despliegue.
+Recursos clave para profundizar desde el inicio del proyecto:
+- [Lineamientos de arquitectura](architecture/guidelines.md): principios, patrones y convenciones obligatorias a nivel de diseño.
+- [Pautas de CI/CD y operaciones](operations/ci-cd.md): expectativas de pipelines, gates de calidad y protocolos de despliegue.
 
 ## 2. Áreas críticas detectadas
 - JWKS rotation incompleta.
