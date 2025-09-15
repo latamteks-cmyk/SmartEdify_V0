@@ -1,36 +1,20 @@
 # Assembly Service
 
-## Ejecución local
+## Estado del proyecto
+Actualmente este servicio **no cuenta con una implementación activa**. Solo existen los artefactos de planificación y el contrato inicial en `api/openapi.yaml`.
 
-1. Instala dependencias y configura variables de entorno usando `.env.example`.
-2. Ejecuta el servicio con el comando correspondiente (ejemplo: `go run cmd/server/main.go` o `npm start`).
+## Alcance planificado
+El alcance funcional, roadmap y decisiones clave se documentan en [plans/assembly/assembly-service.md](../../../plans/assembly/assembly-service.md). Consulta ese documento para conocer las fases previstas, integraciones y restricciones legales.
 
-## Variables de entorno
-- ASM_PORT
-- ASM_DB_URL
-- ASM_JWT_SECRET
-- ASM_LOG_LEVEL
+## Próximos pasos
+- Implementar el backend conforme al contrato definido en `api/openapi.yaml`.
+- Documentar el proceso de despliegue, observabilidad y dependencias externas.
 
-## Endpoints principales
-- GET `/assemblies` (listar asambleas)
-- POST `/assemblies` (crear asamblea)
-- GET `/assemblies/{id}` (ver asamblea)
-- PUT `/assemblies/{id}` (actualizar asamblea)
-- DELETE `/assemblies/{id}` (eliminar asamblea)
-- GET `/flows` (listar flujos)
-- POST `/flows` (crear flujo)
-- GET `/processes` (listar procesos)
-- POST `/processes` (crear proceso)
+## Configuración y ejecución local
+Este servicio aún no dispone de código ejecutable. Una vez que exista implementación, se agregarán aquí los pasos detallados para instalar dependencias, configurar variables de entorno y ejecutar la aplicación.
 
-## Decisiones técnicas
-- Validaciones con Zod/JSON-Schema
-- JWT para autenticación
-- Migraciones versionadas en `migrations/`
-- Outbox para eventos externos
+## Pruebas
+No hay pruebas disponibles porque el servicio no está implementado. Cuando se añada código, este apartado describirá cómo ejecutar las pruebas automatizadas y de integración relevantes.
 
-## SLO
-- Tiempo de respuesta < 300ms
-- Disponibilidad > 99.9%
-
-## Contacto equipo
+## Contacto
 - Equipo Assembly: assembly-team@smartedify.com
