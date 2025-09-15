@@ -1,0 +1,8 @@
+sequenceDiagram
+  participant C as Client
+  participant AS as auth-service
+  participant JW as JWKS
+  C->>AS: POST /auth/login
+  AS-->>JW: load JWKS (cache)
+  AS->>C: 200 { access, refresh, kid }
+  Note over C,AS: Rotación: `kid` actual y `next` válido

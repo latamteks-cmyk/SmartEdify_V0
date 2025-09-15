@@ -1,0 +1,51 @@
+flowchart TB
+  subgraph Edge
+    GW[Gateway/BFF\napi.smart-edify.com:443]
+  end
+  subgraph Services[Microservicios]
+    AUTH[auth-service:7001]
+    TEN[tenant-service:7003]
+    ASM[assembly-service:7101]
+    RSV[reservation-service:7102]
+    MNT[maintenance-service:7103]
+    DOC[documents-service:7201]
+    COM[communications-service:7202]
+    FIN[finance-service:7301]
+    PAY[payments-adapter:7302]
+  end
+  subgraph Infra[Infraestructura]
+    PG[(Postgres:5432)]
+    RD[(Redis:6379)]
+    NATS[(NATS:4222/8222)]
+    OT[(OTel Collector:4317/4318)]
+  end
+
+  GW-->AUTH
+  GW-->ASM
+  GW-->RSV
+  GW-->MNT
+
+  ASM-->TEN
+  RSV-->TEN
+  MNT-->TEN
+
+  ASM-->DOC
+  MNT-->DOC
+  RSV-->PAY
+  PAY-->FIN
+
+  AUTH-->RD
+  ASM-->PG
+  RSV-->PG
+  MNT-->PG
+  TEN-->PG
+
+  ASM--pub/sub-->NATS
+  RSV--pub/sub-->NATS
+  MNT--pub/sub-->NATS
+
+  AUTH-->OT
+  ASM-->OT
+  RSV-->OT
+  MNT-->OT
+  GW-->OT

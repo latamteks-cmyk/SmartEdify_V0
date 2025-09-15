@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant S as user-service
+  participant O as Outbox
+  participant B as Broker
+  participant C as Consumer
+  S->>O: insert event
+  O->>B: publish
+  B-->>C: deliver
+  C->>B: ack
+  alt falla
+    B->>DLQ: route to DLQ
+  end
