@@ -4,12 +4,19 @@
 - El User Portal se renderiza en Squarespace bajo `https://www.smart-edify.com` (y variante apex).
 - Squarespace no permite backend propio; toda funcionalidad dinámica debe consumirse vía APIs externas.
 - Los microservicios existentes (Assembly, Reservation, Maintenance, Auth, etc.) se expondrán a través de un Gateway/BFF.
+- Las funcionalidades críticas (login, Assembly, Reservation, Maintenance) deben ofrecerse con paridad en el portal web y en la aplicación móvil nativa, reutilizando los mismos contratos de API.
 
 ## Arquitectura objetivo
 - **Browser (Squarespace)** → `api.smart-edify.com` (Gateway/BFF) → microservicios (`assembly-service`, `reservation-service`, `maintenance-service`, `auth-service`, ...).
 - **Gateway/BFF** (`gateway-service`) agrupa y normaliza endpoints `/api/*`, aplica políticas de seguridad y caching.
 - **Auth-service** utiliza OIDC Authorization Code + PKCE con un `client_id` exclusivo para Squarespace.
 - **Widgets/SDK JS**: biblioteca ligera embebible (npm + CDN) que encapsula autenticación, consumo de APIs y helpers UI.
+
+### Aplicación móvil
+- **App móvil (iOS/Android)** → `api.smart-edify.com` (Gateway/BFF) → microservicios, consumiendo los mismos endpoints REST y eventos que el portal web.
+- El Gateway expone SDKs/embeds móviles (wrapper nativo o SDK JS adaptable) que gestionan PKCE, renovación de tokens y trazas.
+- Los tokens OIDC se almacenan en contenedores seguros del sistema operativo (Keychain, Keystore) y se aíslan del WebView.
+- La app aplica lineamientos UX mobile-first: onboarding simplificado, gestos nativos y vistas optimizadas para pantallas pequeñas, manteniendo coherencia con la experiencia web.
 
 ## DNS y TLS
 - `www.smart-edify.com` y `smart-edify.com` → hosting de Squarespace.
@@ -108,19 +115,23 @@ async function api(path, init = {}) {
    - Botón en `/login` invoca `login()` del SDK.
    - Callback en `/auth/callback` ejecuta `handleCallback()` y deja tokens listos en memoria.
    - El SDK ofrece `refresh()` automático y gestión de expiraciones.
+   - Variante móvil: el wrapper nativo invoca el mismo flujo PKCE, guarda tokens en Keychain/Keystore y expone helpers para deep links de callback.
 
 2. **Assembly**
    - Usuario autenticado consulta `/api/assemblies/{id}` vía SDK.
    - Se acreditan votos y se accede a actas mediante enlaces firmados.
+   - En la app móvil, vistas nativas consumen el SDK (JS adaptable o módulo nativo) para listar asambleas y gestionar votos offline-first.
 
 3. **Reservation**
    - Selección de área y slot desde Squarespace.
    - `POST /api/reservations` crea pre-reserva y devuelve intent de pago.
    - Integración con adaptador de pagos del Gateway finaliza confirmación.
+   - En mobile, el SDK integra wrappers para pickers y wallets nativos reutilizando los endpoints de reserva y callbacks de pago.
 
 4. **Maintenance**
    - Usuario registra incidencia con `POST /api/incidents`.
    - Seguimiento a través de `/api/workorders/{id}` con actualizaciones en tiempo real (long polling / SSE si aplica).
+   - En mobile, push notifications y vistas reactivas consumen el mismo stream (SSE/websocket wrapper) expuesto por el SDK.
 
 ## Observabilidad
 - Gateway propaga y registra `traceparent` para correlación extremo a extremo.
@@ -134,7 +145,10 @@ async function api(path, init = {}) {
 - [ ] Registrar `client_id` Squarespace en Auth-service y configurar PKCE.
 - [ ] Implementar proxies `/api/assemblies/*`, `/api/reservations/*`, `/api/maintenance/*`.
 - [ ] Generar SDK JS (bundler + publicación npm/CDN) y minificar snippet.
+- [ ] Publicar SDKs/wrappers móviles (React Native/Swift/Kotlin) con soporte PKCE y helpers de almacenamiento seguro.
+- [ ] Entregar embeds móviles o módulos compartidos para WebView/Capacitor que reutilicen el Gateway.
 - [ ] Crear páginas `/login` y `/auth/callback` en Squarespace con el SDK.
+- [ ] Validar usabilidad responsive y mobile-first en portal y app (tests de navegación, gestos, performance en dispositivos).
 - [ ] Documentar la integración end-to-end en `docs/documento-rector.md`.
 - [ ] Configurar dashboards y alertas de observabilidad.
 - [ ] Demo de login + flujo Assembly en Squarespace.
