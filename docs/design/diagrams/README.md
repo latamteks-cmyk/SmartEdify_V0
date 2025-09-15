@@ -10,6 +10,12 @@ Este directorio contiene los diagramas de arquitectura y flujos claves de SmartE
 | `consumer-retry-sequence.mmd` | Consumer Retry Sequence | Sequence | Dinámica de reintentos, clasificación de errores y uso de DLQ. |
 | `tenant-context-sequence.mmd` | Tenant Context Resolution Sequence | Sequence | Resolución y cacheo de contexto de tenant + refresh de tokens. |
 | `auth-token-lifecycle.mmd` | Auth Token Lifecycle | State Diagram | Estados y transiciones del ciclo de vida de access/refresh tokens. |
+| `jwks-rotation-sequence.mmd` | JWKS Rotation Sequence | Sequence | Flujo de publicación /well-known y rotación dual current/next. |
+| `jwks-rotation-state.mmd` | JWKS Key State Lifecycle | State Diagram | Estados: provisioning → current → retiring → deprecated → purge. |
+| `testing-architecture.mmd` | Multi-Project Testing Architecture | Flowchart | Aislamiento Jest (security / unit / integration) y teardown de recursos. |
+| `observability-roadmap.mmd` | Observability Roadmap | Gantt | Fases secuenciales de instrumentación y alertas. |
+| `auth-metrics-flow.mmd` | Auth Metrics Flow | Flowchart | Generación e incremento de métricas de negocio Auth. |
+| `security-priorities.mmd` | Security Priorities Roadmap | Flowchart | Cadena priorizada P1→P3 (JWKS, gateway, métricas, tracing, etc.). |
 
 ## Convenciones
 - Diagramas Mermaid validados (intentar mantenerlos simples para lectura en PRs).
@@ -17,9 +23,10 @@ Este directorio contiene los diagramas de arquitectura y flujos claves de SmartE
 - Mantener nombres de archivo en `kebab-case` y contenido en inglés excepto notas contextuales.
 
 ## Próximos Diagramas (Backlog)
-- `jwks-rotation-sequence.mmd`: Rotación y propagación de claves.
 - `schema-validation-flow.mmd`: Validación de eventos (publisher + consumer) con registry.
 - `supply-chain-security.mmd`: SBOM, firma y políticas de admisión.
+- `contract-testing-flow.mmd`: Pipeline lint (Spectral) + snapshots + generación SDK.
+- `tracing-span-map.mmd`: Mapa de spans y atributos cross-service.
 
 ## Actualización
 Si se modifica un diagrama que está referenciado en `README.md` raíz o `status.md`, verificar que las secciones siguen vigentes.

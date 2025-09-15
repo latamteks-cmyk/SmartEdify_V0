@@ -1,5 +1,7 @@
 Estructura monorepo y premisas. Objetivo: entrega rápida, calidad constante, auditoría simple.
 
+> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-15). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
+
 # 1) Estructura de carpetas (top-level)
 
 ```
@@ -327,3 +329,17 @@ Principios:
 5. Pipeline de imagen: build/push, SBOM (Syft), Trivy, firma cosign.
 6. ADR inicial: elección Argon2id + separación access/refresh.
 7. Diagramas (C4 nivel 2 servicio Auth + secuencia login/refresh/logout).
+
+## Nuevos Diagramas (2025-09-15)
+
+Referencias añadidas en `docs/design/diagrams/`:
+
+- `testing-architecture.mmd`: Aislamiento multi-proyecto Jest y teardown.
+- `jwks-rotation-state.mmd` + `jwks-rotation-sequence.mmd`: Ciclo de vida y flujo de rotación JWKS.
+- `observability-roadmap.mmd`: Gantt de instrumentación (logs → tracing → alertas → correlación).
+- `auth-metrics-flow.mmd`: Generación e incrementos de métricas negocio Auth.
+- `security-priorities.mmd`: Cadena priorizada de seguridad (JWKS → gateway → métricas → tracing → eventos → logout → WebAuthn).
+
+Backlog diagramas futuros: `schema-validation-flow.mmd`, `contract-testing-flow.mmd`, `supply-chain-security.mmd`, `tracing-span-map.mmd`.
+
+Coherencia documental: cualquier modificación sustancial en mocks, métricas o prioridades debe reflejarse en `README.md` (raíz + este), `spec.md`, `status.md` y en la lista de diagramas.
