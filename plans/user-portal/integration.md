@@ -127,6 +127,7 @@ async function api(path, init = {}) {
 - Dashboards de conversión de login, errores 4xx/5xx por ruta y latencia entre Squarespace y microservicios.
 
 ## Backlog fast-track
+
 - [ ] Scaffold `gateway-service` con `/health` y despliegue inicial.
 - [ ] Configurar DNS (`api.smart-edify.com`) y certificados TLS.
 - [ ] Activar política CORS según matriz anterior.
@@ -137,6 +138,7 @@ async function api(path, init = {}) {
 - [ ] Documentar la integración end-to-end en `docs/documento-rector.md`.
 - [ ] Configurar dashboards y alertas de observabilidad.
 - [ ] Demo de login + flujo Assembly en Squarespace.
+
 
 ## Riesgos
 - Limitaciones de Squarespace para scripts avanzados → validar compatibilidad y CSP.
