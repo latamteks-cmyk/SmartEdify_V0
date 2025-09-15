@@ -1,5 +1,7 @@
 # Tareas Técnicas y Auditoría Backend SmartEdify
 
+> ⚠️ **Deprecado (2025-09-15):** Utiliza [`task.md`](../task.md) como tracker de alto nivel. Este archivo se conserva como backlog detallado y checklist de implementación.
+
 > Nota (2025-09-15): El snapshot ejecutivo consolidado (estado por servicio, riesgos, próximos 14 días) se mantiene ahora en `docs/status.md`. Este archivo (`tareas.md`) permanece como backlog granular y checklist de implementación. Al actualizar prioridades, reflejar primero en `status.md` y luego ajustar aquí para evitar divergencias.
 ## Estructura y Premisas
 - [x] Crear carpetas obligatorias por servicio: `api/`, `migrations/`, `internal/app|domain|adapters|config/`, `tests/`, `helm/`, `k8s/` (Auth y User tienen estructura base; falta dominio estructurado y Assembly pendiente)
