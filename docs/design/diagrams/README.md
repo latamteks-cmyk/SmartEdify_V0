@@ -6,10 +6,12 @@ Este directorio contiene los diagramas de arquitectura y flujos claves de SmartE
 |---------|--------|------|---------------------|
 | `event-pipeline.mmd` | Event Pipeline | Flowchart | Vista end-to-end del recorrido de un evento (outbox → broker → consumer → handler). |
 | `architecture-overview.mmd` | Architecture Overview | Flowchart | Mapa macro de componentes, dominios de responsabilidad y límites. |
+| `network-ports.mmd` | Network Ports Mapping | Flowchart | Relación host↔contenedor de puertos expuestos por servicio. |
 | `outbox-flow.mmd` | Outbox Flow | Flowchart | Detalle del pipeline de publicación desde la transacción hasta Kafka y métricas. |
 | `consumer-retry-sequence.mmd` | Consumer Retry Sequence | Sequence | Dinámica de reintentos, clasificación de errores y uso de DLQ. |
 | `tenant-context-sequence.mmd` | Tenant Context Resolution Sequence | Sequence | Resolución y cacheo de contexto de tenant + refresh de tokens. |
 | `auth-token-lifecycle.mmd` | Auth Token Lifecycle | State Diagram | Estados y transiciones del ciclo de vida de access/refresh tokens. |
+| `auth-sequence.mmd` | Auth Service Login Sequence | Sequence | Flujo de autenticación y emisión de tokens desde el gateway hasta auth-service. |
 | `jwks-rotation-sequence.mmd` | JWKS Rotation Sequence | Sequence | Flujo de publicación /well-known y rotación dual current/next. |
 | `jwks-rotation-state.mmd` | JWKS Key State Lifecycle | State Diagram | Estados: provisioning → current → retiring → deprecated → purge. |
 | `testing-architecture.mmd` | Multi-Project Testing Architecture | Flowchart | Aislamiento Jest (security / unit / integration) y teardown de recursos. |
