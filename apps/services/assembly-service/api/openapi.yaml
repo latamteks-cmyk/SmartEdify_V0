@@ -1,0 +1,131 @@
+openapi: 3.0.3
+info:
+  title: Assembly Service API
+  version: 1.0.0
+paths:
+  /assemblies:
+    get:
+      summary: Listar asambleas
+      responses:
+        '200':
+          description: Lista de asambleas
+    post:
+      summary: Crear asamblea
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssemblyRequest'
+      responses:
+        '201':
+          description: Asamblea creada
+  /assemblies/{id}:
+    get:
+      summary: Obtener asamblea por ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Asamblea encontrada
+    put:
+      summary: Actualizar asamblea
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssemblyRequest'
+      responses:
+        '200':
+          description: Asamblea actualizada
+    delete:
+      summary: Eliminar asamblea
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Asamblea eliminada
+  /flows:
+    get:
+      summary: Listar flujos
+      responses:
+        '200':
+          description: Lista de flujos
+    post:
+      summary: Crear flujo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FlowRequest'
+      responses:
+        '201':
+          description: Flujo creado
+  /processes:
+    get:
+      summary: Listar procesos
+      responses:
+        '200':
+          description: Lista de procesos
+    post:
+      summary: Crear proceso
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProcessRequest'
+      responses:
+        '201':
+          description: Proceso creado
+components:
+  schemas:
+    AssemblyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        date:
+          type: string
+          format: date-time
+      required:
+        - name
+        - date
+    FlowRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        steps:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - steps
+    ProcessRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        flowId:
+          type: string
+      required:
+        - name
+        - flowId

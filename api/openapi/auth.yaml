@@ -1,0 +1,114 @@
+openapi: 3.1.0
+info:
+  title: Auth Service API (MVP)
+  version: 0.1.0
+  description: >
+    MVP del Auth Service: registro, login, rotación refresh, recuperación de contraseña,
+    health y métricas. Contrato se ampliará a OIDC completo en iteraciones futuras.
+servers:
+  - url: https://api.smartedify.com/api/auth/v1
+paths:
+  /register:
+    post:
+      summary: Registrar usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+      responses:
+        '201': { description: Usuario registrado }
+        '409': { description: Email duplicado }
+  /login:
+    post:
+      summary: Login con email y password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        '200':
+          description: Tokens emitidos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+        '401': { description: Credenciales inválidas }
+        '429': { description: Rate limit / brute force guard }
+  /refresh-token:
+    post:
+      summary: Rotar refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: Nuevo par emitido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken: { type: string }
+                  refreshToken: { type: string }
+        '401': { description: Refresh inválido o reutilizado }
+  /forgot-password:
+    post:
+      summary: Solicitar recuperación de contraseña
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202': { description: Token generado (respuesta genérica) }
+  /reset-password:
+    post:
+      summary: Resetear contraseña usando token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              properties:
+                token: { type: string }
+                newPassword: { type: string, minLength: 8 }
+      responses:
+        '200': { description: Password actualizada }
+        '400': { description: Token inválido o expirado }
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200': { description: OK }
+  /metrics:
+    get:
+      summary: Métricas Prometheus
+      responses:
+        '200': { description: OK - expositor de métricas }

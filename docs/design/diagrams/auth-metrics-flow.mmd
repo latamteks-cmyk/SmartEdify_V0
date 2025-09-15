@@ -1,0 +1,33 @@
+flowchart TD
+    subgraph Request[Auth Request Lifecycle]
+        L[Login Request]
+        V[Validate Credentials]
+        H[Hash Verify Argon2id]
+        T[Issue Access + Refresh]
+        R[Record Metrics]
+    end
+
+    L --> V --> H -->|ok| T --> R
+    H -->|fail| F[Increment login_fail_total]
+
+    subgraph Metrics[Métricas]
+        MS[auth_login_success_total]
+        MF[auth_login_fail_total]
+        MR[auth_refresh_reuse_detected_total]
+        MP[auth_password_reset_total]
+    end
+
+    R --> MS
+    F --> MF
+
+    subgraph Refresh[Refresh Flow]
+        C[Check Reuse] -->|reuse| RU[Increment reuse_detected + revoke]
+        C -->|clean| NI[Rotate + Increment login_success_total]
+    end
+
+    T --> C
+    RU --> MR
+    PS[Password Reset Flow] --> MP
+
+    classDef metric fill:#eef,stroke:#336
+    class MS,MF,MR,MP metric

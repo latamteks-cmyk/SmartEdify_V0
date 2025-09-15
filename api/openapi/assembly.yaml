@@ -1,0 +1,254 @@
+openapi: 3.1.0
+info:
+  title: Assembly Service API
+  version: 1.0.0
+  summary: Contrato extraído de docs/Assembly/Flujos.md (mantener fuente única aquí a partir de ahora).
+  description: >
+    Gestión end-to-end de asambleas mixtas: convocatoria, acreditación, quórum,
+    votación (electrónica y manual), acta y archivo WORM. Este archivo consolida
+    el YAML previamente incrustado en `docs/Assembly/Flujos.md`.
+servers:
+  - url: https://api.smartedify.com/api/assembly/v1
+tags:
+  - name: Assemblies
+  - name: Agenda
+  - name: Call
+  - name: Meet
+  - name: Attendees
+  - name: Voting
+  - name: Manual
+  - name: Minutes
+  - name: Session
+paths:
+  /assemblies:
+    post:
+      tags: [Assemblies]
+      summary: Crear asamblea
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssemblyCreate'
+      responses:
+        '201':
+          description: Creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assembly'
+    get:
+      tags: [Assemblies]
+      summary: Listar asambleas
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [Draft, Validated, Notified, CheckInOpen, InSession, MinutesDraft, Signed, Published, Archived]
+        - in: query
+          name: page
+          schema: { type: integer, default: 1, minimum: 1 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 50, minimum: 1, maximum: 200 }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PageAssemblies'
+  /assemblies/{assemblyId}:
+    get:
+      tags: [Assemblies]
+      summary: Obtener asamblea
+      parameters:
+        - $ref: '#/components/parameters/assemblyId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Assembly'
+        '404': { description: No encontrado }
+  /assemblies/{assemblyId}/agenda/validate:
+    post:
+      tags: [Agenda]
+      summary: Validar agenda/convocatoria con Compliance
+      parameters:
+        - $ref: '#/components/parameters/assemblyId'
+      responses:
+        '200':
+          description: Dictamen aprobado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceReport'
+        '409':
+          description: Observada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceReport'
+  /assemblies/{assemblyId}/call/publish:
+    post:
+      tags: [Call]
+      summary: Publicar convocatoria
+      parameters:
+        - $ref: '#/components/parameters/assemblyId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channels:
+                  type: array
+                  items: { type: string, enum: [email, sms, whatsapp, push] }
+                meetInstructions: { type: string }
+      responses:
+        '202': { description: Enviado }
+  /assemblies/{assemblyId}/attendees/checkin:
+    post:
+      tags: [Attendees]
+      summary: Registrar check-in
+      parameters:
+        - $ref: '#/components/parameters/assemblyId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckInRequest' }
+      responses:
+        '201': { description: Registrado }
+        '409': { description: Duplicado }
+  /items/{itemId}/vote/open:
+    post:
+      tags: [Voting]
+      summary: Abrir ventana de voto
+      parameters:
+        - $ref: '#/components/parameters/itemId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [mode]
+              properties:
+                mode: { type: string, enum: [nominal, secreto, coeficiente, bloques, delegados] }
+                stepUpRequired: { type: boolean, default: false }
+      responses:
+        '200': { description: OK }
+  /items/{itemId}/vote:
+    post:
+      tags: [Voting]
+      summary: Emitir voto electrónico
+      parameters:
+        - $ref: '#/components/parameters/itemId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VoteRequest' }
+      responses:
+        '201': { description: Voto registrado }
+        '409': { description: Doble voto o token usado }
+  /items/{itemId}/results:
+    get:
+      tags: [Voting]
+      summary: Resultados ítem
+      parameters:
+        - $ref: '#/components/parameters/itemId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VoteResult' }
+  /assemblies/{assemblyId}/minutes/draft:
+    post:
+      tags: [Minutes]
+      summary: Generar borrador de acta
+      parameters:
+        - $ref: '#/components/parameters/assemblyId'
+      responses:
+        '201': { description: Generado }
+components:
+  parameters:
+    assemblyId:
+      in: path
+      name: assemblyId
+      required: true
+      schema: { type: string }
+    itemId:
+      in: path
+      name: itemId
+      required: true
+      schema: { type: string }
+  schemas:
+    AssemblyCreate:
+      type: object
+      required: [tipo, modalidad, fechaInicio, jurisdiccion, agenda]
+      properties:
+        tipo: { type: string, enum: [ordinaria, extraordinaria] }
+        modalidad: { type: string, enum: [mixta, presencial, virtual] }
+        fechaInicio: { type: string, format: date-time }
+        direccionFisica: { type: string }
+        jurisdiccion: { type: string }
+        agenda:
+          type: array
+          items: { $ref: '#/components/schemas/AgendaItem' }
+    AgendaItem:
+      type: object
+      required: [titulo, tipoDecision, mayoria, orden]
+      properties:
+        id: { type: string }
+        titulo: { type: string }
+        tipoDecision: { type: string, enum: [informativa, acuerdo] }
+        mayoria: { type: string, enum: [simple, calificada] }
+        orden: { type: integer }
+    Assembly:
+      type: object
+      properties:
+        id: { type: string }
+        estado: { type: string }
+        tipo: { type: string }
+        modalidad: { type: string }
+        fechaInicio: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    PageAssemblies:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Assembly' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+    ComplianceReport:
+      type: object
+      properties:
+        status: { type: string, enum: [approved, observed] }
+        issues: { type: array, items: { type: string } }
+        timestamp: { type: string, format: date-time }
+    CheckInRequest:
+      type: object
+      required: [personaId, canal]
+      properties:
+        personaId: { type: string }
+        canal: { type: string, enum: [presencial, virtual] }
+        deviceId: { type: string }
+    VoteRequest:
+      type: object
+      required: [voterId, tokenJti, value]
+      properties:
+        voterId: { type: string }
+        tokenJti: { type: string }
+        value: { type: string, enum: [favor, contra, abstencion] }
+    VoteResult:
+      type: object
+      properties:
+        itemId: { type: string }
+        favor: { type: integer }
+        contra: { type: integer }
+        abstencion: { type: integer }

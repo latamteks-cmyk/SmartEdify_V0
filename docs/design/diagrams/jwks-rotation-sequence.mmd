@@ -1,0 +1,51 @@
+---
+title: JWKS Rotation Sequence
+---
+sequenceDiagram
+    autonumber
+    participant Admin as Admin/Job
+    participant Auth as Auth Service
+    participant DB as Postgres
+    participant Client as Client Service
+
+    Note over Auth: Estado inicial
+    Note over Auth: current(K1), next(K2)
+
+    Admin->>Auth: POST /admin/rotate-keys
+    Auth->>DB: INSERT new key K3 status=next
+    DB-->>Auth: ok
+    Auth-->>Admin: 201 Created (K3 metadata)
+
+    Client->>Auth: GET /.well-known/jwks.json
+    Auth->>DB: SELECT keys WHERE status IN (current,next,retiring)
+    DB-->>Auth: K1,K2,K3
+    Auth-->>Client: JWKS {K1,K2,K3}
+
+    Note over Admin: Promoción tras periodo T
+    Admin->>Auth: POST /admin/promote-key K2
+    Auth->>DB: UPDATE K2->current; K1->retiring; K3->next
+    DB-->>Auth: ok
+
+    Client->>Auth: GET /.well-known/jwks.json
+    Auth-->>Client: JWKS {K2(current),K3(next),K1(retiring)}
+
+    Note over Auth: Tokens nuevos firmados con K2
+
+    par Refresh Token Validation
+        Client->>Auth: POST /refresh (token con kid=K1)
+        Auth->>DB: SELECT key K1 (status=retiring) valid?
+        DB-->>Auth: ok
+        Auth-->>Client: nuevo access (kid=K2)
+    and Revocación Clave Comprometida
+        Admin->>Auth: POST /admin/compromise K1
+        Auth->>DB: UPDATE K1 status=retiring immediate
+        Auth->>DB: UPDATE auth_refresh_sessions SET revoked_at=now() WHERE kid=K1
+    end
+
+    Note over Admin: Expirado periodo gracia
+    Admin->>Auth: DELETE /admin/keys/K1
+    Auth->>DB: DELETE FROM auth_signing_keys WHERE kid=K1
+    DB-->>Auth: ok
+
+    Client->>Auth: GET /.well-known/jwks.json
+    Auth-->>Client: JWKS {K2(current),K3(next)}

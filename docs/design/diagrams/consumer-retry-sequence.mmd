@@ -1,0 +1,31 @@
+---
+title: SmartEdify - Consumer Retry Sequence
+---
+sequenceDiagram
+    autonumber
+    participant K as Kafka Broker
+    participant C as Consumer Worker
+    participant H as Event Handler
+    participant M as Metrics/Logger
+
+    K->>C: Fetch batch(records)
+    loop For each record
+        C->>H: handle(event)
+        alt Success
+            H-->>C: OK
+            C->>M: inc consumer_processed_total{status="success"}
+            C->>K: Commit offset
+        else Transient Error
+            H-->>C: Error(transient)
+            C->>M: inc consumer_processed_total{status="error",kind="transient"}
+            C->>M: observe retry_backoff_seconds
+            C->>C: Exponential backoff + jitter
+            C->>H: handle(event) (retry)
+        else Permanent Error
+            H-->>C: Error(permanent)
+            C->>M: inc consumer_processed_total{status="error",kind="permanent"}
+            C->>M: inc consumer_dlq_total
+            C->>K: Produce to DLQ topic
+            C->>K: Commit offset (skip)
+        end
+    end

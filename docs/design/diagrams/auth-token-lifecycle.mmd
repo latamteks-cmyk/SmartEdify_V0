@@ -1,0 +1,40 @@
+---
+title: SmartEdify - Auth Token Lifecycle
+---
+stateDiagram-v2
+    [*] --> Unauthenticated
+
+    Unauthenticated --> Authenticated: Login (password / oauth)
+    state Authenticated {
+        [*] --> AccessValid
+        AccessValid --> AccessExpiring: T ~ (exp - threshold)
+        AccessExpiring --> AccessValid: Silent refresh success
+        AccessExpiring --> AccessExpired: Not refreshed in time
+        AccessExpired --> AccessValid: Refresh with valid refresh token
+        AccessExpired --> Revoked: Refresh token revoked
+    }
+
+    Authenticated --> LoggedOut: User logout
+    Authenticated --> Revoked: Admin/security revocation
+
+    state Revoked {
+        [*] --> RevokedAccess
+        RevokedAccess --> [*]
+    }
+
+    LoggedOut --> Unauthenticated: Clear session
+
+    Unauthenticated --> RateLimited: Excessive failed attempts
+    RateLimited --> Unauthenticated: Cooldown elapsed
+
+    note right of Authenticated
+        Access Token (short TTL)
+        Refresh Token (long TTL)
+        Rotation on each refresh
+        Store only refresh (httpOnly cookie)
+    end
+
+    note left of Revoked
+        Causes: key rotation, manual revoke,
+        anomaly detection, password reset
+    end

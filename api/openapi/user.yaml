@@ -1,0 +1,91 @@
+openapi: 3.1.0
+info:
+  title: User Service API (MVP)
+  version: 0.1.0
+  description: CRUD básico de usuarios en memoria (fase inicial). Se migrará a Postgres y multi-tenant.
+servers:
+  - url: https://api.smartedify.com/api/user/v1
+paths:
+  /users:
+    post:
+      summary: Crear usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        '201': { description: Creado }
+        '400': { description: Datos inválidos }
+        '409': { description: Email duplicado }
+    get:
+      summary: Listar usuarios (MVP sin filtros)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/User' }
+  /users/{id}:
+    get:
+      summary: Obtener usuario por id
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/UserResponse' } } } }
+        '404': { description: No encontrado }
+    put:
+      summary: Actualizar usuario
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UserUpdate' }
+      responses:
+        '200': { description: Actualizado }
+        '404': { description: No encontrado }
+    delete:
+      summary: Eliminar usuario
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '200': { description: Eliminado }
+        '404': { description: No encontrado }
+components:
+  parameters:
+    userId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string }
+  schemas:
+    UserCreate:
+      type: object
+      required: [email, name, password]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
+        password: { type: string, minLength: 6 }
+    UserUpdate:
+      type: object
+      properties:
+        email: { type: string, format: email }
+        name: { type: string }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        name: { type: string }
+    UserResponse:
+      type: object
+      properties:
+        user: { $ref: '#/components/schemas/User' }

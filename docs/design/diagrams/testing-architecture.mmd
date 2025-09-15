@@ -1,0 +1,41 @@
+%% Testing Architecture (Multi-Project Jest)
+flowchart LR
+    subgraph Dev[Developer Workflow]
+        A[Code Change]
+        B[Select Project]
+        C[Jest Run]
+    end
+
+    subgraph Jest[Multi-Project Config]
+        S[security]
+        U[unit]
+        I[integration]
+    end
+
+    subgraph Env[Execution Environment]
+        DB[(Postgres Real)]
+        R[(Redis Mock In-Memory)]
+        M[Metrics Registry]
+    end
+
+    A --> B --> C --> Jest
+    S --> R
+    U -->|Pure logic| M
+    I --> DB
+    I --> R
+    S --> DB:::blocked
+
+    classDef blocked stroke-dasharray: 5 5,stroke:#f66
+
+    subgraph Teardown[Resource Teardown]
+        T1[Close Pool]
+        T2[Redis quit]
+        T3[Clear Metrics]
+    end
+
+    Jest --> Teardown
+    Teardown --> Done[(Stable Exit)]
+
+    class S,U,I fill:#eef,stroke:#336
+    class DB,R fill:#fff,stroke:#555
+    class Teardown fill:#f9f9f9,stroke:#999

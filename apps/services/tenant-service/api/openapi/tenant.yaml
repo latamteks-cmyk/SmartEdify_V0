@@ -1,0 +1,267 @@
+openapi: 3.0.3
+info:
+  title: Tenant Service API
+  version: 0.1.0
+  description: >-
+    API inicial (Fase 0) para gestión de tenants (condominios), unidades,
+    memberships y operaciones básicas de gobernanza. Delegaciones avanzadas y
+    políticas extensibles se incorporarán en fases posteriores.
+servers:
+  - url: https://api.smartedify.io
+    description: Producción
+  - url: https://stg.api.smartedify.io
+    description: Staging
+  - url: http://localhost:8080
+    description: Local Dev
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UUID:
+      type: string
+      format: uuid
+    DateTime:
+      type: string
+      format: date-time
+    TenantStatus:
+      type: string
+      enum: [active, suspended]
+    GovernanceRole:
+      type: string
+      enum: [admin, presidente, vicepresidente, tesorero]
+    UnitType:
+      type: string
+      enum: [residential, commercial, mixed, common]
+    MembershipRelation:
+      type: string
+      enum: [owner, renter, family]
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: {type: string}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        instance: {type: string}
+    TenantCreate:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 3}
+        code: {type: string, minLength: 3, maxLength: 32}
+        timezone: {type: string, example: "America/Lima"}
+    Tenant:
+      type: object
+      required: [id, name, status, createdAt]
+      properties:
+        id: {$ref: '#/components/schemas/UUID'}
+        name: {type: string}
+        code: {type: string}
+        status: {$ref: '#/components/schemas/TenantStatus'}
+        timezone: {type: string}
+        createdAt: {$ref: '#/components/schemas/DateTime'}
+    UnitCreate:
+      type: object
+      required: [code, type]
+      properties:
+        code: {type: string, minLength: 1, maxLength: 32}
+        type: {$ref: '#/components/schemas/UnitType'}
+        parentUnitId: {$ref: '#/components/schemas/UUID'}
+        areaM2: {type: number, minimum: 0}
+    Unit:
+      type: object
+      required: [id, tenantId, code, type, active]
+      properties:
+        id: {$ref: '#/components/schemas/UUID'}
+        tenantId: {$ref: '#/components/schemas/UUID'}
+        code: {type: string}
+        type: {$ref: '#/components/schemas/UnitType'}
+        active: {type: boolean}
+        parentUnitId: {$ref: '#/components/schemas/UUID'}
+    MembershipCreate:
+      type: object
+      required: [relation, validFrom]
+      properties:
+        userId: {$ref: '#/components/schemas/UUID'}
+        relation: {$ref: '#/components/schemas/MembershipRelation'}
+        validFrom: {$ref: '#/components/schemas/DateTime'}
+        validTo: {$ref: '#/components/schemas/DateTime'}
+    Membership:
+      type: object
+      required: [id, unitId, userId, relation, active]
+      properties:
+        id: {$ref: '#/components/schemas/UUID'}
+        unitId: {$ref: '#/components/schemas/UUID'}
+        userId: {$ref: '#/components/schemas/UUID'}
+        relation: {$ref: '#/components/schemas/MembershipRelation'}
+        active: {type: boolean}
+        validFrom: {$ref: '#/components/schemas/DateTime'}
+        validTo: {$ref: '#/components/schemas/DateTime'}
+    TransferAdminRequest:
+      type: object
+      required: [toUserId]
+      properties:
+        toUserId: {$ref: '#/components/schemas/UUID'}
+        effectiveFrom: {$ref: '#/components/schemas/DateTime'}
+        actaId: {$ref: '#/components/schemas/UUID'}
+    DelegateRequest:
+      type: object
+      required: [role, delegateUserId, ttl]
+      properties:
+        role: {$ref: '#/components/schemas/GovernanceRole'}
+        delegateUserId: {$ref: '#/components/schemas/UUID'}
+        ttl: {type: string, description: ISO8601 duration}
+        scopes: {type: array, items: {type: string}, minItems: 1}
+    GovernanceChange:
+      type: object
+      required: [id, tenantId, role, userId, action, effectiveFrom]
+      properties:
+        id: {$ref: '#/components/schemas/UUID'}
+        tenantId: {$ref: '#/components/schemas/UUID'}
+        role: {$ref: '#/components/schemas/GovernanceRole'}
+        userId: {$ref: '#/components/schemas/UUID'}
+        action: {type: string, enum: [assigned, transferred, delegated, revoked]}
+        effectiveFrom: {$ref: '#/components/schemas/DateTime'}
+        effectiveTo: {$ref: '#/components/schemas/DateTime'}
+        chainHash: {type: string}
+    TenantContext:
+      type: object
+      required: [userId, tenantId, roles, version]
+      properties:
+        userId: {$ref: '#/components/schemas/UUID'}
+        tenantId: {$ref: '#/components/schemas/UUID'}
+        roles: {type: array, items: {$ref: '#/components/schemas/GovernanceRole'}}
+        version: {type: integer, minimum: 1}
+paths:
+  /tenants:
+    post:
+      summary: Crear tenant
+      tags: [Tenants]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TenantCreate' }
+      responses:
+        '201':
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Tenant' }
+        '400': {description: Datos inválidos}
+        '409': {description: Código duplicado}
+  /tenants/{id}:
+    get:
+      summary: Obtener tenant por id
+      tags: [Tenants]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {$ref: '#/components/schemas/UUID'}
+      responses:
+        '200': {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/Tenant'}}}}
+        '404': {description: No encontrado}
+  /tenants/{id}/units:
+    post:
+      summary: Crear unidad
+      tags: [Units]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {$ref: '#/components/schemas/UUID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UnitCreate'}
+      responses:
+        '201': {description: Creado, content: {application/json: {schema: {$ref: '#/components/schemas/Unit'}}}}
+        '404': {description: Tenant no encontrado}
+    get:
+      summary: Listar unidades
+      tags: [Units]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {$ref: '#/components/schemas/UUID'}
+      responses:
+        '200': {description: OK}
+  /units/{id}/memberships:
+    post:
+      summary: Alta membership de unidad
+      tags: [Memberships]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {$ref: '#/components/schemas/UUID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MembershipCreate'}
+      responses:
+        '201': {description: Creado, content: {application/json: {schema: {$ref: '#/components/schemas/Membership'}}}}
+        '404': {description: Unidad o usuario no encontrado}
+        '409': {description: Solapamiento de vigencias}
+  /tenants/{id}/governance/transfer-admin:
+    post:
+      summary: Transferir admin único
+      tags: [Governance]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {$ref: '#/components/schemas/UUID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/TransferAdminRequest'}
+      responses:
+        '200': {description: Transferencia programada}
+        '403': {description: Permiso insuficiente}
+        '409': {description: Conflicto admin único}
+  /tenants/{id}/governance/delegate:
+    post:
+      summary: Delegar rol temporal (puede no estar implementado aún)
+      tags: [Governance]
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: {$ref: '#/components/schemas/UUID'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DelegateRequest'}
+      responses:
+        '200': {description: Delegación creada}
+        '501': {description: No implementado en Fase 0}
+  /tenant-context:
+    get:
+      summary: Obtener roles agregados de un usuario en un tenant
+      tags: [Context]
+      parameters:
+        - in: query
+          name: tenantId
+          required: true
+          schema: {$ref: '#/components/schemas/UUID'}
+        - in: query
+          name: userId
+          required: true
+          schema: {$ref: '#/components/schemas/UUID'}
+      responses:
+        '200': {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/TenantContext'}}}}
+        '404': {description: No encontrado}
+        '403': {description: Acceso denegado}

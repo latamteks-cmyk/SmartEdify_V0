@@ -1,0 +1,110 @@
+version: '3.8'
+
+# Variables recomendadas en .env (con defaults aquí solo para DX)
+# POSTGRES_DB=smartedify
+# POSTGRES_USER=postgres
+
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: smartedify-redis
+    ports:
+      - "${REDIS_PORT:-6639}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: smartedify-db
+    environment:
+      # IMPORTANTE: NO usar credenciales reales por defecto. Definir en .env local/CI.
+      POSTGRES_DB: ${POSTGRES_DB:-smartedify}
+      POSTGRES_USER: ${POSTGRES_USER:-CHANGE_ME_DB_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DB_PASSWORD}
+    ports:
+      - "${PGPORT:-5542}:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  auth-service:
+    build:
+      context: ./apps/services/auth-service
+      dockerfile: Dockerfile
+    container_name: auth-service
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-CHANGE_ME_DB_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DB_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-smartedify}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      AUTH_PORT: ${AUTH_PORT:-9080}
+      AUTH_LOG_LEVEL: info
+    ports:
+      - "${AUTH_PORT:-9080}:8080"
+    restart: unless-stopped
+
+  user-service:
+    build:
+      context: ./apps/services/user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGUSER: ${POSTGRES_USER:-CHANGE_ME_DB_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DB_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB:-smartedify}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      USER_PORT: ${USER_PORT:-9081}
+      USER_LOG_LEVEL: info
+    ports:
+      - "${USER_PORT:-9081}:8081"
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  db_data:
+
+# Ejemplo futuro tenant-service (mantener fuera de bloque volumes):
+#  tenant-service:
+#    build:
+#      context: ./apps/services/tenant-service
+#      dockerfile: Dockerfile
+#    container_name: tenant-service
+#    depends_on:
+#      db:
+#        condition: service_healthy
+#    environment:
+#      TENANT_DB_URL: postgres://$${POSTGRES_USER:-postgres}:$${POSTGRES_PASSWORD:-postgres}@db:5432/$${POSTGRES_DB:-smartedify}
+#      TENANT_PORT: ${TENANT_PORT:-9084}
+#      TENANT_LOG_LEVEL: ${TENANT_LOG_LEVEL:-info}
+#      TENANT_OUTBOX_POLL_INTERVAL_MS: ${TENANT_OUTBOX_POLL_INTERVAL_MS:-2000}
+#      TENANT_OUTBOX_BATCH_SIZE: ${TENANT_OUTBOX_BATCH_SIZE:-50}
+#    ports:
+#      - "${TENANT_PORT:-9084}:8084"
+#    restart: unless-stopped

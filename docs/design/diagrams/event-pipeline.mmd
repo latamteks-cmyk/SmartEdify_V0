@@ -1,0 +1,29 @@
+%% Event Pipeline Flowchart
+flowchart LR
+    subgraph Outbox
+        A["DB Outbox Row\nstatus=pending"]
+    end
+    A -->|poll + validate| B["Publisher Abstraction\n(Logging/Kafka)"]
+    B -->|produce| K[(Kafka Topic)]
+    subgraph Consumers
+        K --> C1["Lag Consumer\n(lag metrics)"]
+        K --> C2["Processing Consumer\n(eachBatch)"]
+        C2 -->|dispatch eventType| R{Registry}
+        R -->|found| H1["Handler"]
+        R -->|not found| NF[[handler_not_found++]]
+        H1 --> M1[[processed_success++]]
+        H1 --> D1[[duration_histogram]]
+        H1 -->|error| E["Classify\n(transient? permanent?)"]
+        E -->|transient & < max| RT["Retry backoff+jitter"]
+        RT --> C2
+        E -->|permanent o max| FL[[processed_error++]]
+        E -->|retry attempt| RA[[retry_attempts++]]
+    end
+    classDef store fill:#fdf6e3,stroke:#b58900;
+    classDef proc fill:#eee,stroke:#555;
+    classDef metric fill:#e0f7fa,stroke:#00838f;
+    classDef error fill:#ffebee,stroke:#c62828;
+    class K store;
+    class A,B,C1,C2,R,H1,E,RT proc;
+    class M1,D1,NF,RA,FL metric;
+    class E,FL error;

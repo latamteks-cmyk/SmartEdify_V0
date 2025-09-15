@@ -1,0 +1,18 @@
+flowchart LR
+    P1[Priority 1]\nJWKS Rotation
+    P2[Priority 1]\nGateway Verification
+    P3[Priority 1]\nBusiness Metrics
+    P4[Priority 2]\nTracing Endpoints
+    P5[Priority 2]\nOutbox Events Auth
+    P6[Priority 3]\nLogout + Denylist
+    P7[Priority 3]\nWebAuthn / TOTP
+
+    P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7
+
+    classDef p1 fill:#ffe5e5,stroke:#d33
+    classDef p2 fill:#fff3cd,stroke:#c9a200
+    classDef p3 fill:#e5f5ff,stroke:#2b7bb9
+
+    class P1,P2,P3 p1
+    class P4,P5 p2
+    class P6,P7 p3

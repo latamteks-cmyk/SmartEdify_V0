@@ -1,0 +1,30 @@
+stateDiagram-v2
+    [*] --> Provisioning
+    Provisioning --> Current: Activated
+    Current --> Retiring: Key Rotation Initiated
+    Retiring --> Deprecated: Grace Window Expired
+    Deprecated --> Purge: TTL / Manual Cleanup
+    Purge --> [*]
+
+    note right of Provisioning
+        Generate key pair
+        Store kid + created_at
+    end
+
+    note right of Current
+        Signs new tokens
+        JWKS exposes kid
+    end
+
+    note right of Retiring
+        Valid for verification only
+        New tokens use NEXT (promoted)
+    end
+
+    note right of Deprecated
+        Should not verify (unless forced rollback)
+    end
+
+    note right of Purge
+        Row deletion or archive
+    end

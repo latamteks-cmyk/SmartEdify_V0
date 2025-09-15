@@ -1,0 +1,36 @@
+---
+title: SmartEdify - Tenant Context Resolution Sequence
+---
+sequenceDiagram
+    autonumber
+    participant U as Usuario
+    participant FE as Frontend
+    participant API as API Gateway / BFF
+    participant AUTH as Auth Service
+    participant CTX as Tenant Context Service
+    participant CACHE as Cache (Redis)
+    participant DB as PostgreSQL
+
+    U->>FE: Request protected resource
+    FE->>API: HTTP Request + JWT(access)
+    API->>AUTH: Validate signature (JWKS)
+    AUTH-->>API: Claims + tenant_id
+    API->>CACHE: GET tenant_context(tenant_id)
+    alt Cache hit
+        CACHE-->>API: context JSON
+    else Cache miss
+        API->>CTX: fetch tenant context(tenant_id)
+        CTX->>DB: SELECT tenant + policies + memberships
+        DB-->>CTX: Rows
+        CTX-->>API: context JSON
+        API->>CACHE: SET tenant_context TTL
+    end
+    API-->>FE: Response (data, enriched context)
+
+    rect rgb(230,230,250)
+    note over FE,AUTH: Refresh Flow (Access expira)
+    FE->>AUTH: Refresh token request
+    AUTH->>DB: Validate refresh token + rotation
+    DB-->>AUTH: OK + new session
+    AUTH-->>FE: New access + refresh JWT
+    end

@@ -1,0 +1,60 @@
+name: tenant-service-ci
+
+on:
+  push:
+    paths:
+      - 'apps/services/tenant-service/**'
+      - '.github/workflows/tenant-service-ci.yml'
+  pull_request:
+    paths:
+      - 'apps/services/tenant-service/**'
+
+concurrency:
+  group: tenant-service-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: 20
+  SERVICE_DIR: apps/services/tenant-service
+
+jobs:
+  quality:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install deps
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm ci
+      - name: Lint
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm run lint || echo "Lint warnings (no fail yet)"
+      - name: Typecheck
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm run typecheck || npm run build --silent
+
+  image-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build test stage (placeholder)
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: docker build --target builder -t tenant-service:builder .
+      - name: Build runtime image
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: docker build -t tenant-service:latest .
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [image-build]
+    steps:
+      - name: Print summary
+        run: 'echo CI pipeline tenant-service completada (quality + image-build)'

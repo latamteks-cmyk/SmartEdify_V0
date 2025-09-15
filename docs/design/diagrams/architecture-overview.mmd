@@ -1,0 +1,98 @@
+---
+title: SmartEdify - Architecture Overview
+---
+flowchart LR
+    subgraph Client Layer
+        WEB[Web App]
+        MOBILE[Mobile App]
+    end
+
+    subgraph Identity & Access
+        AUTH[Auth Service]
+        JWKS[Key Set / JWKS Endpoint]
+    end
+
+    subgraph Core Platform
+        API[API Gateway / BFF]
+        TENANT[Context Resolver]
+        OUTBOX_SVC[Domain Service(s) with Outbox]
+    end
+
+    subgraph Data Storage
+        PG[(PostgreSQL DB)]
+        CACHE[(Redis / In-memory Cache)]
+    end
+
+    subgraph Messaging
+        OUTBOX[(Outbox Table)]
+        PUBLISHER[Publisher Abstraction]
+        KAFKA[(Kafka Broker)]
+        DLQ[(DLQ Topic)]
+    end
+
+    subgraph Consumers
+        CONSUMER[Event Consumer Workers]
+        HANDLERS[Domain Event Handlers]
+    end
+
+    subgraph Observability
+        METRICS[(Prometheus Metrics)]
+        LOGS[(Structured Logs)]
+        TRACES[(Tracing Backend)]
+        ALERTS[(Alerting Rules)]
+    end
+
+    subgraph Security & Governance
+        ADRS[ADRs]
+        SCHEMA[Event Schemas]
+        SCAN[SBOM / Supply Chain]
+    end
+
+    WEB --> API
+    MOBILE --> API
+    API --> AUTH
+    AUTH --> JWKS
+    API --> TENANT
+    TENANT --> CACHE
+    TENANT --> PG
+
+    OUTBOX_SVC --> PG
+    PG --> OUTBOX
+    OUTBOX --> PUBLISHER
+    PUBLISHER --> KAFKA
+    KAFKA --> CONSUMER
+    CONSUMER --> HANDLERS
+    CONSUMER -->|Permanent Failure| DLQ
+
+    HANDLERS --> PG
+    HANDLERS --> CACHE
+
+    CONSUMER --> METRICS
+    PUBLISHER --> METRICS
+    OUTBOX_SVC --> METRICS
+    CONSUMER --> LOGS
+    OUTBOX_SVC --> LOGS
+    API --> LOGS
+    API --> TRACES
+    OUTBOX_SVC --> TRACES
+    CONSUMER --> TRACES
+    METRICS --> ALERTS
+
+    SCHEMA -. governs .-> PUBLISHER
+    SCHEMA -. governs .-> CONSUMER
+    ADRS -. reference .-> OUTBOX_SVC
+    SCAN -. reports .-> SECURITY
+
+    style DLQ fill:#ffdddd,stroke:#cc0000
+    style KAFKA fill:#f5f5f5,stroke:#333
+    style OUTBOX fill:#fff2cc,stroke:#d4aa00
+    style PUBLISHER fill:#fff2cc,stroke:#d4aa00
+    style CONSUMER fill:#d9e8fb,stroke:#1b75d1
+    style HANDLERS fill:#d9e8fb,stroke:#1b75d1
+    style METRICS fill:#e1ffe1,stroke:#2d8a2d
+    style TRACES fill:#e1ffe1,stroke:#2d8a2d
+    style LOGS fill:#e1ffe1,stroke:#2d8a2d
+    style ALERTS fill:#e1ffe1,stroke:#2d8a2d
+    style SCHEMA fill:#efe
+    style ADRS fill:#efe
+    style SCAN fill:#efe

@@ -1,0 +1,29 @@
+---
+title: SmartEdify - Outbox Flow
+---
+flowchart TD
+    subgraph Domain TX (DB Transaction)
+        A[Domain Aggregate Change]
+        B[Persist Aggregate]
+        C[Insert Outbox Row JSON]
+    end
+
+    A --> B --> C -->|Commit| D[TX Commit]
+    D --> E[Outbox Poller / Publisher Loader]
+    E --> F[Deserialize + Envelope Enrichment]
+    F --> G[Produce to Kafka]
+    G --> H[Broker ACK]
+    H --> I[Mark Outbox Row as SENT]
+    I --> J[Metrics: outbox_sent_total, outbox_latency_seconds]
+
+    E -->|Failure| R1[Retry w/ backoff]
+    R1 --> E
+    E -->|Poison/Max Retries| P[Mark as FAILED + dead_letter=true]
+    P --> J
+
+    classDef ok fill:#dfffdc,stroke:#2d8a2d
+    classDef risk fill:#ffe4e1,stroke:#d33
+    classDef proc fill:#e6f0ff,stroke:#1b75d1
+
+    class A,B,C,D,E,F,G,H,I,J proc
+    class P risk

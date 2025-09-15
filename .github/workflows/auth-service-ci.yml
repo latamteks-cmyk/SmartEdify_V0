@@ -1,0 +1,132 @@
+name: auth-service-ci
+
+# Controlar ejecuciones simultáneas sobre misma ref
+concurrency:
+  group: auth-service-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    paths:
+      - 'apps/services/auth-service/**'
+      - '.github/workflows/auth-service-ci.yml'
+  pull_request:
+    paths:
+      - 'apps/services/auth-service/**'
+
+permissions:
+  contents: read
+  security-events: write
+
+env:
+  NODE_VERSION: 20
+  SERVICE_DIR: apps/services/auth-service
+
+jobs:
+  quality:
+    name: Lint & Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install deps
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm ci
+      - name: Lint
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm run lint
+      - name: Build (type-check)
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm run build --silent
+
+  tests:
+    name: Unit & Integration Tests
+    runs-on: ubuntu-latest
+    needs: quality
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: smartedify
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: smartedify
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      AUTH_LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install deps
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm ci
+      - name: Run migrations
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm run migrate up
+      - name: Test (with coverage)
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm test -- --runInBand --coverage
+      - name: Docker test stage build
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: docker build --target test -t auth-service:test .
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: auth-service-coverage
+          path: ${{ env.SERVICE_DIR }}/coverage
+      - name: Basic smoke (health)
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          node dist/cmd/server/main.js &
+          PID=$!
+          echo "Esperando 3s a que levante"; sleep 3
+          curl -f http://localhost:8080/health || (echo "Smoke FAILED"; kill $PID; exit 1)
+          kill $PID
+
+  security_audit:
+    name: NPM Audit (Advisories)
+    runs-on: ubuntu-latest
+    needs: quality
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install deps (prod+dev)
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm ci
+      - name: npm audit (no fail)
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          npm audit --omit=dev || true
+
+  summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [tests, security_audit]
+    steps:
+      - name: Print summary
+        run: 'echo CI pipeline completada: quality + tests + security_audit \(Node $NODE_VERSION\)'
