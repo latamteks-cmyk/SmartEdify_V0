@@ -1,148 +1,164 @@
 # Arquitectura Backend SmartEdify — Overview
 
-> Última actualización: 2025-09-16. Sustituye al antiguo `docs/spec.md` como fuente única de verdad sobre la arquitectura backend.
+> Última actualización: 2025-09-17. Sustituye al antiguo `docs/spec.md` como fuente única de verdad del backend.
 
 ## Monorepo y Capas Principales
 
-- **Aplicaciones (`apps/`)**: agrupa ejecutables (web, móvil y microservicios). Estado: Auth y Tenant con código productivo; User y Assembly en fase scaffold.
-- **Microservicios (`apps/services/<service>`):** cada servicio debe exponer `cmd/server/main.*` como entrypoint y organizarse en `internal/app`, `internal/domain`, `internal/adapters/{http|repo|bus|ext}`, `internal/config`. Contratos viven en `api/openapi.yaml` y `api/proto/`; las migraciones SQL en `migrations/`; pruebas unitarias e integración en `tests/unit` y `tests/integration`; despliegues en `helm/` y `k8s/`.
-- **Librerías compartidas (`packages/`)**: destino para `core-domain`, `security`, `http-kit`, `event-bus`, `persistence`, `validation`, `i18n`, `ui-kit`. *Roadmap:* carpeta aún no creada; mantener dependencias locales hasta consolidar módulos reutilizables.
-- **Contratos externos (`api/`)**: OpenAPI y proto compartidos para integraciones externas.
-- **Migraciones y seeds (`db/`)**: repositorio centralizado para scripts multiplataforma. *Roadmap:* crear estructura tras estabilizar pipelines por servicio.
-- **Infraestructura declarativa (`infra/`)**: terraform, manifiestos Kubernetes, configuración de gateway. *Roadmap:* pendiente creación coordinada con equipo DevOps.
-- **Operaciones y runbooks (`ops/`)**: documentación operativa viva (incident response, playbooks). *Roadmap:* parte de la estandarización SRE.
-- **Documentación (`docs/`)**: PRD, diseño, API, legal y snapshots ejecutivos.
-- **Herramientas internas (`tools/`)**: scripts especializados. *Roadmap:* identificar necesidades tras estabilizar servicios core.
-- **Calidad y CI/CD (`.github/`, `Makefile`, `CODEOWNERS`)**: pipelines por servicio, control de commits y revisiones obligatorias.
+- **Aplicaciones (`apps/`)**: alberga los ejecutables backend. Hoy contiene `auth-service` y `tenant-service` operativos, `user-service` con CRUD en memoria y `assembly-service` aún documental.
+- **Microservicios (`apps/services/<service>`):** convención Node.js por servicio con `cmd/server/main.ts` (entrypoint), `internal/` para app/domain/adapters, carpetas de `migrations/`, `tests/` y manifiestos (`helm/`, `k8s/`) a crear cuando corresponda. Contratos viven en `api/openapi/`.
+- **Librerías compartidas (`packages/`)** *(Roadmap)*: carpeta aún no creada; hasta entonces los servicios mantienen adaptadores internos duplicados.
+- **Contratos externos (`api/`)**: OpenAPI y proto compartidos. Auth expone `api/openapi/auth.yaml`; Tenant cuenta con `api/openapi/tenant.yaml` v0.1; User/Assembly siguen pendientes.
+- **Migraciones y seeds (`db/`)** *(Roadmap)*: cada servicio mantiene sus migraciones en origen. Se unificará cuando exista plataforma de datos compartida.
+- **Infraestructura declarativa (`infra/`)** *(Roadmap)*: pendiente de incorporar Terraform/K8s. Hoy sólo `docker-compose.yml` para Postgres/Redis locales.
+- **Operaciones y runbooks (`ops/`)** *(Roadmap)*: migrar runbooks desde README a carpeta dedicada cuando crezca el catálogo.
+- **Documentación (`docs/`)**: PRD, ADRs, arquitectura, auditorías y snapshots ejecutivos.
+- **Herramientas internas (`scripts/`, `plans/`)**: scripts puntuales (`scripts/dev-up.ps1`) y planes/diagrams en `plans/` y `docs/design`.
+- **Calidad y CI/CD (`.github/`, `Makefile`)**: workflows por servicio (Auth con Jest + build + scan, Tenant en proceso), configuración de dependabot y convenciones de commits.
 
 ## Principios Técnicos
 
 ### Contratos y Configuración
-- Contratos primero: cada cambio en API exige actualizar OpenAPI/Proto, ejemplos y regenerar SDKs.
-- Variables de entorno con prefijo por servicio (`AUTH_`, `USER_`, `ASM_`, etc.). Distribuir plantillas `.env.example`.
-- Configuración sensible fuera del repositorio; secrets gestionados vía GitHub Secrets/AWS Secrets Manager.
+- Contratos primero: cada cambio público debe actualizar OpenAPI, ejemplos y tests de contrato (Spectral + snapshots, pendiente de automatizar).
+- Variables de entorno con prefijo por servicio (`AUTH_`, `TENANT_`, etc.) y plantillas `.env.example` versionadas.
+- Configuración sensible fuera del repositorio; usar GitHub Secrets / AWS Secrets Manager para despliegues.
 
 ### Seguridad y Cumplimiento
-- TLS extremo a extremo; sin secretos en repo; JWT con `aud`, `iss`, `sub`, `tenant_id`, `roles`, `scopes`.
-- El gateway centraliza la verificación de JWT; los servicios aplican autorización contextual.
-- Imágenes firmadas (cosign) y políticas de admisión (Kyverno: `runAsNonRoot`, `readOnlyRootFilesystem`).
-- Logs sin PII y tokens redactados; retención outbox 7 días y DLQ 30 días.
+- TLS extremo a extremo a través del gateway (pendiente de implementación); servicios internos sólo escuchan en `0.0.0.0` en dev.
+- JWT con `aud`, `iss`, `sub`, `tenant_id`, `roles`, `jti` y `type`; rotación automática basada en JWKS en Auth.
+- Logs JSON con anonimización: tokens accesos redactados (próximo hito) y sin PII cruda.
+- Imágenes firmadas (cosign) + políticas Kyverno (`runAsNonRoot`, `readOnlyRootFilesystem`) en roadmap.
 
 ### Persistencia y Datos
-- Migraciones versionadas y *forward-only* con plan de rollback documentado.
-- Una transacción por caso de uso; índices declarados en migraciones.
-- Patrón outbox para eventos externos; *idempotency* por `x-request-id` y `event-id`.
+- Migraciones forward-only por servicio. Auth ya incluye `users`, `user_roles`, `auth_signing_keys`, auditoría y seeds básicos; Tenant cubre tenencias, unidades, memberships, gobernanza y outbox/DLQ.
+- Outbox pattern obligatorio para integraciones externas; Tenant ya lo ejecuta con DLQ y publisher/consumer.
+- Idempotencia por `x-request-id`/`event-id` y manejo de `retry_count` en outbox.
 
 ### Testing y Calidad
-- Cobertura mínima objetivo: 80% en `internal/app` y dominio.
-- Pruebas de contrato para HTTP/gRPC con snapshots sanitizados; migraciones validadas en CI.
-- Lint y format en pre-commit; convenciones de commit y CODEOWNERS.
+- Lint + format en pre-commit (pendiente de reforzar en todos los servicios).
+- Objetivo de cobertura ≥80 % en `internal/app` y dominio una vez estabilizada la refactorización.
+- Pruebas de contrato HTTP (Spectral + Jest snapshots) pendientes de automatizar en CI.
 
 ### Observabilidad y Operación
-- Tracing OTel con atributos `tenant_id`, `service`, `assembly_id|user_id`.
-- Logs JSON estructurados; métricas técnicas y de negocio expuestas en `/metrics`.
-- Dashboards y alertas SLO para latencia p95, ratio de éxito login, detección reuse tokens y backlog outbox.
+- Tracing OpenTelemetry habilitado en Auth y Tenant (OTLP exporter configurable) con atributos `tenant_id`, `service`, `user_id` cuando aplica.
+- Logs JSON estructurados vía Pino/Pino-http con correlación `x-request-id` y `trace_id` cuando hay span activo.
+- Métricas Prometheus por servicio: Auth emite HTTP + negocio (`auth_login_success_total`, `auth_refresh_reuse_blocked_total`, etc.), Tenant cubre outbox, DLQ, broker y negocios (`tenant_created_total`, `membership_active`).
+- Dashboards y alertas SLO por definir (ver roadmap de observabilidad).
 
 ### Versionado y Entregas
-- SemVer por servicio; tags y changelogs autogenerados.
-- Rama `main` protegida; estrategia `release/*`, `feat/*`, `fix/*`, `chore/*`.
-- Workflows: lint → test → build → scan → image → helm-lint → deploy (dev) con promoción manual a stg/prod.
+- SemVer por servicio, tags a definir al momento del primer release público.
+- Ramas `main` protegidas; ramas de trabajo `feat/*`, `fix/*`, `chore/*`.
+- Pipelines objetivo: lint → test → build → scan → image → helm lint → deploy dev → promoción manual a stg/prod.
 
 ## Servicios Backend y Responsabilidades
 
 ### Auth Service (Identidad y Tokens)
-- **Responsabilidad:** autenticación, emisión de tokens, flujo de recuperación y métricas de sesión.
+- **Responsabilidad:** autenticación, emisión/rotación de tokens, recuperación de credenciales y métricas de sesión.
 - **Estado:**
-  - Endpoints activos: `/register`, `/login`, `/refresh-token`, `/forgot-password`, `/reset-password`, `/health`, `/metrics`.
-  - Validaciones de entrada con Zod; hashing Argon2id configurable (`AUTH_ARGON2_*`).
-  - JWT Access + Refresh con rotación básica y guardia brute force email+IP.
-  - Migraciones base para usuarios, roles y auditoría de seguridad; logging JSON y métricas técnicas HTTP.
-  - Password reset tokens aislados (Redis en producción, fallback in-memory en tests).
+  - Endpoints activos: `/register`, `/login`, `/logout`, `/refresh-token`, `/forgot-password`, `/reset-password`, `/roles`, `/permissions`, `/health`, `/metrics`, `/.well-known/jwks.json`, `/admin/rotate-keys` (MVP), `/debug/current-kid` (solo dev/test).
+  - Validaciones Zod, hashing Argon2id parametrizable y rate limiting + brute-force guard Redis (`bf:<email>:<ip>`).
+  - JWT firmados con clave asimétrica (`auth_signing_keys` en Postgres), cache in-memory, JWKS público y rotación manual promoviendo `current→retiring→expired`.
+  - Persistencia: Postgres (`users`, `user_roles`, `audit_security`) y Redis para sesiones, refresh y reset tokens (fallback in-memory en tests).
+  - Observabilidad: logging JSON (Pino), tracing OTel (auto-instrumentaciones HTTP/Express/PG) y métricas `auth_http_requests_total`, `auth_http_request_duration_seconds`, `auth_login_success_total`, `auth_login_fail_total`, `auth_password_reset_requested_total`, `auth_password_reset_completed_total`, `auth_refresh_rotated_total`, `auth_refresh_reuse_blocked_total`, `auth_jwks_keys_total{status}`, `auth_jwks_rotation_total`.
+  - Testing: Jest multiproyecto (`security`, `unit`, `integration`) con migraciones aplicadas en `global-setup` y Redis mock consistente.
 - **Backlog priorizado:**
-  - JWKS y rotación de claves asimétricas (RS256/ES256) con endpoints OIDC (`/.well-known/jwks.json`, `/.well-known/openid-configuration`).
-  - Integración con gateway para verificación centralizada de JWT y políticas de autorización.
-  - Métricas de negocio (`auth_token_revoked_total`, `auth_lockouts_total`, `auth_refresh_reuse_detected_total`, histogramas de rotación).
-  - Outbox + eventos (`user.registered`, `password.changed`) y contrato OpenAPI formal consolidado.
-  - Tracing OTel por endpoint con atributos `auth.user_id` y `auth.flow`.
-  - Política de logout (invalidación de refresh actual + denylist corta de access tokens comprometidos).
-  - Roadmap MFA (WebAuthn/TOTP) posterior a JWKS estable.
+  - Proteger `/admin/rotate-keys` con autenticación/roles y automatizar rotación (cron + expiración `retiring→expired`).
+  - Emitir eventos (`user.registered`, `password.changed`) vía outbox + publisher y propagar a User/Tenant.
+  - Completar contrato OpenAPI + pruebas de contrato Spectral/Jest y publicar SDK.
+  - Redactar tokens/PII en logs, exponer métricas de saturación (pool PG, Redis) y definir alertas SLO.
+  - Integración con gateway: validación centralizada de JWT, cache JWKS y claims `tenant_ctx_version` provenientes de Tenant.
+  - Roadmap MFA (WebAuthn/TOTP) tras cerrar rotación automatizada y outbox.
 
 ### User Service (Perfil Global)
-- **Responsabilidad:** perfil y atributos personales del usuario; enlace base usuario↔tenant.
-- **Estado:** scaffold con CRUD `/users` en memoria y plan para `/profile` y `/preferences`.
-- **Backlog priorizado:** migraciones reales, validaciones, eventos `user.created`, métricas de usuarios activos e integración con Tenant Service para enriquecer vistas sin duplicar unidades.
+- **Responsabilidad:** perfil y atributos del usuario; enrutamiento base usuario↔tenant.
+- **Estado:** API Express con CRUD `/users` en memoria (persistencia y contratos por definir); pruebas unitarias básicas.
+- **Backlog priorizado:**
+  - Migrar a Postgres con migraciones (`users`, `profiles`, `preferences`) e índices.
+  - Definir OpenAPI + examples, DTOs Zod y validaciones.
+  - Integrar eventos (`user.created`, `user.updated`) y métricas de usuarios activos.
+  - Sincronización con Tenant Service para enriquecer vistas sin duplicar gobernanza.
 
 ### Tenant Service (Gobernanza y Multitenancy)
-- **Responsabilidad:** tenants, unidades, memberships, roles de gobernanza y políticas.
-- **Estado:** Fase 0 completa con contrato `tenant.yaml` v0.1, migraciones (`tenants`, `units`, `unit_memberships`, `governance_positions`, `tenant_policies`, `outbox_events`) y métricas (`tenant_created_total`, `unit_created_total`, `membership_active`, `governance_transfer_total`). Endpoints para `transfer-admin` y `tenant-context` activos; gestión outbox/DLQ con métricas y purga.
+- **Responsabilidad:** tenants, unidades, memberships, roles de gobernanza, políticas y distribución de contexto multi-tenant.
+- **Estado:**
+  - Endpoints productivos: `/tenants` (create/get), `/tenants/{id}/units` (create/list), `/units/{id}/memberships` (alta), `/tenants/{id}/governance/transfer-admin`, `/tenant-context`, `/outbox/dlq` (list/reprocess/purge), `/metrics`, `/health`.
+  - Persistencia Postgres con migraciones (`tenants`, `units`, `unit_memberships`, `governance_positions`, `role_definitions`, `role_assignments`, `outbox_events`, `outbox_events_dlq`) y constraints (unicidad admin, exclusión renter/owner, active flag).
+  - Outbox + DLQ operativos con poller, métricas de latencia/retries, publisher Logging/Kafka (configurable) y consumer de lag con OTel spans (`kafka.publish`).
+  - Roles dinámicos vía `rolesRepo` y cálculo `tenant-context` con versión hash (`version`) y roles combinados (governanza + asignaciones).
+  - Observabilidad: métricas negocio (`tenant_created_total`, `unit_created_total`, `membership_active`, `governance_transfer_total{result}`) y operativas (`outbox_*`, `broker_*`, `consumer_*`, `tenant_context_latency` en roadmap) más tracing OTel (Fastify + KafkaJS).
+  - Seguridad: plugin JWT opcional (`authJwtPlugin`) con soporte JWKS (`TENANT_JWKS_URL`) o clave pública PEM (`TENANT_JWT_PUBLIC_KEY`).
 - **Backlog priorizado:**
-  - CRUD de unidades (create + soft deactivate) y alta de memberships con validación de solapamiento (HTTP 409) y eventos `membership.added`.
-  - Delegaciones temporales (`/tenants/{id}/governance/delegate`), expiración TTL automática y métrica `governance_delegation_active`.
-  - Integración con Auth: incluir `tenant_ctx_version` en refresh y cache L1 con invalidación por evento de contexto.
-  - Motor de políticas (`max_delegation_days`, `max_units`) y auditoría extendida con chain hash.
+  - Implementar delegaciones temporales (`/tenants/{id}/governance/delegate`) con expiración automática y métricas `governance_delegation_active`.
+  - Completar validación de solapamiento memberships (HTTP 409 con detalles) y versión 2 del evento `membership.added` registrada en `event-schemas`.
+  - Cache L1/L2 de `tenant-context` (TTL + invalidación por evento) e integración con Auth para `tenant_ctx_version`.
+  - Consolidar publisher Kafka (gestión de topics, retries externos) y consumidor real con handler registry + DLQ específica.
+  - Automatizar pruebas (Vitest) en CI/CD, coverage de repositorios y contract tests OpenAPI.
+  - Motor de políticas (`max_delegation_days`, `max_units`) y auditoría chain-hash extendida.
 
 ### Assembly Service (Flujos y Actas)
-- **Responsabilidad:** cálculos de quórum, derechos de voto y flujos de actas apoyados en contexto Tenant/User.
-- **Estado:** dependencias y flujos documentados; implementación pendiente.
-- **Backlog priorizado:** definir contratos y PRD detallado, modelar dominio y persistencia, integrar trazabilidad con Tenant Service antes de exponer endpoints.
+- **Responsabilidad:** flujos de asambleas, quórum y trazabilidad apoyada en Auth/Tenant.
+- **Estado:** únicamente documentación inicial en `api/` y README. Código pendiente.
+- **Backlog priorizado:**
+  - Modelado de dominio y PRD/ADR antes de escribir código.
+  - Definir persistencia, outbox e integración con eventos Tenant/Auth.
+  - Establecer KPIs (participación, cumplimiento quorum) y pruebas de contrato.
 
-### Flujo Estándar de Creación de Usuario (Multi-tenant)
-1. **Registro / Invitación:** Auth Service recibe email (opcional tenant inicial), crea identidad con Argon2id y emitirá `user.registered` cuando outbox esté disponible.
-2. **Persistencia de Perfil:** User Service almacena atributos (nombre, idioma, preferencias) vía evento o invocación directa; no asigna unidades.
-3. **Asociación a Tenant:** Tenant Service relaciona usuario↔tenant global.
-4. **Asignación de Unidades y Roles:** Tenant Service gestiona memberships de unidades y transferencias/delegaciones (`/tenants/{id}/governance/*`).
-5. **Emisión de Tokens con Contexto:** Auth consulta `/tenant-context` para incluir claims ligeros (`t_roles`, `tenant_ctx_version`); refresh posterior actualiza claims cuando la versión cambie.
-6. **Consumo en Servicios:** Assembly Service y otros consultan Tenant Service on-demand para cálculos de permisos profundos.
+### Flujo estándar de creación y habilitación de usuario (multi-tenant)
+1. **Registro / Invitación:** Auth recibe email y tenant opcional → crea identidad, genera métricas (`auth_login_*` cuando aplique) y, una vez habilitado el outbox, emitirá `user.registered`.
+2. **Persistencia de perfil:** User Service almacenará atributos (nombre, idioma, preferencias) a partir de evento o invocación directa.
+3. **Asociación a tenant:** Tenant Service relaciona usuario↔tenant y registra memberships iniciales.
+4. **Asignación de roles y unidades:** Tenant gestiona memberships, roles dinámicos y transferencias/delegaciones (`transfer-admin` hoy, `delegate` en roadmap).
+5. **Emisión de tokens con contexto:** Auth consulta `/tenant-context` para calcular claims (`roles`, `tenant_ctx_version`); refresh detecta invalidaciones via versión.
+6. **Consumo downstream:** Assembly y demás servicios consultan Tenant bajo demanda para cálculos profundos.
 
-**Principios:** JWT minimalista (solo IDs y roles agregados); versionado de contexto (`tenant_ctx_version`) para invalidación eficiente; dominios segregados para desacoplar gobernanza de autenticación.
+**Principios:** JWT livianos (IDs + roles agregados), versión de contexto para invalidaciones eficientes y dominios separados (identidad vs gobernanza).
 
 ## Arquitectura de Testing — Auth Service
 
-### Estructura Jest
+### Configuración Jest multiproyecto
 Tres proyectos en `jest.config.js`:
-1. **security:** generación/validación de tokens y rotación (DB y Redis mock controlados).
-2. **unit:** lógica pura sin efectos secundarios (en expansión tras refactor `internal/app`).
-3. **integration:** pruebas contra Postgres real (migraciones aplicadas en setup) y Redis simulado en memoria.
+1. **security:** rotación de claves, JWKS y reutilización de refresh tokens (mocks de PG/Redis controlados).
+2. **unit:** lógica pura (`internal/app` y helpers) sin efectos externos.
+3. **integration:** flujos contra Postgres real (migraciones `migrations_clean/`) y Redis simulado in-memory.
 
 ### Política de Mocks
-- `pg` nunca se mockea en `integration`; se validan SQL y transacciones reales.
-- `ioredis` se redirige vía `moduleNameMapper` a mock único extendido (`set/get/del/incr/expire/ttl`).
-- Evitar mocks globales implícitos; cualquier nuevo mock debe documentarse en README antes de introducirse.
+- `pg` no se mockea en `integration`; se validan SQL reales.
+- `ioredis` se redirige vía `__mocks__/ioredis.ts` compartido para mantener estado consistente.
+- Nuevos mocks requieren documentación previa en README para evitar deuda oculta.
 
 ### Datos y Aislamiento
 - Emails con sufijo aleatorio para evitar colisiones únicas.
-- Coste Argon2id reducido en test (`t=2, m=4096, p=1`).
-- Limpieza y cierre de recursos en `afterAll` (Pool Postgres, Redis mock, registros OTel/Prom).
+- Coste Argon2 reducido en test (`t=2, m=4096, p=1`).
+- Limpieza y cierre de recursos en `global-teardown` (Pool Postgres, Redis mock, métricas registradas).
 
-### Objetivos de Cobertura y Calidad
-- Corto plazo: ≥60% en `internal/app` y adaptadores críticos; mediano plazo: ≥80% incluyendo dominio.
-- Métrica adicional planificada: cobertura de rutas HTTP críticas (login, refresh, reset).
+### Cobertura y Calidad
+- Objetivo corto plazo: ≥60 % en `internal/app` y adaptadores críticos; mediano plazo ≥80 % incluyendo dominio.
+- Métrica adicional planificada: cobertura de rutas HTTP críticas (login, refresh, reset) publicada en pipeline.
 
 ### Contratos, Snapshots y Migraciones
-- Pruebas de contrato HTTP generadas desde OpenAPI + validación con Spectral antes de merge.
-- Snapshots sanitizados (reemplazo `<JWT>` / `<REFRESH>`).
-- Pruebas de migraciones en CI para garantizar compatibilidad forward-only.
+- OpenAPI Auth pendiente de actualización. Roadmap: generar tests de contrato desde especificación y validar con Spectral antes de merge.
+- Snapshots sanitizados (reemplazo `<JWT>`, `<REFRESH>`). Tests de migraciones ejecutados en `global-setup`.
 
-### Métricas y Seguridad Relacionada con Testing
-- Contadores `test_flaky_detected_total` y `test_duration_seconds{project}` para detectar flakiness y regresiones de performance.
-- Dependencias de seguridad antes de ampliar a WebAuthn/TOTP: JWKS rotación validada, detección reuse refresh tokens instrumentada y contrato OpenAPI estabilizado.
+### Métricas y Seguridad en Testing
+- Contadores `test_flaky_detected_total` y `test_duration_seconds{project}` planificados para pipeline Jenkins/GitHub Actions.
+- Validar detección de reuse refresh tokens e invalidación de sesiones durante pruebas de seguridad.
 
 ## Roadmap de Observabilidad
 
-1. **Fase actual:** métricas técnicas y logs estructurados (auth-service completo; tenant-service parcial).
-2. **Próximo paso:** tracing OTel mínimo con propagación `x-request-id` → `trace_id`.
-3. **Fase de expansión:** métricas de negocio Auth (login_success, login_fail, refresh_reuse, password_reset) y dashboards.
-4. **Operación avanzada:** alertas SLO (p99 login, tasa fallos refresh, spikes reuse) y playbooks.
-5. **Correlación multi-servicio:** atributos consistentes (`tenant_id`, `user_id`) para Assembly/Tenant/Auth.
+1. **Fase actual:** métricas técnicas + negocio Auth/Tenant y tracing OTel básico (HTTP/PG/Kafka) sin dashboards.
+2. **Próximo paso:** dashboards Prometheus/Grafana para login, refresh, outbox y consumer lag; alertas iniciales (p95 login >250 ms, outbox_pending>100, DLQ growth).
+3. **Fase de expansión:** métricas de negocio adicionales (lockouts, delegations activas), tracing cross-service con propagación `x-request-id` → `trace_id` y muestreo adaptativo.
+4. **Operación avanzada:** playbooks SRE en `ops/`, alertas SLO y reporte semanal de tendencias.
+5. **Correlación multi-servicio:** atributos consistentes (`tenant_id`, `user_id`, `roles`) compartidos entre Auth, Tenant y futuros servicios (Assembly) con dashboards compartidos.
 
-Indicadores clave planeados: `auth_login_success_total`, `auth_login_fail_total`, `auth_refresh_reuse_detected_total`, `tenant_context_fetch_duration_seconds` (p95 <120ms), `outbox_pending` vs `outbox_event_age_seconds`.
+Indicadores clave actuales: `auth_login_success_total`, `auth_login_fail_total`, `auth_refresh_reuse_blocked_total`, `tenant_created_total`, `membership_active`, `outbox_pending`, `outbox_event_age_seconds`, `broker_consumer_lag_max`.
 
 ## Decisiones Técnicas Recientes
 
 | Fecha | Decisión | Impacto |
 |-------|----------|---------|
-| 2025-09-14 | Unificar mock Redis vía mapper | Eliminación de flakiness en integración |
-| 2025-09-14 | Eliminar mock `pg` en security/integration | Base de datos real en flujos críticos |
-| 2025-09-15 | Priorizar JWKS sobre WebAuthn | Reduce riesgo de claves simétricas y rotación manual |
-| 2025-09-15 | Añadir teardown explícito Pool/Redis | Previene fugas de handles en Jest |
-| 2025-09-15 | Introducir roadmap de métricas de negocio | Base para alertas tempranas de abuso |
+| 2025-09-16 | Implementar almacén JWKS con rotación `current/next/retiring` | Habilita claves asimétricas y métricas `auth_jwks_*` |
+| 2025-09-16 | Activar métricas de negocio Auth (login/reset/refresh) | Base para alertas de abuso y seguimiento de funnels |
+| 2025-09-16 | Publicar `/tenant-context` con roles combinados + versión hash | Permite invalidar claims y enriquecer tokens Auth |
+| 2025-09-16 | Añadir outbox DLQ + endpoints reprocess/purge en Tenant | Reduce riesgo de pérdida de eventos y facilita operación |
+| 2025-09-15 | Unificar mock Redis y teardown Jest | Estabiliza suite de integración Auth |
+| 2025-09-14 | Priorizar roadmap observabilidad (metrics + tracing) | Define secuencia de adopción y alertas SLO |

@@ -3,18 +3,18 @@
 Plataforma modular de servicios (Auth, User, etc.).
 
 ## Tracing Distribuido (OpenTelemetry)
-Soporte actual:
-- Auto-instrumentación: HTTP, Express/Fastify, PostgreSQL.
-- Spans manuales: `kafka.publish`, `outbox.tick`, `outbox.publish`.
-- Logs enriquecidos con `trace_id` y `span_id` en auth-service.
-Próximas fases: spans en consumer handlers, sampling adaptativo, correlación outbox→consumer.
+Soporte actual (Auth + Tenant):
+- Auto-instrumentación HTTP/Express/Fastify/PostgreSQL vía `@opentelemetry/sdk-node`.
+- Spans manuales `kafka.publish`, `outbox.tick`, `outbox.publish`, correlando `tenant_id` y `event.type`.
+- Logs enriquecidos con `trace_id`/`span_id` en auth-service y tenant-service cuando existe span activo.
+Próximas fases: spans en consumer handlers, métricas de saturación (`consumer_inflight`), sampling adaptativo y propagación completa `x-request-id`→`trace_id` entre servicios.
 
 ## JWKS Rotation (Claves JWT)
-Diseño en ADR-0007 (`docs/design/adr/ADR-0007-jwks-rotation.md`). Flujo (ver diagrama `jwks-rotation-sequence.mmd`):
-- Estados de clave: `current`, `next`, `retiring`.
-- Periodo de gracia para validar tokens antiguos con clave `retiring`.
-- Revocación de refresh tokens al marcar compromiso.
-- Métricas planeadas: `jwks_keys_total{status}`, `jwks_rotation_total`.
+Implementado según ADR-0007 (`docs/design/adr/ADR-0007-jwks-rotation.md`). Flujo (ver diagrama `jwks-rotation-sequence.mmd`):
+- Estados de clave: `current`, `next`, `retiring`, `expired` almacenados en `auth_signing_keys` (Postgres).
+- Endpoint público `/.well-known/jwks.json` y endpoint administrativo `/admin/rotate-keys` (pendiente endurecer auth) con métricas `auth_jwks_keys_total{status}` y `auth_jwks_rotation_total`.
+- Revocación de refresh tokens al rotar (`auth_refresh_rotated_total`, `auth_refresh_reuse_blocked_total`).
+- Backlog: cron de rotación automática, expiración `retiring→expired` y protección del endpoint administrativo.
 
 ## Schema Validation de Eventos
 Módulo inicial `internal/domain/event-schemas.ts` (tenant-service) usando Zod.
@@ -26,11 +26,14 @@ Módulo inicial `internal/domain/event-schemas.ts` (tenant-service) usando Zod.
 ```
 apps/
   services/
-    auth-service/
-    user-service/
-Docker
-Postgres / Redis
-Tenant Service (en progreso)
+    auth-service/      # Express + Postgres + Redis + JWKS + Jest multiproyecto
+    tenant-service/    # Fastify + Postgres + Outbox/DLQ + Kafka publisher stub + Vitest
+    user-service/      # CRUD en memoria (pendiente migración a Postgres)
+    assembly-service/  # Documentación/contratos iniciales
+docs/                  # Arquitectura, ADRs, auditorías, roadmap, status
+api/                   # OpenAPI y proto por servicio
+scripts/               # Scripts soporte (`dev-up.ps1`, etc.)
+docker-compose.yml     # Postgres + Redis para desarrollo
 ```
 
 ## Desarrollo rápido (Auth Service)
@@ -120,18 +123,19 @@ $Env:DOCKERHUB_TOKEN | docker login -u $Env:DOCKERHUB_USERNAME --password-stdin
 Más detalle en `docs/docker-credenciales.md`.
 
 ## Próximos pasos (T1)
-- Hashing de contraseñas (argon2/bcrypt)
-- Refactor capa dominio
-- Métricas y tracing (OTel)
-- Roles DB no-superuser en runtime
- - Endurecer outbox: DLQ, limpieza, TTL, particionado índices
- - Suite de tests tenant-service (unit/integration)
+- Endurecer JWKS: proteger `/admin/rotate-keys`, automatizar cron y publicar alertas si falta clave `next`.
+- Implementar outbox Auth (`user.registered`, `password.changed`) y consumer inicial en User Service.
+- Entregar delegaciones temporales en Tenant (`/governance/delegate`) con expiración automática y métricas.
+- Integrar Spectral + contract tests en CI (Auth + Tenant) y publicar cobertura Vitest/Auth.
+- Iniciar migración User Service → Postgres (ADR + primera migración) y definir métricas usuarios activos.
+- Añadir SBOM (Syft) + escaneo Trivy en pipelines, preparando firma cosign.
 
 ## Seguridad (Resumen de mitigaciones recientes)
 1. Eliminadas credenciales hardcodeadas en `docker-compose.yml`.
-2. Añadido middleware JWT en `tenant-service` (plugin `auth-jwt`).
-3. Backoff exponencial con jitter para la publicación outbox.
-4. Ejemplo de variables sensibles movidas a `.env` (`TENANT_JWT_PUBLIC_KEY`, `TENANT_DB_URL`).
+2. Añadido middleware JWT en `tenant-service` (plugin `auth-jwt`) con soporte JWKS remoto.
+3. Backoff exponencial con jitter para la publicación outbox + DLQ con purga y reprocess.
+4. Variables sensibles movidas a `.env` (`TENANT_JWT_PUBLIC_KEY`, `TENANT_DB_URL`, `AUTH_JWT_*`).
+5. Almacén JWKS asimétrico (`auth_signing_keys`) con métricas `auth_jwks_*` y detección de reuse refresh tokens.
 
 ## Roles granulares (Tenant Service)
 Se añaden tablas para soportar roles adicionales a 'admin':
@@ -146,12 +150,12 @@ El endpoint `/tenant-context` ahora devuelve la unión de:
 Versión de contexto (`version`) se calcula hash sobre el conjunto de roles ordenados, permitiendo caching en clientes.
 
 ## Riesgos pendientes (plan)
-- Publicación real de eventos (Kafka/NATS) con confirmaciones.
-- Estrategia de rotación de claves JWT y JWKS endpoint.
-- Retención y archivado de eventos outbox (+ limpieza periódica).
-- Observabilidad distribuida (OpenTelemetry traces) y correlation IDs.
-- Autorización granular (roles adicionales, delegaciones, scoping por unidad).
-- Hardening de contenedores (usuario no root ya aplicado; falta seccomp/AppArmor). 
+- Rotación JWKS sin guardianes automáticos (cron + alertas) y endpoint `/admin/rotate-keys` sin autenticación.
+- Falta outbox Auth + coordinación con User/Tenant para eventos `user.registered`.
+- Delegaciones de gobernanza (`/governance/delegate`) y motor de políticas pendientes.
+- Ausencia de contract tests (Spectral + snapshots) y pipelines Tenant sin cobertura.
+- Supply-chain sin SBOM, escaneo Trivy ni firma cosign.
+- Hardening de contenedores (usuario no root ya aplicado; falta seccomp/AppArmor y políticas Kyverno).
 
 ## Consumer Processing (Tenant Service)
 Pipeline de consumo implementado (Fase inicial) para eventos publicados vía outbox + publisher:
@@ -182,7 +186,7 @@ Próximos pasos: DLQ consumidor, tracing por evento, schema registry.
 Diagrama del pipeline: ver `docs/design/diagrams/event-pipeline.mmd` (flowchart Mermaid representando Outbox → Publisher → Kafka → Consumers → Handlers + retries y métricas).
 
 ---
-Última actualización: 2025-09-15 (snapshot post estabilización suite integración / prioridad JWKS)
+Última actualización: 2025-09-17 (alineado con estado actual de Auth/Tenant)
 
 ## Estrategia de Tests (Multi‑Proyecto Jest)
 

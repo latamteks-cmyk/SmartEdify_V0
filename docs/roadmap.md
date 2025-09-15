@@ -1,42 +1,44 @@
 # Roadmap Técnico Prioritario — Backend SmartEdify
 
-> Migrado desde `docs/tareas.md` (eliminado). Última actualización: 2025-09-16.
-> Se listan únicamente los pendientes P1/P2 con mayor impacto en seguridad, observabilidad y habilitadores de producto.
+> Migrado desde `docs/tareas.md`. Última actualización: 2025-09-17.
+> Enfocado en pendientes P1/P2 que desbloquean seguridad, observabilidad y multitenancy.
 
 ## Auth Service (Prioridad Alta)
-- [ ] Implementar JWT con verificación centralizada en gateway y servicio (alinear con rotación JWKS y políticas de autorización).
-- [ ] Configurar TLS obligatorio y asegurar que los secretos permanezcan fuera del repositorio.
-- [ ] Redactar tokens y datos sensibles en logs JSON para garantizar ausencia de PII.
-- [ ] Implementar patrón outbox para eventos externos (`user.registered`, `password.changed`).
-- [ ] Añadir pruebas de contrato HTTP/gRPC con snapshots sanitizados y validación Spectral en CI.
-- [ ] Configurar tracing OTel con atributos `tenant_id`, `service`, `user_id` para todos los endpoints críticos.
-- [ ] Instrumentar métricas de negocio (`auth_login_success_total`, `auth_login_fail_total`, `auth_password_reset_total`, `auth_refresh_reuse_detected_total`) y alertas SLO asociadas.
-- [ ] Extender CI/CD para publicar imagen, ejecutar `helm lint` y preparar firma con cosign.
+- [ ] Endurecer `/admin/rotate-keys`: autenticación administrativa, auditoría y job programado que promueva `retiring→expired`.
+- [ ] Automatizar rotación periódica de claves (cron + alertas si falta `next`) y exponer estado en `/metrics`.
+- [ ] Implementar outbox + publisher para eventos `user.registered`, `password.changed` y consumo inicial en User/Tenant.
+- [ ] Completar OpenAPI + ejemplos y añadir contract tests (Spectral lint + Jest snapshots) en CI.
+- [ ] Redactar tokens/PII en logs, instrumentar métricas de saturación (pool PG, Redis) y documentar alertas SLO.
+- [ ] Integrar con gateway: cache JWKS, propagación `tenant_ctx_version` y políticas de autorización centralizadas.
+- [ ] Diseñar roadmap MFA (WebAuthn/TOTP) tras estabilizar rotación automatizada y eventos.
 
 ## Tenant Service (Prioridad Alta)
-- [ ] Completar endpoint de alta de memberships (`/units/{id}/memberships`) con validación de solapamiento y respuestas 409 documentadas.
-- [ ] Emitir evento `membership.added` y mantener `membership_active` actualizado (gauge) tras cada operación.
-- [ ] Implementar delegaciones temporales (`/tenants/{id}/governance/delegate`) con expiración automática (worker/cron) y métrica `governance_delegation_active`.
-- [ ] Integrar con Auth para incluir `tenant_ctx_version` en refresh tokens y exponer cache L1 con invalidación por evento de contexto.
-- [ ] Documentar y orquestar motor de políticas (`max_delegation_days`, `max_units`) junto a auditoría extendida (chain hash job).
+- [ ] Implementar `/tenants/{id}/governance/delegate` con expiración automática, seguimiento `governance_delegation_active` y eventos `governance.delegated`.
+- [ ] Mejorar validaciones de solapamiento en memberships (HTTP 409 detallado) y registrar schema `membership.added@2`.
+- [ ] Añadir cache L1/L2 de `/tenant-context` con invalidación por evento y exponer métricas de hit/miss.
+- [ ] Consolidar publisher Kafka (gestión de topics, retries) y habilitar consumer real con handlers y DLQ específica.
+- [ ] Ejecutar Vitest + coverage en CI, incluyendo lint, contract tests OpenAPI y escaneo de seguridad.
+- [ ] Modelar motor de políticas (`max_delegation_days`, `max_units`) + auditoría chain-hash extendida.
 
 ## User Service (Prioridad Alta)
-- [ ] Documentar contratos en `api/openapi.yaml` y ejemplos antes de continuar implementación.
-- [ ] Implementar validaciones con Zod/JSON-Schema y DTOs en `adapters/http/dto/` evitando exponer entidades de dominio.
-- [ ] Crear migraciones versionadas (usuarios, perfiles, preferencias) con índices y constraints requeridos.
-- [ ] Añadir pruebas unitarias (≥80% en `internal/app`/`domain`) e integración cubriendo CRUD y eventos `user.created`.
+- [ ] Migrar de almacenamiento en memoria a Postgres con migraciones (`users`, `profiles`, `preferences`, índices únicos`).
+- [ ] Publicar OpenAPI + DTOs Zod; habilitar validaciones y errores consistentes.
+- [ ] Conectar con eventos Auth/Tenant (`user.registered`, `membership.added`) y emitir `user.profile.updated`.
+- [ ] Añadir métricas de usuarios activos y cobertura de pruebas (unit/integration) ≥70 %.
 
 ## Assembly Service (Prioridad Alta)
-- [ ] Modelar flujos y procesos en `internal/domain` y documentarlos en PRD/ADR antes de codificar.
-- [ ] Diseñar y documentar endpoints REST (`/assemblies`, `/flows`, `/processes`) con validaciones y DTOs.
-- [ ] Definir estrategia de persistencia (migraciones + outbox) y pruebas de integración iniciales.
+- [ ] Finalizar PRD y ADRs de dominio (flujos, quórum, estados) antes de escribir código.
+- [ ] Definir contratos iniciales (`/assemblies`, `/flows`, `/processes`) y esquema de persistencia.
+- [ ] Preparar plan de integración con Tenant/Auth (consumo `tenant-context`, claims) y estrategia de pruebas.
 
 ## Capacidades Transversales
-- [ ] Definir alertas SRE en `ops/sre/alerts/` para métricas críticas (login, refresh, outbox, DLQ).
-- [ ] Configurar lint y format en pre-commit y reforzar convenciones de commit/CODEOWNERS.
-- [ ] Automatizar generación de SBOM (Syft) y escaneo (Trivy) en pipelines, habilitando firma de imágenes con cosign y políticas Kyverno (`runAsNonRoot`, `readOnlyRootFilesystem`).
-- [ ] Mantener contratos OpenAPI/Proto actualizados y validar con Spectral/contract tests antes de cada merge.
+- [ ] Definir alertas SRE y runbooks en `ops/` para métricas críticas (login, refresh reuse, outbox, DLQ, lag consumidor).
+- [ ] Automatizar contract testing para todos los OpenAPI/Proto (Spectral + pruebas generadas) previo al merge.
+- [ ] Extender pipelines con SBOM (Syft), escaneo Trivy y firma cosign; documentar políticas Kyverno recomendadas.
+- [ ] Normalizar lint/format y pre-commit en los cuatro servicios.
+- [ ] Diseñar plan de creación de `packages/`, `infra/`, `ops/` y `tools/` (o ajustar documentación si se posterga).
+- [ ] Publicar dashboards y alertas base (Grafana/Alertmanager) siguiendo el roadmap de observabilidad.
 
 ## Seguimiento
-- Actualizar este roadmap al cierre de cada sprint.
-- Los hitos completados deben moverse a `docs/status.md` (sección "Decisiones" o "Próximos 14 días").
+- Revisar y actualizar este roadmap al cierre de cada sprint.
+- Hitos completados deben migrarse a `docs/status.md` y a los snapshots ejecutivos.
