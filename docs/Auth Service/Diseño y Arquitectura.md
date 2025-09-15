@@ -74,7 +74,7 @@ Tablas base: `users`, `user_roles`, `audit_security` (extendible). Pendientes: t
 - Métricas técnicas: request counter + histogram duración.
 - Métricas negocio implementadas: `auth_login_success_total`, `auth_login_fail_total`, `auth_password_reset_requested_total`, `auth_password_reset_completed_total`, `auth_refresh_rotated_total`, `auth_refresh_reuse_blocked_total`.
 - Logs estructurados JSON (correlación con `x-request-id`).
-- Próximo: tracing OTel y métricas de saturación (pool conexiones DB, latencias Redis, errores Argon2).
+- Tracing OTel activo (auto-instrumentación HTTP/Express/PG); siguiente paso: spans específicos por endpoint y métricas de saturación (pool conexiones DB, latencias Redis, errores Argon2).
 
 ## Seguridad Implementada
 - Hashing Argon2id con parámetros endurecidos para producción (cost test reducido).

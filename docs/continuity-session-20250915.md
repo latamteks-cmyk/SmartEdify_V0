@@ -2,6 +2,8 @@
 
 Este documento actúa como puente para la próxima sesión. Resume estado, decisiones, prioridades y acciones técnicas inmediatas pendientes. Mantenerlo hasta que se cree una versión actualizada o se consolide en `status.md`.
 
+> Actualización 2025-09-17: rotación JWKS, métricas de negocio Auth y tracing OTel mínimo ya se desplegaron. Las prioridades se ajustan hacia hardening, eventos y contract testing.
+
 ## 1. Contexto Breve
 - Auth-service estabilizado: pruebas integración coherentes (Postgres real + Redis mock único + teardown de recursos).
 - Tenant-service Fase 0 concluida con outbox + DLQ + métricas base y endpoint `tenant-context`.
@@ -9,105 +11,88 @@ Este documento actúa como puente para la próxima sesión. Resume estado, decis
 - Diagramas ampliados (testing, JWKS, observabilidad, métricas, prioridades seguridad).
 
 ## 2. Prioridad Máxima Próximo Ciclo (P1)
-1. Implementar rotación JWKS (asimétrica) + endpoints OIDC básicos.
-2. Métricas de negocio Auth (login success/fail, password reset, refresh reuse) + exposición final.
-3. Tracing mínimo (login, refresh, register, tenant-context) con propagación `x-request-id`.
-4. Contract testing base: Spectral lint + snapshots sanitizados.
+1. Endurecer `/admin/rotate-keys`: autenticación administrativa, cron y alertas `auth_jwks_*`.
+2. Implementar outbox Auth (`user.registered`, `password.changed`) y consumer inicial en User Service.
+3. Entregar `/tenants/{id}/governance/delegate` con expiración automática + métricas.
+4. Contract testing en CI (Spectral + snapshots sanitizados) para Auth y Tenant.
 
 ## 3. JWKS Rotación – Diseño Técnico Esencial
-### 3.1 Tabla propuesta: `auth_signing_keys`
+### 3.1 Tabla actual: `auth_signing_keys`
 | Campo | Tipo | Notas |
 |-------|------|-------|
-| id (uuid) | PK | Identificador interno |
-| kid (text) | UNIQUE | Usado en header JWT + JWKS |
-| alg (text) | NOT NULL | RS256/ES256 (inicial RS256) |
-| status (text) | ENUM(provisioning,current,retiring,deprecated) |
-| private_pem (text) | Encriptar en despliegues productivos (KMS futuro) |
-| public_pem (text) | Expuesto en JWKS |
-| created_at (timestamptz) | | |
-| activated_at (timestamptz) | | Cuando pasa a current |
-| retiring_at (timestamptz) | | Inicio ventana gracia |
-| deprecated_at (timestamptz) | | Fin ventana gracia |
-| purge_after (timestamptz) | | Programación limpieza |
+| kid (text) | PRIMARY KEY | Identificador y `kid` JWKS |
+| pem_private (text) | NOT NULL | Clave privada RSA (pendiente cifrado KMS) |
+| pem_public (text) | NOT NULL | Clave pública expuesta en JWKS |
+| status (text) | CHECK ∈ {current,next,retiring,expired} | Ciclo de vida actual |
+| created_at (timestamptz) | DEFAULT now() | Timestamp de creación |
+| promoted_at (timestamptz) | NULL | Cuando pasa a `current` |
+| retiring_at (timestamptz) | NULL | Cuando pasa a `retiring` |
 
-Índices sugeridos:
-- `idx_auth_signing_keys_status` (para selección rápida current/retiring)
-- `idx_auth_signing_keys_purge_after` (jobs de limpieza)
+Índice vigente: `idx_auth_signing_keys_status` para lecturas rápidas. Columnas `expired`/`purge_after` quedan pendientes si se requiere histórico extendido.
 
-### 3.2 Flujo Rotación (Batch/Script)
-1. Generar NUEVA clave (status=provisioning).
-2. Promover provisioning → current; la current anterior pasa a retiring (set `retiring_at=now()` + TTL de gracia configurable `AUTH_JWKS_GRACE_SECONDS`).
-3. Job (cron / script manual inicial) revisa claves retiring que superaron gracia → deprecated.
-4. Claves deprecated con `purge_after < now()` se eliminan o se archivan.
+### 3.2 Rotación (estado actual)
+- Endpoint `POST /admin/rotate-keys` (sin auth todavía) promueve `next → current`, marca `current → retiring` y genera una nueva `next`.
+- Validación en código garantiza que exista al menos un par (`current` y `next`); si falta alguno se crea automáticamente.
+- Pendiente: autenticar el endpoint, ejecutar cron (script) que vigile ausencia de `next` y que degrade `retiring → expired` tras la ventana de gracia, además de purgar claves expiradas.
 
 ### 3.3 Endpoints
-- `GET /.well-known/jwks.json`: listar claves con status ∈ {current, retiring} → formato JWK (kty, n/e o crv/x/y, kid, alg, use=sign, key_ops=[verify]).
-- `GET /.well-known/openid-configuration`: base mínima (issuer, jwks_uri, token_endpoint si aplica). (Opcional en primera iteración si gateway lo requiere posteriormente.)
+- `GET /.well-known/jwks.json`: responde con claves `current`, `next` y `retiring` en formato JWK (Node export).
+- `POST /admin/rotate-keys`: rotación manual (exponer sólo a operadores, falta auth/guard).
+- `GET /.well-known/openid-configuration`: sigue en backlog; revisar necesidad junto al gateway.
 
-### 3.4 Emisión JWT
-- Firmar únicamente con clave status=current.
-- Verificar tokens aceptando claves {current, retiring}.
-- Métrica: `jwks_active_keys{status}` + counter `jwks_rotation_total`.
+### 3.4 Emisión y métricas
+- Los access/refresh tokens se firman con la clave `current`; verificación acepta `current`, `next` y `retiring`.
+- Métricas expuestas: `auth_jwks_keys_total{status}` y `auth_jwks_rotation_total`.
+- Backlog: alertar si `auth_jwks_keys_total{status="next"}` = 0, incluir `kid` actual en `/metrics` y registrar `auth_jwks_rotation_error_total` para fallas.
 
-### 3.5 Variables de Entorno Nuevas
-```
-AUTH_JWKS_ALG=RS256
-AUTH_JWKS_GRACE_SECONDS=3600
-AUTH_JWKS_ROTATION_CRON="0 */6 * * *"   # (futuro) o se hace manual al inicio
-```
+### 3.5 Variables de entorno
+- Aún no hay variables específicas para la rotación. Se planea introducir `AUTH_JWKS_ROTATION_CRON` / `AUTH_JWKS_GRACE_SECONDS` cuando se agregue el job automático.
 
-### 3.6 Pruebas Iniciales
-- security project: genera 2 rotaciones y asegura validación token firmado con clave retiring.
-- integration: flujo register + login + refresh después de rotación (token anterior sigue válido dentro gracia).
+### 3.6 Pruebas
+- `tests/security/keys.test.ts` valida flujo `current/next/retiring`, JWKS y rotación.
+- `tests/unit/security.test.ts` y `tests/integration/refresh-token.integration.test.ts` cubren rotación de refresh tokens tras cambio de clave.
+- Pendiente: prueba end-to-end del endpoint HTTP `/admin/rotate-keys` + smoke que verifique JWKS y métricas.
 
-## 4. Métricas de Negocio Auth – Implementación
-Registrar counters Prometheus:
-- `auth_login_success_total`
-- `auth_login_fail_total`
-- `auth_password_reset_total`
-- `auth_refresh_reuse_detected_total`
+## 4. Métricas de Negocio Auth – Estado
+- Counters implementados: `auth_login_success_total`, `auth_login_fail_total`, `auth_password_reset_requested_total`, `auth_password_reset_completed_total`, `auth_refresh_rotated_total`, `auth_refresh_reuse_blocked_total`.
+- Siguiente paso: exponer histogramas de latencia (`auth_login_duration_seconds`), publicar cobertura en CI y crear alertas básicas (ratio de fallos, reuse detectado).
 
-Histograma adicional: `auth_login_duration_seconds` (p95 objetivo <250ms).
+## 5. Tracing y correlación
+- NodeSDK OTel activo (HTTP/Express/PG) + spans manuales en JWKS/outbox. Logs enriquecidos con `trace_id` vía `pino-http`.
+- Pendiente: spans específicos `auth.login`, `auth.refresh` con atributos de outcome, y propagación `x-request-id` → `trace_id` hacia Tenant (`/tenant-context`).
 
-## 5. Tracing Mínimo (Scope)
-Spans requeridos:
-- `auth.login` (atributos: user_id?, outcome=success|fail, error_code)
-- `auth.refresh` (claims prev, reuse_detected bool)
-- `auth.register` (hashed=true, method=local)
-- `tenant.context.fetch` (service=tenant-service, cache_hit bool future)
-
-## 6. Contract Testing Base
-Pipeline (fase inicial):
-1. Lint OpenAPI (`spectral lint api/openapi/auth.yaml`).
-2. Generar fixtures de requests (login, refresh, forgot/reset, register).
-3. Ejecutar contra servicio en modo test y snapshot responses (normalizar tokens → `<JWT>` / `<REFRESH>` / timestamps → `<TS>`).
-4. Falla si se altera schema sin actualizar OpenAPI.
+## 6. Contract Testing Base (pendiente)
+Pipeline deseado:
+1. `spectral lint api/openapi/auth.yaml` (fail en errores).
+2. Fixtures + snapshots sanitizados (`<JWT>`, `<REFRESH>`, `<TS>`).
+3. Ejecutar contra instancia local en CI (usar entorno test) y comparar snapshots.
+4. Gate previo a merge cuando el contrato cambie.
 
 ## 7. Riesgos Técnicos Abiertos
 | Riesgo | Mitigación | Prioridad |
 |--------|------------|-----------|
-| Falta de cifrado private_pem | Integrar KMS / envelope encryption | Media (post MVP JWKS) |
-| Ausencia cleanup job purga | Script manual primero + tarea cron segundo sprint | Alta |
-| Gaps en contract tests | Incremental endpoints críticos primero | Alta |
-| Falta de gating cobertura | Añadir badge + umbral T2 | Media |
+| Claves privadas sin cifrado en repositorio (DB) | Integrar KMS / envelope encryption antes de exponer entornos compartidos | Media |
+| Falta job cleanup (`retiring → expired`) | Cron supervisado + alertas si `retiring` > ventana | Alta |
+| Contract tests ausentes | Implementar pipeline descrito en sección 6 | Alta |
+| Cobertura sin gating | Publicar badge y establecer umbral en CI | Media |
 
-## 8. Checklist Handover (Antes de cerrar próxima PR JWKS)
-- [ ] Migración `auth_signing_keys` aplicada.
-- [ ] Script rotación manual `npm run rotate-key` (o similar) creado.
-- [ ] Endpoint `/.well-known/jwks.json` responde 200 con current+retiring.
-- [ ] Emisión JWT usa kid correcto.
-- [ ] security tests pasan validando token retiring.
-- [ ] Métricas jwks registradas.
-- [ ] Documentación actualizada (`docs/architecture/overview.md` + `docs/status.md` + README raíz + diagramas si cambia flujo).
+## 8. Checklist Handover (JWKS)
+- [x] Migración `auth_signing_keys` aplicada.
+- [ ] Script/cron de rotación automática (`npm run rotate-keys` o similar).
+- [x] `/.well-known/jwks.json` responde con claves `current`/`next`/`retiring`.
+- [x] Emisión JWT usa `kid` correcto y cachea la clave `current`.
+- [x] Tests de seguridad verifican rotación y validación de claves retiradas.
+- [x] Métricas `auth_jwks_*` registradas.
+- [x] Documentación actualizada (README, `docs/architecture/overview.md`, `docs/status.md`).
 
 ## 9. Referencias
-- `docs/architecture/overview.md` Secciones "Arquitectura de Testing" y "Roadmap de Observabilidad".
-- `docs/status.md` (snapshot estratégico completo).
+- `docs/architecture/overview.md` (sección Auth Service).
+- `docs/status.md` (snapshot ejecutivo vigente).
 - `docs/design/adr/ADR-0007-jwks-rotation.md`.
 - Diagramas: `jwks-rotation-sequence.mmd`, `jwks-rotation-state.mmd`.
 
-## 10. Próxima Acción Recomendada al Retomar
-Comenzar creando migración y modelo `auth_signing_keys`, luego endpoint JWKS y prueba básica de verificación multi-kid.
+## 10. Próxima Acción al Retomar
+Implementar autenticación/roles para `/admin/rotate-keys`, incorporar job programado y alertas `auth_jwks_keys_total`, y en paralelo avanzar con el outbox de Auth.
 
 ---
-Responsable: CTO (asistente) – Generado 2025-09-15
+Responsable: CTO (asistente) – Actualizado 2025-09-17

@@ -11,7 +11,7 @@ Estado actual (progreso alcanzado):
 Pendiente dentro de Fase 0:
 4. Optimización gauge memberships (evitar COUNT completo más adelante con materialización incremental).
 5. Tests de integración iniciales (creación tenant, unidad, membership, transferencia admin conflicto/success).
-6. Endpoint `/tenant-context` implementación real (ahora 501) + versión en caché.
+6. Cache `/tenant-context` (TTL + invalidación) y persistencia de versión hash (hoy cálculo in-memory por petición).
 7. Especificar contrato eventos y añadir firma/hash chain (fase posterior).
 
 ## Endpoints (v0.1)
@@ -22,10 +22,10 @@ Implementados (persistencia Postgres para entidades principales):
 - GET /tenants/{id}/units
 - POST /units/{id}/memberships
 - POST /tenants/{id}/governance/transfer-admin (stub siempre success)
+- GET /tenant-context (roles combinados + versión hash calculada al vuelo)
 
 Stub 501 (no implementado aún):
 - POST /tenants/{id}/governance/delegate
-- GET /tenant-context?userId=...
 
 ## Variables de Entorno (draft)
 TENANT_DB_URL=postgres://user:pass@host:5432/tenant
