@@ -20,8 +20,8 @@ Funciones: gestión de tenants, usuarios, roles, límites. **TODO** permisos y a
 Funciones: autenticación, perfil, notificaciones. **TODO** alcance inicial.
 
 ## 4. Arquitectura global
-Resumen en `ARCHITECTURE.md`. Diagramas en `docs/mermaid/*`.
-Ver `docs/mermaid/network-ports.mmd` para puertos y relaciones, y `plans/gateway/gateway-service.md` para el BFF.
+Resumen en `docs/architecture/overview.md`. Diagramas en `docs/architecture/diagrams/*`.
+Ver `docs/architecture/diagrams/network-ports.mmd` para puertos y relaciones, y `plans/gateway/gateway-service.md` para el BFF.
 
 ## 5. Catálogo de funciones y endpoints
 | Dominio | Función | Servicio | Endpoint | Método | Auth |

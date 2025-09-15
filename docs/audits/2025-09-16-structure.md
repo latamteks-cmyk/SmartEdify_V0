@@ -7,7 +7,10 @@
 
 ## 2. Estructura de repositorio observada
 ```
-/ARCHITECTURE.md
+/docs/
+  architecture/
+    overview.md
+    diagrams/
 /api/
 /apps/
   services/
@@ -15,7 +18,6 @@
     tenant-service/
     user-service/
     assembly-service/
-/docs/
 /packages (no existe)
 /infra (no existe)
 /ops (no existe)
@@ -43,7 +45,7 @@
 ## 4. Documentación y contratos
 - `docs/spec.md`, `docs/status.md` y `docs/documento-rector.md` establecen visión avanzada. Recomendación: marcar explícitamente qué partes son objetivos vs. entregables actuales para evitar confusión.
 - OpenAPI disponibles: Auth (parcial) y Tenant (más completo). User y Assembly requieren generación y linting Spectral.
-- Nuevos documentos (`ARCHITECTURE.md`, guías de eventos, seguridad, CI) describen arquitectura objetivo; mantener sincronización con implementación real.
+- Nuevos documentos (`docs/architecture/overview.md`, guías de eventos, seguridad, CI) describen arquitectura objetivo; mantener sincronización con implementación real.
 
 ## 5. Tooling, CI/CD y scripts
 - `docker-compose.yml` solo despliega Postgres/Redis más contenedores opcionales. Variables `CHANGE_ME_*` persisten.

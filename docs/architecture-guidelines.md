@@ -12,7 +12,7 @@
 2. **Mensajería**: NATS como broker PMV. Temas con *subject* versionado y DLQ por servicio.
 3. **CI con gates**: lint, typecheck, unit + integration, cobertura mínima 80% críticos, lint OpenAPI, SBOM, SAST, escaneo contenedores.
 4. **Hardening**: contenedores no root, FS read-only, healthchecks, límites de recursos, CORS estricto.
-5. **Documentación viva**: `docs/documento-rector.md` y `ARCHITECTURE.md` se actualizan por PR.
+5. **Documentación viva**: `docs/documento-rector.md` y `docs/architecture/overview.md` se actualizan por PR.
 
 ## Diseño de servicios
 - **gateway-service**: BFF para Squarespace, CORS y OIDC PKCE.
