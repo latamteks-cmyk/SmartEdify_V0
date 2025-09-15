@@ -1,0 +1,58 @@
+name: status-review-reminder
+
+on:
+  schedule:
+    - cron: '0 9 * * MON'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  remind:
+    name: Recordatorio actualización status
+    runs-on: ubuntu-latest
+    steps:
+      - name: Crear o actualizar issue de recordatorio
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueTitle = 'Revisar docs/status.md para el sprint en curso';
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const today = new Date().toISOString().split('T')[0];
+
+            const { data: issues } = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            const existing = issues.find((issue) => issue.title === issueTitle);
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: existing.number,
+                body: `🔁 Recordatorio automático (${today}): actualizar \`docs/status.md\` con el snapshot del sprint.`
+              });
+            } else {
+              await github.rest.issues.create({
+                owner,
+                repo,
+                title: issueTitle,
+                body: [
+                  'Recordatorio automático para mantener actualizado `docs/status.md` en cada sprint.',
+                  '',
+                  'Checklist sugerido:',
+                  '- [ ] Actualizar fecha de snapshot y versión del documento.',
+                  '- [ ] Resumir progresos clave y riesgos abiertos.',
+                  '- [ ] Revisar y cerrar acciones inmediatas completadas.',
+                  '',
+                  `Generado el ${today}.`
+                ].join('\n')
+              });
+            }
