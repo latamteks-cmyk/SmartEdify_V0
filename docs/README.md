@@ -1,73 +1,115 @@
 <a id="documento-rector--smartedify_v0"></a>
 # Documento Rector — SmartEdify_V0
 
-## 1. Visión global
-Objetivo: plataforma SaaS modular para educación. Tres dominios: User Portal, Admin Portal, Mobile App. **TODO** confirmar alcance MVP por dominio.
+## Current — Panorama
 
-## 1.1 Guías consolidadas
+### Visión global
+Objetivo: plataforma SaaS modular para educación con tres dominios (User Portal, Admin Portal y Mobile App) apoyados por servicios backend desacoplados. El MVP actual se sostiene sobre Auth Service (registro, autenticación y recuperación de credenciales) y Tenant Service Fase 0 (tenants, unidades, memberships y transferencia de administrador) mientras se consolida User Service como proveedor de perfil básico. Las interfaces web y móvil aún no se han entregado; sus historias y checklists UI/UX se gestionan en `docs/tareas.md` (secciones *Web Administrador*, *Web User* y *Aplicación Móvil*).
+
+### Guías consolidadas
 Recursos clave para profundizar desde el inicio del proyecto:
 - [Lineamientos de arquitectura](architecture/guidelines.md): principios, patrones y convenciones obligatorias a nivel de diseño.
 - [Pautas de CI/CD y operaciones](operations/ci-cd.md): expectativas de pipelines, gates de calidad y protocolos de despliegue.
 
-## 2. Áreas críticas detectadas
+### Áreas críticas detectadas
 - JWKS rotation incompleta.
 - Broker y DLQ pendientes.
 - CI sin gates de cobertura y seguridad en `main`.
 - Placeholders sensibles en `.env` y compose.
 
-## 3. Dominios
-### 3.1 User Portal
-Funciones: registro, login, perfil, recuperación de contraseña. **TODO** flujos y vistas.
+### Dominios activos
+| Dominio | Estado actual | Dependencias actuales |
+|---|---|---|
+| User Portal | Sin interfaz desplegada; consumo de flujos vía servicios Auth/Tenant mientras se define UI en backlog. | Auth Service, Tenant Service |
+| Admin Portal | UI en definición; operaciones de gobierno disponibles vía Tenant Service (`/tenants`, `/governance`). | Auth Service, Tenant Service |
+| Mobile App | No iniciada; alcance y navegación documentados en backlog móvil. | Auth Service, Tenant Service |
 
-### 3.2 Admin Portal
-Funciones: gestión de tenants, usuarios, roles, límites. **TODO** permisos y auditoría.
-
-### 3.3 Mobile App
-Funciones: autenticación, perfil, notificaciones. **TODO** alcance inicial.
-
-## 4. Arquitectura global
+### Arquitectura global
 Resumen en `ARCHITECTURE.md`. Diagramas en `docs/design/diagrams/*`.
 Ver `docs/design/diagrams/network-ports.mmd` para puertos y relaciones, y `plans/gateway/gateway-service.md` para el BFF.
 Lineamientos completos: ver [Guía de arquitectura unificada](architecture/guidelines.md).
 
-## 5. Catálogo de funciones y endpoints
-| Dominio | Función | Servicio | Endpoint | Método | Auth |
-|---|---|---|---|---|---|
-| User | Login | auth | `/auth/login` | POST | público |
-| User | JWKS | auth | `/.well-known/jwks.json` | GET | público |
-| User | Perfil | user | `/users/me` | GET | bearer |
-| Admin | Tenants | tenant | `/tenants` | POST | admin |
-| Admin | Usuarios | user | `/admin/users` | GET | admin |
-**TODO** completar desde OpenAPI.
+### Catálogo de endpoints activos
+Contratos verificados contra los OpenAPI publicados en el repositorio.
 
-## 6. Plan por microservicio
-- auth-service: implementar rotación JWKS y revocación. Métricas por `kid`. Pruebas de compatibilidad.
-- user-service: contratos OpenAPI, caché selectiva, tests de integración.
-- tenant-service: eventos `tenant.provisioned`, límites por plan, DLQ.
+#### Auth Service (`api/openapi/auth.yaml`)
+Base URL: `https://api.smartedify.com/api/auth/v1`
 
-## 7. Roadmap
-- T1: seguridad y CI. T2: broker NATS y eventos. T3: gateway y permisos finos.
+| Función | Endpoint | Método | Notas |
+|---|---|---|---|
+| Registrar usuario | `/register` | POST | Registra identidad inicial y devuelve tokens si corresponde. |
+| Login | `/login` | POST | Emite par access/refresh tokens. |
+| Rotar refresh token | `/refresh-token` | POST | Requiere refresh token vigente en el cuerpo de la solicitud. |
+| Solicitar recuperación | `/forgot-password` | POST | Dispara token de reseteo vía canal externo. |
+| Confirmar reseteo | `/reset-password` | POST | Valida token de reseteo y actualiza credenciales. |
+| Health check | `/health` | GET | Diagnóstico técnico sin autenticación declarada. |
+| Métricas | `/metrics` | GET | Exposición Prometheus para observabilidad. |
 
-## 8. Buenas prácticas
+#### Tenant Service (`apps/services/tenant-service/api/openapi/tenant.yaml`)
+Base URL: `https://api.smartedify.io`
+
+| Función | Endpoint | Método | Seguridad |
+|---|---|---|---|
+| Crear tenant | `/tenants` | POST | `bearerAuth` |
+| Obtener tenant | `/tenants/{id}` | GET | `bearerAuth` |
+| Crear unidad | `/tenants/{id}/units` | POST | `bearerAuth` |
+| Listar unidades | `/tenants/{id}/units` | GET | `bearerAuth` |
+| Alta membership | `/units/{id}/memberships` | POST | `bearerAuth` |
+| Transferir admin | `/tenants/{id}/governance/transfer-admin` | POST | `bearerAuth` |
+| Contexto de tenant | `/tenant-context` | GET | `bearerAuth` |
+
+### Buenas prácticas vigentes
 Un servicio = una responsabilidad. Seguridad por defecto. Observabilidad integral. CI/CD con rollback. Límites de costo definidos.
 Protocolos detallados en [Política operativa y de CI/CD](operations/ci-cd.md).
 
-## 9. ADRs globales
-- ADR-0007 JWKS rotation. **TODO** ADR mensajería, multitenancy, autorización.
+### ADRs vigentes
+- `ADR-0004` — Publisher & Envelope en outbox para eventos confiables.
+- `ADR-0005` — Consumer processing con métricas y retries controlados.
+- `ADR-0006` — Estrategia de tracing distribuido (en implementación progresiva).
+- `ADR-0007` — Plan de rotación JWKS y gestión de claves.
 
-## 10. Apéndices
-- Glosario, referencias y *runbooks*. **TODO**
-- Auditorías periódicas: ver `docs/audits/2025-09-16-structure.md`.
+### Referencias y apéndices
+- Snapshot estratégico actualizado: `docs/status.md` (2025-09-15).
+- Especificación técnica consolidada: `docs/spec.md`.
+- Auditorías periódicas: `docs/audits/2025-09-16-structure.md`.
+- Glosario y runbooks ampliados permanecen en elaboración: seguimiento en `docs/tareas.md` (sección Documentación).
+
+## Roadmap — Próximas iteraciones
+
+### Evolución de dominios
+- **User Portal**: diseñar y construir flujos UI (registro, perfil, servicios) con criterios de accesibilidad y i18n; ver `docs/tareas.md` → *Web User*.
+- **Admin Portal**: priorizar gestión de usuarios, roles y reportes operativos; ver `docs/tareas.md` → *Web Administrador*.
+- **Mobile App**: implementar navegación, sesiones seguras y notificaciones push; ver `docs/tareas.md` → *Aplicación Móvil*.
+
+### Priorización por microservicio
+- **Auth Service**: rotación JWKS y publicación de endpoints OIDC, métricas de negocio y contract tests (`docs/status.md`, `docs/tareas.md` → Auth Service).
+- **Tenant Service**: completar CRUD de unidades/memberships, delegaciones temporales y gauges de contexto (`docs/status.md`, `docs/tareas.md` → Tenant Service).
+- **User Service**: formalizar contratos OpenAPI, persistencia Postgres y eventos `user.created` (`docs/status.md`, `docs/tareas.md` → User Service).
+- **Assembly Service**: iniciar implementación conforme a `api/openapi/assembly.yaml` tras estabilizar contexto Tenant.
+
+### Hoja de ruta trimestral
+- **T1**: seguridad y CI.
+- **T2**: broker NATS y eventos.
+- **T3**: gateway y permisos finos.
+
+### ADRs y documentación pendientes
+- ADRs planificados sobre mensajería avanzada, multitenancy extendido y autorización fina (seguimiento en `docs/tareas.md` → Documentación / ADRs).
+- Glosario ampliado, runbooks operativos y ejemplos OpenAPI versionados continúan en backlog de documentación (`docs/tareas.md`).
+
+### Seguimiento complementario
+- Backlog granular y checklist de implementación: `docs/tareas.md`.
+- Estado ejecutivo y riesgos: `docs/status.md`.
+- Hallazgos de auditoría para próximas PR: `docs/audits/2025-09-16-structure.md`.
 
 ---
 
-# Guía de estructura y premisas del monorepo
+## Apéndice — Guía de estructura y premisas del monorepo
 
 Estructura monorepo y premisas. Objetivo: entrega rápida, calidad constante, auditoría simple.
 
 > Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-15). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
 
-# 1) Estructura de carpetas (top-level)
+### 1) Estructura de carpetas (top-level)
 
 ```
 smartedify/
@@ -129,7 +171,7 @@ smartedify/
 └─ README.md
 ```
 
-# 2) Plantilla de servicio (apps/services/*-service)
+### 2) Plantilla de servicio (apps/services/*-service)
 
 ```
 *-service/
@@ -160,7 +202,7 @@ smartedify/
 └─ README.md
 ```
 
-# 3) Frontends
+### 3) Frontends
 
 ```
 apps/web-app/                # Monorepo JS/TS (pnpm)
@@ -173,34 +215,34 @@ apps/web-soporte/
 apps/mobile-app/             # React Native/Flutter
 ```
 
-# 4) Premisas de creación de archivos
+### 4) Premisas de creación de archivos
 
-## Naming y layout
+#### Naming y layout
 
 * Kebab-case para carpetas (`assembly-service`), PascalCase para tipos, snake_case en SQL.
 * `cmd/server/main.*` como entrypoint único.
 * Un handler por archivo. Máx 300 líneas por archivo objetivo.
 * DTOs en `adapters/http/dto/*`. No exponer entidades de dominio.
 
-## Contratos primero
+#### Contratos primero
 
 * PRs que cambian API deben actualizar `api/openapi/*.yaml` y ejemplos.
 * Generar SDKs cliente desde OpenAPI/proto en CI y publicar en `packages/*-sdk`.
 
-## Configuración
+#### Configuración
 
 * Variables env con prefijo por servicio: `ASM_`, `AUTH_`, etc. Separar host vs contenedor (`HOST_DB_HOST`, `HOST_DB_PORT` vs `DB_HOST`, `DB_PORT`).
 * Plantilla `.env.example` obligatoria con placeholders (`CHANGE_ME_*`), sin credenciales reales.
 * Centralizar defaults en `internal/config/` (futuro) con tipado y validación (Zod / env-safe).
 * Nuevos endpoints operativos en auth-service: `/health` y `/metrics`.
 
-## Seguridad
+#### Seguridad
 
 * Sin secretos en repo. Usar secretos de CI y vault.
 * TLS obligatorio. JWT verificado en gateway y servicio.
 * Logs sin PII. Redactar tokens y documentos.
 
-## Persistencia
+#### Persistencia
 
 * Migraciones del auth-service se movieron a carpeta limpia `migrations_clean/` para resolver corrupción histórica.
 * Convención: solo archivos autogenerados (timestamp + slug). No mezclar nombres manuales (`001_`, etc.).
@@ -208,13 +250,13 @@ apps/mobile-app/             # React Native/Flutter
 * Próximo (T2): patrón outbox y migraciones de performance (índices adicionales, particiones si aplica).
 * Cada caso de uso encapsulado en transacciones atómicas (pendiente refactor capa app).
 
-## Testing
+#### Testing
 
 * Cobertura mínima 80% en `internal/app` y `domain`.
 * Tests de contrato para HTTP/gRPC con snapshots.
 * Pruebas de migraciones en CI.
 
-## Observabilidad
+#### Observabilidad
 
 * Logging estructurado (pino + pino-http) con correlación `x-request-id`.
 * Health check: `/health` valida DB y Redis (status ok/degraded).
