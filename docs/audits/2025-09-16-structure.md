@@ -41,7 +41,7 @@
 - Solo documentación y contratos iniciales; sin código operativo.
 
 ## 4. Documentación y contratos
-- `docs/spec.md`, `docs/status.md` y `docs/documento-rector.md` establecen visión avanzada. Recomendación: marcar explícitamente qué partes son objetivos vs. entregables actuales para evitar confusión.
+- `docs/spec.md`, `docs/status.md` y `docs/README.md#documento-rector--smartedify_v0` establecen visión avanzada. Recomendación: marcar explícitamente qué partes son objetivos vs. entregables actuales para evitar confusión.
 - OpenAPI disponibles: Auth (parcial) y Tenant (más completo). User y Assembly requieren generación y linting Spectral.
 - Nuevos documentos (`ARCHITECTURE.md`, guías de eventos, seguridad, CI) describen arquitectura objetivo; mantener sincronización con implementación real.
 
