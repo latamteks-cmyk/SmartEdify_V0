@@ -15,19 +15,19 @@ flowchart LR
     subgraph Core Platform
         API[API Gateway / BFF]
         TENANT[Context Resolver]
-        OUTBOX_SVC[Domain Service(s) with Outbox]
+        OUTBOX_SVC[Domain Service's' with Outbox]
     end
 
     subgraph Data Storage
         PG[(PostgreSQL DB)]
-        CACHE[(Redis / In-memory Cache)]
+        CACHE['Redis / In-memory Cache']
     end
 
     subgraph Messaging
-        OUTBOX[(Outbox Table)]
+        OUTBOX['Outbox Table']
         PUBLISHER[Publisher Abstraction]
-        KAFKA[(Kafka Broker)]
-        DLQ[(DLQ Topic)]
+        KAFKA['Kafka Broker']
+        DLQ['DLQ Topic']
     end
 
     subgraph Consumers
@@ -36,10 +36,10 @@ flowchart LR
     end
 
     subgraph Observability
-        METRICS[(Prometheus Metrics)]
-        LOGS[(Structured Logs)]
-        TRACES[(Tracing Backend)]
-        ALERTS[(Alerting Rules)]
+        METRICS['Prometheus Metrics']
+        LOGS['Structured Logs']
+        TRACES['Tracing Backend']
+        ALERTS['Alerting Rules']
     end
 
     subgraph Security & Governance
