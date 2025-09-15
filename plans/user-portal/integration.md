@@ -42,7 +42,7 @@ El User Portal se despliega en `https://www.smart-edify.com` (Squarespace). No s
 - [ ] Registrar `client_id` Squarespace en Auth.
 - [ ] Implementar endpoints proxy `/api/assemblies/*`, `/api/reservations/*`, `/api/maintenance/*`.
 - [ ] Generar SDK JS (npm + CDN).
-- [ ] Documentar integración en `docs/documento-rector.md`.
+- [ ] Documentar integración en `docs/README.md#documento-rector--smartedify_v0`.
 - [ ] Demo de login + Assembly mínima en Squarespace.
 
 ## Riesgos
