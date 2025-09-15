@@ -171,7 +171,7 @@ Si `outbox_publish_latency_seconds` p95 > objetivo:
 ## Próxima Fase (Broker / Publisher Abstraction)
 Preparar interface `Publisher.publish(event)` con implementación stub vs real (Kafka/NATS). Incorporar métricas: `broker_publish_failed_total`, `broker_lag_seconds` (consumer side) y `outbox_inflight`.
 
-Referencias: ver sección "Fase 1" en `docs/tareas.md`.
+Referencias: ver sección "Fase 1" en `docs/roadmap.md`.
 
 ## Publisher / Broker Abstraction (Fase 1 - Implementación Inicial)
 
@@ -263,7 +263,7 @@ Convención de tópicos:
 Partition Key: `aggregateId` (o `partitionKey` si se establece en el envelope) para mantener orden por agregado.
 
 ## Próximas Fases
-Ver `docs/tareas.md` (Fase 1–5).
+Ver `docs/roadmap.md` (Fase 1–5).
 
 ## Notas
 - JWT no se emite aquí; sólo contexto.

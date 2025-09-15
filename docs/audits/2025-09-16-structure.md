@@ -2,7 +2,7 @@
 
 ## 1. Resumen ejecutivo
 - El monorepo mantiene foco en backend (servicios Auth, Tenant, User, Assembly) pero varios componentes descritos en la especificación global (`packages/`, `infra/`, `ops/`, `tools/`) aún no existen.
-- La documentación es abundante; sin embargo, hay divergencias entre la arquitectura deseada (docs/spec.md) y los artefactos presentes. Es clave alinear planes con entregables reales por PR.
+- La documentación es abundante; sin embargo, hay divergencias entre la arquitectura deseada (`docs/architecture/overview.md`) y los artefactos presentes. Es clave alinear planes con entregables reales por PR.
 - Auth-service y tenant-service concentran la implementación productiva. User y assembly continúan como scaffolds, lo que genera huecos frente a los diagramas y planes declarados.
 
 ## 2. Estructura de repositorio observada
@@ -21,7 +21,7 @@
 /ops (no existe)
 /scripts/
 ```
-- El arbol real confirma la ausencia de `packages/`, `infra/`, `ops/`, `tools/` mencionados en `docs/spec.md`. Se sugiere registrar la diferencia o ajustar la especificación.
+- El arbol real confirma la ausencia de `packages/`, `infra/`, `ops/`, `tools/` mencionados en `docs/architecture/overview.md`. Se sugiere registrar la diferencia o ajustar la especificación.
 - `apps/services/` contiene servicios en diferentes fases de madurez. Solo Auth y Tenant poseen código funcional y pruebas.
 
 ## 3. Estado por servicio
@@ -41,7 +41,7 @@
 - Solo documentación y contratos iniciales; sin código operativo.
 
 ## 4. Documentación y contratos
-- `docs/spec.md`, `docs/status.md` y `docs/documento-rector.md` establecen visión avanzada. Recomendación: marcar explícitamente qué partes son objetivos vs. entregables actuales para evitar confusión.
+- `docs/architecture/overview.md`, `docs/status.md` y `docs/documento-rector.md` establecen visión avanzada. Recomendación: marcar explícitamente qué partes son objetivos vs. entregables actuales para evitar confusión.
 - OpenAPI disponibles: Auth (parcial) y Tenant (más completo). User y Assembly requieren generación y linting Spectral.
 - Nuevos documentos (`ARCHITECTURE.md`, guías de eventos, seguridad, CI) describen arquitectura objetivo; mantener sincronización con implementación real.
 
@@ -58,7 +58,7 @@
 ## 7. Riesgos y brechas
 | Área | Brecha detectada | Recomendación |
 |------|-----------------|---------------|
-| Arquitectura | Documentos refieren servicios/paquetes inexistentes | Ajustar `docs/spec.md` o crear roadmap visible para `packages/`, `infra/`, `ops/`. |
+| Arquitectura | Documentos refieren servicios/paquetes inexistentes | Ajustar `docs/architecture/overview.md` o crear roadmap visible para `packages/`, `infra/`, `ops/`. |
 | Seguridad | JWKS rotation pendiente de implementación | Priorizar feature en Auth; actualizar status tras merge. |
 | Observabilidad | Falta tracing distribuido y métricas de negocio | Implementar spans mínimos y counters en Auth/Tenant. |
 | Documentación | Mezcla de estado actual vs. visión futura | Etiquetar cada sección con `Estado` / `Roadmap` y enlazar a auditorías periódicas. |
@@ -66,7 +66,7 @@
 | Servicios secundarios | User y Assembly sin persistencia real | Definir backlog incremental con hitos verificables por sprint. |
 
 ## 8. Próximos pasos sugeridos
-1. Publicar plan de regularización para carpetas ausentes (`packages`, `infra`, `ops`) o actualizar spec para reflejar la realidad.
+1. Publicar plan de regularización para carpetas ausentes (`packages`, `infra`, `ops`) o actualizar `docs/architecture/overview.md` para reflejar la realidad.
 2. Implementar rotación JWKS en Auth con métricas y runbook ya documentados.
 3. Añadir tracing OTel mínimo (login, refresh, tenant-context) y métricas de negocio básicas.
 4. Completar pipeline CI de Tenant con tests y escaneo (Trivy/Syft).

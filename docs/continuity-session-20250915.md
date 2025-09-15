@@ -5,7 +5,7 @@ Este documento actúa como puente para la próxima sesión. Resume estado, decis
 ## 1. Contexto Breve
 - Auth-service estabilizado: pruebas integración coherentes (Postgres real + Redis mock único + teardown de recursos).
 - Tenant-service Fase 0 concluida con outbox + DLQ + métricas base y endpoint `tenant-context`.
-- Documentación central sincronizada (`README.md`, `docs/spec.md`, `docs/status.md`, `docs/tareas.md`).
+- Documentación central sincronizada (`README.md`, `docs/architecture/overview.md`, `docs/status.md`, `docs/roadmap.md`).
 - Diagramas ampliados (testing, JWKS, observabilidad, métricas, prioridades seguridad).
 
 ## 2. Prioridad Máxima Próximo Ciclo (P1)
@@ -98,10 +98,10 @@ Pipeline (fase inicial):
 - [ ] Emisión JWT usa kid correcto.
 - [ ] security tests pasan validando token retiring.
 - [ ] Métricas jwks registradas.
-- [ ] Documentación actualizada (spec + status + README root + diagrams si cambia flujo).
+- [ ] Documentación actualizada (`docs/architecture/overview.md` + `docs/status.md` + README raíz + diagramas si cambia flujo).
 
 ## 9. Referencias
-- `docs/spec.md` Secciones 8–10.
+- `docs/architecture/overview.md` Secciones "Arquitectura de Testing" y "Roadmap de Observabilidad".
 - `docs/status.md` (snapshot estratégico completo).
 - `docs/design/adr/ADR-0007-jwks-rotation.md`.
 - Diagramas: `jwks-rotation-sequence.mmd`, `jwks-rotation-state.mmd`.

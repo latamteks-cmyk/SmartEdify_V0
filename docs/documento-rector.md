@@ -20,7 +20,7 @@ Funciones: gestión de tenants, usuarios, roles, límites. **TODO** permisos y a
 Funciones: autenticación, perfil, notificaciones. **TODO** alcance inicial.
 
 ## 4. Arquitectura global
-Resumen en `ARCHITECTURE.md`. Diagramas en `docs/mermaid/*`.
+Resumen ejecutivo en `ARCHITECTURE.md` y detalle técnico en `docs/architecture/overview.md`. Diagramas en `docs/mermaid/*`.
 Ver `docs/mermaid/network-ports.mmd` para puertos y relaciones, y `plans/gateway/gateway-service.md` para el BFF.
 
 ## 5. Catálogo de funciones y endpoints
@@ -39,6 +39,7 @@ Ver `docs/mermaid/network-ports.mmd` para puertos y relaciones, y `plans/gateway
 - tenant-service: eventos `tenant.provisioned`, límites por plan, DLQ.
 
 ## 7. Roadmap
+- Ver `docs/roadmap.md` para el backlog priorizado por servicio (migrado desde `docs/tareas.md`).
 - T1: seguridad y CI. T2: broker NATS y eventos. T3: gateway y permisos finos.
 
 ## 8. Buenas prácticas

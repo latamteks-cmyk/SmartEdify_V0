@@ -245,9 +245,9 @@ AUTH_LOGIN_WINDOW_MS=60000
 ---
 
 ## Documentación Complementaria
-- Especificación técnica consolidada: `docs/spec.md` (incluye sección 8 Arquitectura de Testing y roadmap observabilidad)
+- Especificación técnica consolidada: `docs/architecture/overview.md` (incluye arquitectura de testing y roadmap de observabilidad)
 - Estado ejecutivo (snapshot): `docs/status.md`
-- Backlog detallado y auditoría de tareas: `docs/tareas.md`
+- Backlog detallado y auditoría de tareas: `docs/roadmap.md`
 
-Nota: cualquier cambio que afecte mocks, contratos API o métricas debe reflejarse en los tres documentos (README, spec, status) dentro de la misma PR.
+Nota: cualquier cambio que afecte mocks, contratos API o métricas debe reflejarse en los tres documentos (README, `docs/architecture/overview.md`, `docs/status.md`) dentro de la misma PR.
 

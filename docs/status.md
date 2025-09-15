@@ -97,10 +97,11 @@ Riesgos abiertos: ausencia de rotación automática de claves JWT (alto), falta 
 - [ ] Crear job Spectral en CI (lint OpenAPI).
 
 ## 10. Notas / Observaciones
-- Evitar introducir mocks globales nuevos sin revisar documento de política (ver sección 8 spec.md).
-- Mantener documentación actualizada post-merge (README + spec + status).
+- Evitar introducir mocks globales nuevos sin revisar documento de política (ver "Arquitectura de Testing" en `docs/architecture/overview.md`).
+- Mantener documentación actualizada post-merge (README + `docs/architecture/overview.md` + `docs/roadmap.md` + este status).
 - Revisar testTimeout warnings en Jest (ajustar si persisten tras refactor config).
-- Revisar hallazgos de `docs/audits/2025-09-16-structure.md` y definir ajustes en spec/roadmap para cerrar brechas.
+- Revisar hallazgos de `docs/audits/2025-09-16-structure.md` y definir ajustes en `docs/architecture/overview.md`/`docs/roadmap.md` para cerrar brechas.
+- Backlog priorizado consolidado en `docs/roadmap.md` (sustituye `docs/tareas.md`).
 
 ---
 Responsable CTO Snapshot: (auto-generado asistente) 2025-09-15

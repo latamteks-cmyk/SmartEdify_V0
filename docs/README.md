@@ -1,6 +1,6 @@
 Estructura monorepo y premisas. Objetivo: entrega rápida, calidad constante, auditoría simple.
 
-> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-15). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
+> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-15). Arquitectura consolidada en `docs/architecture/overview.md`. Backlog priorizado en `docs/roadmap.md`.
 
 # 1) Estructura de carpetas (top-level)
 
@@ -342,4 +342,4 @@ Referencias añadidas en `docs/design/diagrams/`:
 
 Backlog diagramas futuros: `schema-validation-flow.mmd`, `contract-testing-flow.mmd`, `supply-chain-security.mmd`, `tracing-span-map.mmd`.
 
-Coherencia documental: cualquier modificación sustancial en mocks, métricas o prioridades debe reflejarse en `README.md` (raíz + este), `spec.md`, `status.md` y en la lista de diagramas.
+Coherencia documental: cualquier modificación sustancial en mocks, métricas o prioridades debe reflejarse en `README.md` (raíz + este), `docs/architecture/overview.md`, `docs/status.md`, `docs/roadmap.md` y en la lista de diagramas.

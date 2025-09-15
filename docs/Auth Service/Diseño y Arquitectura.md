@@ -109,7 +109,7 @@ Semana 3: Tracing + MFA TOTP + JWKS asimétrico.
 Semana 4: Outbox eventos seguridad + endpoints OIDC.
 
 ## Referencias
-* `docs/spec.md` (estado global servicios y flujo creación usuario).
+* `docs/architecture/overview.md` (estado global servicios y flujo creación usuario).
 * `PDR_AUTH.md` (visión completa OIDC futura, no confundirse con alcance actual).
 * `analisis.md` (decisión de separar gobernanza a Tenant Service).
 * `incorporacion.md` (adaptación pendiente para reflejar separación).
