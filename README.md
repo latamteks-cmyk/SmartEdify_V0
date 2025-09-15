@@ -1,254 +1,102 @@
 # SmartEdify
 
-Plataforma modular de servicios (Auth, User, etc.).
+## Overview
+SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, Assembly) que prioriza la observabilidad, la seguridad y la consistencia de datos. Los servicios comparten prácticas comunes (tracing distribuido, contratos de eventos, pipelines de consumo resilientes) y se orquestan mediante Docker Compose para entornos locales.
 
-## Tracing Distribuido (OpenTelemetry)
-Soporte actual:
-- Auto-instrumentación: HTTP, Express/Fastify, PostgreSQL.
-- Spans manuales: `kafka.publish`, `outbox.tick`, `outbox.publish`.
-- Logs enriquecidos con `trace_id` y `span_id` en auth-service.
-Próximas fases: spans en consumer handlers, sampling adaptativo, correlación outbox→consumer.
+## Prerequisites
+- Node.js 18+ y npm 9+ (para construir y ejecutar los servicios TypeScript).
+- Docker 24+ y Docker Compose v2 (para infraestructura local: Postgres, Redis y servicios opcionales).
+- PowerShell 7+ (opcional) para ejecutar scripts de conveniencia en Windows (`scripts/dev-up.ps1`).
+- Acceso a un registro de contenedores (Docker Hub u otro) si vas a publicar imágenes.
 
-## JWKS Rotation (Claves JWT)
-Diseño en ADR-0007 (`docs/design/adr/ADR-0007-jwks-rotation.md`). Flujo (ver diagrama `jwks-rotation-sequence.mmd`):
-- Estados de clave: `current`, `next`, `retiring`.
-- Periodo de gracia para validar tokens antiguos con clave `retiring`.
-- Revocación de refresh tokens al marcar compromiso.
-- Métricas planeadas: `jwks_keys_total{status}`, `jwks_rotation_total`.
+## Installation
+1. Clona el repositorio y crea tu propio fichero de variables de entorno:
+   ```sh
+   git clone https://github.com/SmartEdify/SmartEdify_V0.git
+   cd SmartEdify_V0
+   cp .env.example .env
+   ```
+2. Completa los valores `CHANGE_ME_*` de tu `.env` con credenciales reales antes de levantar contenedores.
+3. Instala dependencias por servicio (ejemplos):
+   ```sh
+   npm --prefix apps/services/auth-service install
+   npm --prefix apps/services/tenant-service install
+   npm --prefix apps/services/user-service install
+   ```
+4. Compila y ejecuta migraciones donde aplique:
+   ```sh
+   npm --prefix apps/services/auth-service run build
+   npm --prefix apps/services/auth-service run migrate
+   ```
 
-## Schema Validation de Eventos
-Módulo inicial `internal/domain/event-schemas.ts` (tenant-service) usando Zod.
-- Registro por `eventType@version` (ej: `tenant.created@1`).
-- Publishers (logging/kafka) validan antes de enviar; si falla no se publica y el outbox marca fallo permanente.
-- A extender con tipos adicionales y versionado futuro.
+## Usage
+### Arranque de infraestructura local
+- Para levantar Redis y Postgres ejecuta:
+  ```sh
+  docker compose up -d db redis
+  ```
+  Consulta [docs/docker-setup.md](docs/docker-setup.md) para detalles de puertos, variables de entorno y el script `scripts/dev-up.ps1` que automatiza healthchecks y migraciones.
 
-## Estructura
-```
-apps/
-  services/
-    auth-service/
-    user-service/
-Docker
-Postgres / Redis
-Tenant Service (en progreso)
-```
+### Ejecutar servicios
+- Auth Service:
+  ```sh
+  npm --prefix apps/services/auth-service run start
+  # o modo desarrollo
+  npm --prefix apps/services/auth-service run dev
+  ```
+- Tenant Service:
+  ```sh
+  npm --prefix apps/services/tenant-service run dev
+  ```
+- Otros servicios siguen el mismo patrón (`run build`, `run start`, `run dev`).
 
-## Desarrollo rápido (Auth Service)
-```powershell
-# Instalar dependencias
-npm --prefix apps/services/auth-service install
+### Tests
+- Auth Service (Jest multi-proyecto):
+  ```sh
+  npm --prefix apps/services/auth-service test
+  npm --prefix apps/services/auth-service run test:proj:integration
+  ```
+- Tenant Service (Vitest):
+  ```sh
+  npm --prefix apps/services/tenant-service run test
+  npm --prefix apps/services/tenant-service run test:integration
+  ```
 
-# Build
-npm --prefix apps/services/auth-service run build
+## Feature Highlights
+### Observabilidad y tracing distribuido
+- Auto-instrumentación de HTTP, Express/Fastify y PostgreSQL con OpenTelemetry.
+- Spans manuales para `kafka.publish`, `outbox.tick` y `outbox.publish`.
+- Logs enriquecidos con `trace_id` y `span_id` en auth-service, con roadmap para sampling adaptativo.
 
-# Migraciones
-npm --prefix apps/services/auth-service run migrate
+### Rotación de JWKS y seguridad JWT
+- Diseño documentado en `docs/design/adr/ADR-0007-jwks-rotation.md` con flujo de estados `current`, `next` y `retiring`.
+- Periodo de gracia para validar tokens antiguos y revocación de refresh tokens ante compromisos.
+- Métricas previstas: `jwks_keys_total{status}` y `jwks_rotation_total`.
 
-# Ejecutar
-npm --prefix apps/services/auth-service start
-```
+### Validación de esquemas de eventos
+- Registro `eventType@version` en `tenant-service` (`internal/domain/event-schemas.ts`) usando Zod.
+- Validación previa a publicaciones (logging/kafka) para impedir envíos con payload inválido.
+- Roadmap de versionado y tipado incremental.
 
-## Contenedores locales
-```powershell
-docker compose up -d db redis
-# (Después de migraciones y build) opcionalmente levantar servicios
-```
+### Procesamiento de eventos y resiliencia
+- Pipeline `KafkaLagConsumer` + `KafkaProcessingConsumer` con backoff exponencial y límites de concurrencia.
+- Métricas clave: `consumer_events_processed_total`, `consumer_process_duration_seconds`, `consumer_retry_attempts_total`, `consumer_handler_not_found_total`.
+- Variables de entorno configurables (`CONSUMER_MAX_RETRIES`, `CONSUMER_RETRY_BASE_DELAY_MS`, `CONSUMER_RETRY_MAX_DELAY_MS`).
 
-## Variables de entorno
-Ver `.env.example` y copiar a `.env` (no commitear `.env`).
+### Roles granulares y gobernanza
+- Tablas `role_definitions` y `role_assignments` para roles específicos por tenant.
+- Endpoint `/tenant-context` combina roles de gobierno y asignaciones dinámicas, con hash de versión para cacheo en clientes.
 
-### Mapeo de Puertos (Host ↔ Contenedor)
-Los puertos deben estar alineados con las variables declaradas en `./.env` (fuente de verdad). El script `scripts/dev-up.ps1` carga primero `./.env` y luego levanta `db` y `redis`. Tras el arranque:
+## Documentation
+- [ARCHITECTURE.md](ARCHITECTURE.md) — visión general de la plataforma.
+- [docs/spec.md](docs/spec.md) — especificación técnica consolidada.
+- [docs/status.md](docs/status.md) — snapshot ejecutivo y estado de entregables.
+- [docs/operations/ci-cd.md](docs/operations/ci-cd.md) — guía de pipeline de CI/CD.
+- [docs/docker-setup.md](docs/docker-setup.md) — contenedores locales, puertos y variables de entorno.
+- [docs/docker-credenciales.md](docs/docker-credenciales.md) — publicación en registros Docker.
+- Directorios especializados: `docs/observability/`, `docs/design/`, `docs/security-hardening.md`, `docs/runbooks/`.
 
-1. Valida healthchecks.
-2. Aplica la migración `001_create_auth_signing_keys.sql` si falta.
-3. Exporta variables a la sesión actual de PowerShell.
-4. Comprueba el puerto host publicado vs el valor en `.env` y emite ALERTAS si difiere (no adapta silenciosamente).
-
-Ejemplos de uso:
-```powershell
-# Arranque normal (usa .env existente)
-pwsh -File scripts/dev-up.ps1
-
-# Forzar recreación de contenedores (si cambiaste puertos en .env o docker-compose)
-pwsh -File scripts/dev-up.ps1 -Recreate
-
-# Reconstruir imágenes sin cache y recrear
-pwsh -File scripts/dev-up.ps1 -Rebuild -Recreate
-```
-
-Flags soportados:
-- `-Rebuild`: fuerza `docker compose build --no-cache` antes de levantar.
-- `-Recreate`: elimina contenedores `db` y `redis` para asegurar que el nuevo mapeo respete `.env`.
-
-Política de coherencia:
-- Si `PGPORT` (en `.env`) != puerto host publicado para Postgres, se muestra `[ALERTA]` y NO se corrige automáticamente.
-- Mismo criterio para `REDIS_PORT`.
-- Ajusta `docker-compose.yml` (sección `ports:`) para usar interpolación `${PGPORT}:5432` y `${REDIS_PORT}:6379`.
-
-Estado de ejemplo (solo ilustrativo; puede haber cambiado):
-| Servicio   | Puerto Contenedor | Host Port | Variable .env |
-|-----------|-------------------|-----------|---------------|
-| Postgres  | 5432              | 5433      | `PGPORT`      |
-| Redis     | 6379              | 6639      | `REDIS_PORT`  |
-| Auth API  | 8080 (interno)    | 9080      | `AUTH_PORT`   |
-| User API  | 8081 (interno)    | 9081      | `USER_PORT`   |
-
-Recomendación: si necesitas cambiar puertos, primero edita `.env`, luego ejecuta `scripts/dev-up.ps1 -Recreate`.
-
-### Claves JWT
-Para `tenant-service` define `TENANT_JWT_PUBLIC_KEY` con la clave pública usada para firmar tokens (algoritmos soportados RS256/ES256/HS256). Nunca subas la clave privada.
-
-### Credenciales DB
-Los valores por defecto en `docker-compose.yml` usan marcadores `CHANGE_ME_*`. Sustituir siempre antes de exponer cualquier entorno fuera de desarrollo.
-
-## Credenciales Docker Hub
-Para publicar imágenes necesitas definir un PAT (Personal Access Token) de Docker Hub con permisos de push/pull.
-
-1. Crea un PAT en Docker Hub.
-2. Copia `.env.example` a `.env` y completa:
-```
-DOCKERHUB_USERNAME=tu_usuario
-DOCKERHUB_TOKEN=tu_pat
-```
-3. Inicia sesión localmente (PowerShell):
-```powershell
-$Env:DOCKERHUB_TOKEN | docker login -u $Env:DOCKERHUB_USERNAME --password-stdin
-```
-4. En CI agrega secrets `DOCKERHUB_USERNAME` y `DOCKERHUB_TOKEN` y un paso de login antes de build/push.
-
-Más detalle en `docs/docker-credenciales.md`.
-
-## Próximos pasos (T1)
-- Hashing de contraseñas (argon2/bcrypt)
-- Refactor capa dominio
-- Métricas y tracing (OTel)
-- Roles DB no-superuser en runtime
- - Endurecer outbox: DLQ, limpieza, TTL, particionado índices
- - Suite de tests tenant-service (unit/integration)
-
-## Seguridad (Resumen de mitigaciones recientes)
-1. Eliminadas credenciales hardcodeadas en `docker-compose.yml`.
-2. Añadido middleware JWT en `tenant-service` (plugin `auth-jwt`).
-3. Backoff exponencial con jitter para la publicación outbox.
-4. Ejemplo de variables sensibles movidas a `.env` (`TENANT_JWT_PUBLIC_KEY`, `TENANT_DB_URL`).
-
-## Roles granulares (Tenant Service)
-Se añaden tablas para soportar roles adicionales a 'admin':
-
-- `role_definitions(tenant_id, code, description)` catálogos específicos por tenant.
-- `role_assignments(tenant_id, role_code, user_id, revoked_at)` asignaciones activas (cuando `revoked_at IS NULL`).
-
-El endpoint `/tenant-context` ahora devuelve la unión de:
-1. Rol de gobierno (admin) activo derivado de `governance_positions`.
-2. Roles asignados dinámicamente (`editor`, `viewer`, etc.).
-
-Versión de contexto (`version`) se calcula hash sobre el conjunto de roles ordenados, permitiendo caching en clientes.
-
-## Riesgos pendientes (plan)
-- Publicación real de eventos (Kafka/NATS) con confirmaciones.
-- Estrategia de rotación de claves JWT y JWKS endpoint.
-- Retención y archivado de eventos outbox (+ limpieza periódica).
-- Observabilidad distribuida (OpenTelemetry traces) y correlation IDs.
-- Autorización granular (roles adicionales, delegaciones, scoping por unidad).
-- Hardening de contenedores (usuario no root ya aplicado; falta seccomp/AppArmor). 
-
-## Consumer Processing (Tenant Service)
-Pipeline de consumo implementado (Fase inicial) para eventos publicados vía outbox + publisher:
-
-1. `KafkaLagConsumer`: monitorea lag (backlog) sin procesar mensajes.
-2. `KafkaProcessingConsumer`: procesa mensajes reales con concurrencia limitada y reintentos in‑memory.
-3. Registry de handlers por `eventType` simplifica extensión (archivo `consumer-handlers.ts`).
-4. Clasificación heurística de errores (transient/permanent) con backoff exponencial + jitter.
-5. Métricas clave:
-  - `broker_consumer_lag`, `broker_consumer_lag_max`
-  - `consumer_events_processed_total{status,type}`
-  - `consumer_process_duration_seconds{type}`
-  - `consumer_retry_attempts_total{type}`
-  - `consumer_inflight`
-  - `consumer_handler_not_found_total{type}`
-
-Variables de entorno añadidas (tenant-service):
-```
-CONSUMER_MAX_RETRIES (default 5)
-CONSUMER_RETRY_BASE_DELAY_MS (default 100)
-CONSUMER_RETRY_MAX_DELAY_MS (default 2000)
-```
-
-Pruebas: `consumer-processing.test.ts` cubre reintentos transitorios y handler ausente.
-
-Próximos pasos: DLQ consumidor, tracing por evento, schema registry.
-
-Diagrama del pipeline: ver `docs/design/diagrams/event-pipeline.mmd` (flowchart Mermaid representando Outbox → Publisher → Kafka → Consumers → Handlers + retries y métricas).
-
----
-Última actualización: 2025-09-15 (snapshot post estabilización suite integración / prioridad JWKS)
-
-## Estrategia de Tests (Multi‑Proyecto Jest)
-
-El `auth-service` utiliza configuración multi‑proyecto en `jest.config.js`:
-
-- `security`: pruebas de rotación de claves y JWT con mocks de DB/Redis.
-- `unit`: (reservado para lógica de dominio pura) sin efectos externos.
-- `integration`: flujo completo contra Postgres real (migraciones) y Redis simulado in‑memory.
-
-### Ejecución
-```powershell
-# Todas las suites
-npx jest
-
-# Solo integración
-npx jest --selectProjects integration
-
-# Solo seguridad
-npx jest --selectProjects security
-```
-
-### Mocks
-Se evita usar la convención global `__mocks__` para módulos críticos en integración:
-
-- `pg`: NO se mockea en integración. (Se eliminó `tests/__mocks__/pg.ts`).
-- `ioredis`: se fuerza a un mock extendido único vía `moduleNameMapper` → `__mocks__/ioredis.ts` que implementa `set/get/del/incr/expire/ttl`.
-
-Pitfall resuelto: la coexistencia de `__mocks__/ioredis.ts` y `tests/__mocks__/ioredis.ts` generó `duplicate manual mock`. Se neutralizó el duplicado y se añadió `modulePathIgnorePatterns`.
-
-### Cierre Limpio de Recursos
-`tests/jest.setup.ts` cierra:
-- Tracing (OpenTelemetry mock)
-- Métricas (`prom-client` register.clear())
-- Redis mock (`quit()` si existe)
-- Pool Postgres (`endPool()` exportado desde `pg.adapter.ts`)
-
-Si aparece el aviso `Jest did not exit`, ejecutar: 
-```powershell
-npx jest --selectProjects integration --detectOpenHandles
-```
-para inspeccionar handles residuales.
-
-### Variables de Entorno en Tests
-`.env.test` se carga en `global-setup` para integración antes de migraciones. Asegúrate de definir:
-```
-PGHOST=localhost
-PGPORT=5432
-PGUSER=postgres
-PGPASSWORD=postgres
-PGDATABASE=smartedify
-AUTH_LOGIN_WINDOW_MS=60000
-```
-
-### Buenas Prácticas Adoptadas
-1. No introducir mocks de módulos críticos (DB) en rutas visibles de integración.
-2. Forzar mapping explícito para mocks compartidos (Redis) evitando colisiones.
-3. Instrumentación temporal (logs) eliminada tras estabilizar.
-4. Separación clara de responsabilidades por proyecto Jest para aislar fallos.
-
----
-
-## Documentación Complementaria
-- Especificación técnica consolidada: `docs/spec.md` (incluye sección 8 Arquitectura de Testing y roadmap observabilidad)
-- Estado ejecutivo (snapshot): `docs/status.md`
-- Backlog detallado y auditoría de tareas: `docs/tareas.md`
-- Guía de CI/CD: [docs/operations/ci-cd.md](docs/operations/ci-cd.md) — describe el pipeline de entrega continua y pautas operativas.
-
-Nota: cualquier cambio que afecte mocks, contratos API o métricas debe reflejarse en los tres documentos (README, spec, status) dentro de la misma PR.
-
+## Contribuciones
+1. Abre un issue o referencia una entrada en `docs/tareas.md` antes de iniciar trabajo.
+2. Sigue los linters y pruebas (`npm run lint`, `npm test`) en cada servicio modificado.
+3. Actualiza la documentación relacionada (README, spec, status) dentro de la misma PR cuando cambies contratos o métricas.
