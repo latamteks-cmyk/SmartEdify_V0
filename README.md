@@ -248,7 +248,7 @@ AUTH_LOGIN_WINDOW_MS=60000
 - Especificación técnica consolidada: `docs/spec.md` (incluye sección 8 Arquitectura de Testing y roadmap observabilidad)
 - Estado ejecutivo (snapshot): `docs/status.md`
 - Backlog detallado y auditoría de tareas: `docs/tareas.md`
-- Políticas operativas y CI/CD: `docs/operations/ci-cd.md`
+- Guía de CI/CD: [docs/operations/ci-cd.md](docs/operations/ci-cd.md) — describe el pipeline de entrega continua y pautas operativas.
 
 Nota: cualquier cambio que afecte mocks, contratos API o métricas debe reflejarse en los tres documentos (README, spec, status) dentro de la misma PR.
 
