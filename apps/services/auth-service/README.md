@@ -1,140 +1,152 @@
 # Auth Service
 
-## Ejecución local
+Servicio de autenticación y emisión de tokens de SmartEdify. Implementado en Node.js/TypeScript con Express, PostgreSQL, Redis, Argon2id y rotación de claves JWT basada en JWKS.
 
-1. Instala dependencias y configura variables de entorno usando `.env.example`.
-2. Ejecuta el servicio con el comando correspondiente (ejemplo: `go run cmd/server/main.go` o `npm start`).
+## Arquitectura rápida
+- **API HTTP**: Express 4 + DTOs validados con Zod.
+- **Persistencia**: PostgreSQL (`users`, `user_roles`, `audit_security`, `auth_signing_keys`).
+- **Cache / control**: Redis para sesiones, revocación de tokens, rate limiting y guardas contra fuerza bruta.
+- **Seguridad**: Argon2id parametrizable, JWT RS256 con JWKS rotativo y detección de reuse de refresh tokens.
+- **Observabilidad**: logs JSON Pino/Pino-http, métricas Prometheus y trazas OpenTelemetry.
+
+## Requisitos previos
+- Node.js ≥ 18.
+- PostgreSQL 15 y Redis 7 (puedes usar `docker compose up -d db redis` desde la raíz del monorepo).
+- Archivo `.env` en la raíz del repo basado en `.env.example` para cargar puertos y credenciales.
+
+## Setup rápido (desarrollo)
+```bash
+cd apps/services/auth-service
+npm install
+npm run migrate           # aplica migraciones desde migrations_clean/
+npm run dev               # arranca con ts-node + nodemon
+```
+
+Producción / ejecución compilada:
+```bash
+npm run build
+npm start
+```
+
+## Scripts npm útiles
+| Comando | Descripción |
+|---------|-------------|
+| `npm run migrate` | Ejecuta migraciones forward-only (`migrations_clean/`) con `node-pg-migrate`. |
+| `npm run migrate:create -- <slug>` | Crea nueva migración timestamped en `migrations_clean/`. |
+| `npm test` | Ejecuta la suite Jest multiproyecto (`security`, `integration`, `unit`) in-band. |
+| `npm run test:proj:integration` | Sólo pruebas de integración contra Postgres/Redis reales. |
+| `npm run test:proj:security` | Sólo pruebas de rotación de claves/JWT. |
+| `npm run lint` / `npm run format` | ESLint + Prettier. |
+
+## Endpoints expuestos
+- `POST /register`
+- `POST /login`
+- `POST /logout`
+- `POST /forgot-password`
+- `POST /reset-password`
+- `POST /refresh-token` (rotación con detección de reuse)
+- `GET /roles`
+- `GET /permissions`
+- `GET /health`
+- `GET /metrics`
+- `GET /.well-known/jwks.json`
+- `POST /admin/rotate-keys` *(MVP sin autenticación; proteger en producción)*
+- `GET /debug/current-kid` *(sólo entornos `NODE_ENV !== 'production'`)*
 
 ## Variables de entorno
-- AUTH_PORT
-- AUTH_DB_URL
-- AUTH_JWT_SECRET
-- AUTH_WEBHOOK_URL
-- AUTH_LOG_LEVEL
+### PostgreSQL / Redis
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `PGHOST` | Host de PostgreSQL | `localhost` |
+| `PGPORT` | Puerto PostgreSQL | `5432` |
+| `PGUSER` | Usuario PostgreSQL | `postgres` |
+| `PGPASSWORD` | Password PostgreSQL | `postgres` |
+| `PGDATABASE` | Base de datos | `smartedify` |
+| `REDIS_HOST` | Host Redis | `localhost` |
+| `REDIS_PORT` | Puerto Redis | `6379` |
 
-## Endpoints principales
-- POST `/register`
-- POST `/login`
-- POST `/logout`
-- POST `/forgot-password`
-- POST `/reset-password`
-- GET `/roles`
-- GET `/permissions`
+### HTTP / logging / tracing
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `AUTH_PORT` | Puerto HTTP del servicio | `8080` |
+| `AUTH_LOG_LEVEL` | Nivel de logs Pino (`fatal`→`trace`) | `info` |
+| `AUTH_SERVICE_NAME` | Nombre de recurso para OTel | `auth-service` |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | Endpoint collector OTLP | `http://localhost:4318` |
 
-## Decisiones técnicas
-- Validaciones con Zod/JSON-Schema
-- JWT y WebAuthn para autenticación
-- Migraciones versionadas en `migrations/`
-- Outbox para eventos externos
+### Seguridad y hashing
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `AUTH_JWT_ACCESS_TTL` | TTL access token (acepta sufijos s/m/h/d) | `900s` |
+| `AUTH_JWT_REFRESH_TTL` | TTL refresh token | `30d` |
+| `AUTH_JWT_ACCESS_SECRET` / `AUTH_JWT_REFRESH_SECRET` | Fallback legacy si no hay JWKS (mantener vacías en producción) | `` |
+| `AUTH_ARGON2_MEMORY_KIB` | Memoria Argon2id | `19456` (4096 en tests) |
+| `AUTH_ARGON2_ITERATIONS` | Iteraciones Argon2id | `3` (2 en tests) |
+| `AUTH_ARGON2_PARALLELISM` | Paralelismo Argon2id | `1` |
 
-## Rotación de Claves JWT (JWKS)
+### Rate limiting y protección fuerza bruta
+| Variable | Descripción | Default |
+|----------|-------------|---------|
+| `AUTH_LOGIN_WINDOW_MS` | Ventana rate-limit login | `60000` |
+| `AUTH_LOGIN_MAX_ATTEMPTS` | Intentos permitidos en ventana | `10` |
+| `AUTH_BRUTE_WINDOW_SEC` | TTL guardia fuerza bruta (Redis) | `300` |
+| `AUTH_BRUTE_MAX_ATTEMPTS` | Intentos totales antes de bloqueo | `20` |
 
-Se implementó un almacén de claves rotativas en la tabla `auth_signing_keys` con estados `current`, `next`, `retiring`, `expired`.
+### Depuración / pruebas
+| Variable | Descripción |
+|----------|-------------|
+| `AUTH_TEST_LOGS` | Si está definida, habilita logs en tests (pino suprimido por defecto). |
+| `DEBUG_REFRESH` | Traza verbose de rotación `refresh-token`. |
 
-Endpoints:
-- `GET /.well-known/jwks.json` devuelve claves públicas activas (`current`, `next`, `retiring`).
-- `POST /admin/rotate-keys` fuerza rotación manual (MVP sin auth; proteger en producción).
+## Métricas Prometheus
+Registradas en `/metrics`:
 
-Emisión y verificación de tokens:
-- Los access y refresh tokens se firman con `RS256` usando la clave `current` e incluyen `kid`.
-- La verificación ahora realiza lookup por `kid` y valida contra la clave pública (`pem_public`).
-- Fallback: si se definen `AUTH_JWT_ACCESS_SECRET` / `AUTH_JWT_REFRESH_SECRET` y el token no trae `kid`, se intenta validar simétricamente (modo compat).
+| Métrica | Tipo | Descripción |
+|---------|------|-------------|
+| `auth_http_requests_total{method,route,status}` | Counter | Total de requests HTTP. |
+| `auth_http_request_duration_seconds` | Histogram | Latencia por ruta/status. |
+| `auth_login_success_total` | Counter | Logins exitosos. |
+| `auth_login_fail_total` | Counter | Logins rechazados (credenciales inválidas). |
+| `auth_password_reset_requested_total` | Counter | Solicitudes de recuperación enviadas. |
+| `auth_password_reset_completed_total` | Counter | Resets completados. |
+| `auth_refresh_rotated_total` | Counter | Rotaciones exitosas de refresh token. |
+| `auth_refresh_reuse_blocked_total` | Counter | Intentos de reuso detectados. |
+| `auth_jwks_keys_total{status}` | Gauge | Número de claves por estado (`current`, `next`, `retiring`). |
+| `auth_jwks_rotation_total` | Counter | Rotaciones manuales ejecutadas. |
 
-Rotación manual (flujo MVP):
-1. `current` pasa a `retiring`.
-2. `next` se promueve a `current`.
-3. Se genera una nueva `next`.
+## Rotación JWKS y tokens
+- Las claves se almacenan en `auth_signing_keys` con estados `current`, `next`, `retiring`, `expired`.
+- Al inicializar si no existe `current`, se genera automáticamente.
+- Endpoint `POST /admin/rotate-keys` ejecuta el flujo MVP: `current → retiring`, `next → current`, crea nueva `next`.
+- `/.well-known/jwks.json` expone claves públicas para gateways/servicios; actualiza métricas `auth_jwks_keys_total`.
+- Fallback legacy (`AUTH_JWT_*_SECRET`) sólo se usa si llega un token sin `kid`.
+- Refresh tokens almacenan `jti` en Redis (`refresh:<jti>`); al rotarlos se revoca el anterior y se marca en `rotated:` + lista de revocación.
 
-Métricas expuestas:
-- `auth_jwks_keys_total{status}` gauge de número de claves por estado.
-- `auth_jwks_rotation_total` contador de rotaciones manuales.
+## Redis & listas de control
+- Rate limiting login: `rate:<ip>` y guardia fuerza bruta `bf:<email>:<ip>` con TTL configurable.
+- Sesiones/refresh/reset tokens viven en namespaces `session:*`, `refresh:*`, `pwdreset:*`.
+- Lista de revocación (`revoked:*`) y set de refresh rotados (`rotated:*`) evitan reuse.
+- En tests Jest se usa mock de `ioredis` (in-memory) con stores dedicados.
 
-Formato JWKS:
-- Ya se expone en formato JWK estándar: cada clave incluye `kty`, `n`, `e`, `alg`, `use`, `kid`, `status`.
-
-Limitaciones pendientes:
-- No hay job que marque `retiring -> expired` tras periodo de gracia.
-- Endpoint de rotación sin control de acceso.
-- Faltan alertas sobre ausencia de `next` o edad excesiva de `current`.
-
-Pruebas locales rápidas:
-```bash
-curl -s http://localhost:8080/.well-known/jwks.json | jq
-curl -XPOST http://localhost:8080/admin/rotate-keys
-```
-
-## SLO
-- Tiempo de respuesta < 300ms
-- Disponibilidad > 99.9%
-
-## Contacto equipo
-- Equipo Auth: auth-team@smartedify.com
+## Observabilidad
+- Logs estructurados Pino con `x-request-id`, `trace_id`, `span_id` cuando hay span activo.
+- OpenTelemetry (`@opentelemetry/sdk-node`) auto-instrumenta HTTP, Express y PostgreSQL; configura `OTEL_EXPORTER_OTLP_*` según collector.
+- Health check `/health` consulta PostgreSQL y Redis e informa `status=ok|degraded`.
 
 ## Pruebas
+La configuración Jest multiproyecto vive en `jest.config.js`:
+- **security**: rotación JWKS, validación `kid`, reuse refresh tokens.
+- **integration**: flujos completos contra Postgres real (`global-setup` aplica migraciones y prepara Redis mock/real).
+- **unit**: lógica pura y helpers.
 
-### Estructura de carpetas
-```
-tests/
-  unit/           # Pruebas unitarias sobre handlers y lógica
-  integration/    # Flujo end-to-end (requiere Postgres/Redis reales)
-  security/       # Pruebas aisladas JWKS/JWT con mocks de pg.adapter & ioredis
-  jest.setup.ts   # Configuración adicional (matchers, etc.)
-  global-setup.ts # Aplica migraciones si faltan tablas antes de correr tests
-  global-teardown.ts # Cierra recursos
-```
-
-### Entorno controlado (.env.test)
-Se usa `.env.test` para definir puertos/credenciales específicos de pruebas. Si la tabla `users` no existe, el `global-setup` ejecuta `npm run migrate` (carpeta `migrations_clean`).
-
-Variables mínimas recomendadas en `.env.test`:
-```
-PGHOST=localhost
-PGPORT=5542
-PGUSER=postgres
-PGPASSWORD=postgres
-PGDATABASE=smartedify
-REDIS_HOST=localhost
-REDIS_PORT=6639
-AUTH_JWT_ACCESS_TTL=900s
-AUTH_JWT_REFRESH_TTL=30d
-NODE_ENV=test
+Comandos clave:
+```bash
+npm run test:proj:integration           # necesita Postgres/Redis
+npm run test:proj:security              # sin dependencias externas (mocks)
+npm run test:proj:unit
 ```
 
-### Comandos
-Ejecutar toda la suite:
-```powershell
-npm test -- --runInBand
-```
-
-Sólo pruebas de seguridad (mocks, rápido):
-```powershell
-npm test -- --runInBand tests/security
-```
-
-Sólo unitarias:
-```powershell
-npm test -- tests/unit
-```
-
-### Mocks
-- `tests/security/*` mockean `../../internal/adapters/db/pg.adapter` e `ioredis` para evitar dependencias externas.
-- No interfieren con el resto porque el mock se declara dentro de cada archivo.
-
-### Diagnóstico de handles abiertos
-Si Jest no termina (mensaje de open handles):
-```powershell
-npm test -- --runInBand --detectOpenHandles
-```
-
-### Estrategia de rotación cubierta en tests
-- Generación de clave inicial (current)
-- Creación automática de `next`
-- Promoción en rotación y generación de nueva `next`
-- Construcción del JWKS (formato JWK estándar)
-- Emisión y verificación de access/refresh tokens (RS256 + kid)
-- Rotación de refresh token evitando reuso
-
-### Futuras mejoras de pruebas
-- Añadir job simulado para estado `retiring -> expired`
-- Tests de performance de firma/verificación
-- Tests de resiliencia ante pérdida de cache local de claves
+## Backlog inmediato
+- Proteger `POST /admin/rotate-keys` (autenticación/admin roles) y automatizar rotación periódica.
+- Emitir eventos (`user.registered`, `password.changed`) vía outbox y publicar métricas de saturación (pool PG, Redis).
+- Actualizar OpenAPI + contract tests (Spectral + Jest) en CI y publicar SDK.
+- Redactar tokens/PII en logs y definir alertas SLO sobre métricas anteriores.

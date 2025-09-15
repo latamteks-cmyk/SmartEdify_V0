@@ -1,7 +1,7 @@
 {
   "name": "auth-service",
   "version": "1.0.0",
-  "description": "1. Instala dependencias y configura variables de entorno usando `.env.example`.\r 2. Ejecuta el servicio con el comando correspondiente (ejemplo: `go run cmd/server/main.go` o `npm start`).",
+  "description": "Servicio de autenticación SmartEdify (Express + PostgreSQL + Redis + JWKS).",
   "main": "index.js",
   "directories": {
     "test": "tests"
@@ -10,14 +10,14 @@
     "build": "tsc -p .",
     "start": "node dist/cmd/server/main.js",
     "dev": "nodemon --watch internal --watch cmd --exec ts-node cmd/server/main.ts",
-  "migrate": "node-pg-migrate up -m ./migrations_clean --verbose",
+    "migrate": "node-pg-migrate up -m ./migrations_clean --verbose",
     "migrate:create": "node-pg-migrate create -m ./migrations_clean",
-  "test": "jest --runInBand",
-  "test:all": "jest --runInBand --forceExit",
-  "test:security": "jest --runInBand tests/security --forceExit",
-  "test:proj:security": "jest --selectProjects security --runInBand",
-  "test:proj:integration": "jest --selectProjects integration --runInBand",
-  "test:proj:unit": "jest --selectProjects unit --runInBand",
+    "test": "jest --runInBand",
+    "test:all": "jest --runInBand --forceExit",
+    "test:security": "jest --runInBand tests/security --forceExit",
+    "test:proj:security": "jest --selectProjects security --runInBand",
+    "test:proj:integration": "jest --selectProjects integration --runInBand",
+    "test:proj:unit": "jest --selectProjects unit --runInBand",
     "lint": "eslint . --ext .ts --max-warnings=0",
     "format": "prettier . --write"
   },
