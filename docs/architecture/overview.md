@@ -112,6 +112,14 @@
 
 **Principios:** JWT livianos (IDs + roles agregados), versión de contexto para invalidaciones eficientes y dominios separados (identidad vs gobernanza).
 
+## Integración entre Servicios
+
+- **Síncrono (HTTP/JSON):** Auth ↔ Tenant para validar contexto (`/tenant-context`) y exponer `/metrics`/`/health`; futuros consumidores sólo deberían usar lecturas ligeras.
+- **Asíncrono (eventos):** Escrituras y orquestación multi-servicio via outbox persistida (`outbox_events`, `outbox_events_dlq`) y publicadores (`LoggingPublisher`, `KafkaPublisher`) definidos en `apps/services/tenant-service/internal/adapters/publisher/`.
+- **Idempotencia y correlación:** `x-request-id` y `event-id` obligatorios; los repositorios persisten `retry_count`/`next_retry_at` para controlar reintentos exponenciales con *jitter*.
+- **DLQ y resiliencia:** Tenant ya opera DLQ con endpoints de purga/reprocess y métricas de backlog; Auth/User adoptarán el mismo patrón al incorporar eventos (`docs/roadmap.md`).
+- **Contratos compartidos:** OpenAPI/Proto viven en `api/`. Al cambiar un contrato público se actualiza especificación + tests de contrato (Spectral + snapshots por automatizar en CI).
+
 ## Arquitectura de Testing — Auth Service
 
 ### Configuración Jest multiproyecto
@@ -142,6 +150,16 @@ Tres proyectos en `jest.config.js`:
 - Contadores `test_flaky_detected_total` y `test_duration_seconds{project}` planificados para pipeline Jenkins/GitHub Actions.
 - Validar detección de reuse refresh tokens e invalidación de sesiones durante pruebas de seguridad.
 
+## Pipeline de Eventos — Tenant Service
+
+1. **Persistencia (`outbox_events`):** casos de uso almacenan envelopes `pending` con `retry_count=0`. Validación de esquema inicial en `internal/domain/event-schemas.ts`.
+2. **Poller (`OutboxPoller`):** `internal/adapters/publisher/outbox-poller.ts` extrae lotes, valida tamaño/payload y publica vía `LoggingPublisher` (stub) o `KafkaPublisher` (con propagación de `traceId`).
+3. **Éxito:** `markPublished` actualiza `published_at`, incrementa métricas (`outbox_published_total`, `outbox_publish_latency_seconds`) y refresca gauges `outbox_pending`/`outbox_dlq_size`.
+4. **Error transitorio:** programa reintento exponencial (`retry_count++`, `next_retry_at`) y suma `outbox_retry_total`. Se registran spans `outbox.publish` con atributos de evento.
+5. **Error permanente:** al exceder `maxRetries` o fallar validación, marca `failed_permanent`, copia a `outbox_events_dlq` y expone métricas (`outbox_failed_permanent_total`, `outbox_validation_failed_total`).
+6. **DLQ operativo:** endpoints `/outbox/dlq` listan, reprocesan (`POST .../reprocess`) o purgan (`DELETE ...?olderThan=`) y actualizan métricas `outbox_reprocessed_total`/`outbox_dlq_purged_total`.
+7. **Consumers:** `KafkaLagConsumer` monitorea lag (`broker_consumer_lag`, `broker_consumer_lag_max`); `KafkaProcessingConsumer` ejecuta handlers registrados, controla concurrencia y expone métricas (`consumer_events_processed_total`, `consumer_retry_attempts_total`, `consumer_process_duration_seconds`, `consumer_inflight`).
+
 ## Roadmap de Observabilidad
 
 1. **Fase actual:** métricas técnicas + negocio Auth/Tenant y tracing OTel básico (HTTP/PG/Kafka) sin dashboards.
@@ -162,3 +180,12 @@ Indicadores clave actuales: `auth_login_success_total`, `auth_login_fail_total`,
 | 2025-09-16 | Añadir outbox DLQ + endpoints reprocess/purge en Tenant | Reduce riesgo de pérdida de eventos y facilita operación |
 | 2025-09-15 | Unificar mock Redis y teardown Jest | Estabiliza suite de integración Auth |
 | 2025-09-14 | Priorizar roadmap observabilidad (metrics + tracing) | Define secuencia de adopción y alertas SLO |
+
+## Documentación y Entregables
+
+- **README raíz:** instrucciones de ejecución rápida, estados recientes y runbooks express.
+- **README por servicio:** despliegue local, variables, endpoints y métricas (`apps/services/*/README.md`).
+- **ADRs (`docs/design/adr/`):** decisiones clave (JWKS rotation, separación Tenant, consumer processing).
+- **Diagramas (`docs/design/diagrams/`):** secuencias JWKS, pipeline eventos, arquitectura macro.
+- **Snapshots ejecutivos:** `docs/status.md` y auditorías (`docs/audits/2025-09-16-structure.md`) para seguimiento.
+- **Backlog priorizado:** `docs/roadmap.md` sustituye `docs/tareas.md` y recoge próximos hitos P1/P2.
