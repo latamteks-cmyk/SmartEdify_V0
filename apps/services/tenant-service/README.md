@@ -107,6 +107,8 @@ Campos clave:
 
 ## Runbooks Operativos
 
+> Consulta el runbook dedicado: [Reprocesamiento DLQ](../../../docs/runbooks/dlq-reprocessing.md) para el procedimiento completo, validaciones y rollback.
+
 ### 1. Backlog alto (outbox_pending crece)
 1. Verificar errores recientes en logs (filtrar "outbox tick error").
 2. Consultar histogramas: `outbox_event_age_seconds` p95.

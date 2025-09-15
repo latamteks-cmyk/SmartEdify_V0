@@ -101,6 +101,8 @@ HandlerRefresh --> CtxAPI
 - Tokens de recuperación de un solo uso.
 
 ## Rotación de Claves JWT (JWKS)
+> Procedimiento operacional detallado: [Runbook — Rotación de claves (Auth)](../../../docs/runbooks/incident-auth-key-rotation.md).
+
 Se implementó un almacén de claves rotativas en la tabla `auth_signing_keys` con estados `current`, `next`, `retiring`, `expired`.
 
 Endpoints:
