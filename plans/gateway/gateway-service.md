@@ -35,9 +35,18 @@ Exponer un único edge `/api/*` para el User Portal en smart-edify.com (Squaresp
 - DNS: `api.smart-edify.com` → gateway. Squarespace consume `https://api.smart-edify.com`.
 
 ## Backlog fast-track
+
+### Plataforma
 - [ ] Scaffold (NestJS/Koa/Kong). `/health`.
 - [ ] CORS + OIDC middleware.
 - [ ] Proxy tables y timeouts.
 - [ ] Rate limiting y *request-id*.
 - [ ] OTel exporter y dashboards.
+
+### Integración Squarespace ↔ Gateway
+- [ ] DNS y certificados para `api.smart-edify.com`.
+- [ ] Deploy inicial gateway con `/health` y `/api/auth/*`.
+- [ ] PKCE end-to-end y callback en Squarespace.
+- [ ] Proxies a Assembly, Reservation y Maintenance.
+- [ ] Observabilidad y dashboards.
 - [ ] Canary y *roll-back*.
