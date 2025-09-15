@@ -4,7 +4,7 @@ Este directorio contiene los diagramas de arquitectura y flujos claves de SmartE
 
 | Archivo | Título | Tipo | Propósito principal |
 |---------|--------|------|---------------------|
-| `event-pipeline.mmd` | Event Pipeline | Flowchart | Vista end-to-end del recorrido de un evento (outbox → broker → consumer → handler). |
+| `consumer-processing-flowchart.mmd` | Consumer Processing Flowchart | Flowchart | Vista end-to-end del recorrido de un evento (outbox → broker → consumer → handler). |
 | `architecture-overview.mmd` | Architecture Overview | Flowchart | Mapa macro de componentes, dominios de responsabilidad y límites. |
 | `network-ports.mmd` | Network Ports Mapping | Flowchart | Relación host↔contenedor de puertos expuestos por servicio. |
 | `outbox-flow.mmd` | Outbox Flow | Flowchart | Detalle del pipeline de publicación desde la transacción hasta Kafka y métricas. |
