@@ -69,7 +69,7 @@ Fase 5: Políticas avanzadas + auditoría extendida + hardening.
 
 ## Referencias
 * `analisis.md`
-* `spec.md`
+* `docs/architecture/overview.md`
 * `incorporacion.md` (a adaptar)
 * ADR 20250914-argon2-jwt-separation.md
 

@@ -1,112 +1,63 @@
 Estructura monorepo y premisas. Objetivo: entrega rápida, calidad constante, auditoría simple.
 
-> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-15). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
+> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-17). Arquitectura consolidada en `docs/architecture/overview.md`. Backlog priorizado en `docs/roadmap.md`.
 
 # 1) Estructura de carpetas (top-level)
 
 ```
 smartedify/
-├─ apps/                     # Ejecutables (front y servicios)
-│  ├─ web-app/               # Web App (RBAC único)
-│  ├─ web-soporte/           # NOC/Helpdesk
-│  ├─ mobile-app/            # iOS/Android (owner-only)
-│  └─ services/              # Microservicios
-│     ├─ assembly-service/
-│     ├─ auth-service/
-│     ├─ user-service/
-│     ├─ tenant-service/            # Nuevo (gobernanza, unidades, memberships)
-│     ├─ finance-service/
-│     ├─ document-service/
-│     ├─ communication-service/
-│     ├─ payments-service/
-│     ├─ compliance-service/
-│     ├─ reservation-service/
-│     ├─ maintenance-service/
-│     ├─ payroll-service/
-│     ├─ certification-service/
-│     └─ facilitysecurity-service/
-├─ packages/                 # Librerías compartidas (no ejecutables)
-│  ├─ core-domain/           # DDD, tipos, errores comunes
-│  ├─ security/              # JWT, JWKS, WebAuthn, TOTP helpers
-│  ├─ http-kit/              # Middlewares, client, retry, tracing
-│  ├─ event-bus/             # Kafka/NATS SDK + outbox/inbox
-│  ├─ persistence/           # Repos genéricos, migraciones helpers
-│  ├─ validation/            # Esquemas Zod/JSON-Schema
-│  ├─ i18n/                  # Mensajes y plantillas
-│  └─ ui-kit/                # Componentes UI compartidos (web)
-├─ api/                      # Contratos externos
-│  ├─ openapi/               # *.yaml por servicio
-│  └─ proto/                 # *.proto para gRPC internos
-├─ db/                       # Migraciones y seeds
-│  ├─ assembly/
-│  ├─ auth/
-│  └─ ...
-├─ infra/                    # Infraestructura declarativa
-│  ├─ terraform/             # VPC, KMS, RDS, S3/WORM, CDN
-│  ├─ k8s/                   # Helm charts/overlays (dev,stg,prod)
-│  ├─ docker/                # Dockerfiles base + compose local
-│  └─ gateway/               # Reglas API Gateway/WAF, OIDC
-├─ ops/                      # Operaciones y runbooks
-│  ├─ runbooks/
-│  ├─ sre/                   # Alertas, SLO, dashboards
-│  └─ playbooks/             # Respuesta a incidentes
-├─ docs/                     # Documentación viva
-│  ├─ prd/                   # PRD por servicio
-│  ├─ design/                # ADR, diagramas C4/BPMN/Mermaid
-│  ├─ api/                   # Docs HTML generadas de OpenAPI
-│  └─ legal/                 # Plantillas actas, checklist legal
-├─ tools/                    # CLI internas, generadores, linters
-├─ .github/                  # CI/CD (Actions), CODEOWNERS, templates
-├─ scripts/                  # make, task runners, dev tooling
-├─ Makefile                  # or Taskfile.yml
-├─ CODEOWNERS
-├─ LICENSE
-└─ README.md
+├─ ARCHITECTURE.md
+├─ README.md
+├─ api/
+│  └─ openapi/
+├─ apps/
+│  └─ services/
+│     ├─ assembly-service/    # Documentación/contratos iniciales
+│     ├─ auth-service/        # Express + Postgres + Redis (JWKS, métricas, tracing)
+│     ├─ tenant-service/      # Fastify + Postgres + outbox/DLQ + Kafka stub
+│     └─ user-service/        # CRUD en memoria
+├─ docs/
+├─ plans/
+├─ scripts/
+├─ docker-compose.yml
+├─ package-lock.json
+└─ (otros artefactos auxiliares: diagramas en docs/design, scripts dev)
 ```
+
+Carpetas planificadas (no existen todavía): `packages/`, `infra/`, `ops/`, `tools/`, un `db/` centralizado y frontends (`apps/web-*`, `apps/mobile-*`). Su incorporación y alcance se documentan en `docs/roadmap.md`.
 
 # 2) Plantilla de servicio (apps/services/\*-service)
 
 ```
 *-service/
-├─ cmd/
-│  └─ server/                # main.go / main.kt
-├─ internal/
-│  ├─ app/                   # commands, queries, sagas
-│  ├─ domain/                # aggregates, events, policies
-│  ├─ adapters/
-│  │  ├─ http/               # handlers, routers, dto
-│  │  ├─ grpc/               # opcional
-│  │  ├─ repo/               # postgres, redis
-│  │  ├─ bus/                # kafka/nats
-│  │  └─ ext/                # clientes a otros servicios
-│  └─ config/                # carga de env, flags
-├─ pkg/                      # utilidades específicas del servicio
-├─ migrations/               # sql/atlas/flyway
-├─ tests/
-│  ├─ unit/
-│  └─ integration/
 ├─ api/
-│  ├─ openapi.yaml
-│  └─ proto/
+│  └─ openapi/               # YAML/JSON por servicio (Auth/Tenant hoy)
+├─ cmd/
+│  └─ server/main.ts         # Entrypoint Express/Fastify
+├─ internal/
+│  ├─ adapters/              # http/, repo/, publisher/, consumer/, security/
+│  ├─ app/                   # Casos de uso (según madurez)
+│  ├─ domain/                # Modelos, eventos, validaciones
+│  ├─ metrics/               # Registro Prometheus
+│  ├─ observability/         # Tracing/log setup
+│  └─ config/                # Carga/env (Auth pendiente de refactor)
+├─ migrations/               # SQL forward-only (`auth` añade `migrations_clean/`)
+├─ tests/
+│  ├─ integration/
+│  └─ unit/                  # suites adicionales según servicio
+├─ package.json / package-lock.json
+├─ tsconfig.json
+├─ jest.config.js o vitest.config.ts
 ├─ Dockerfile
-├─ helm/                     # chart del servicio
-├─ k8s/                      # kustomize overlays
 ├─ .env.example
 └─ README.md
 ```
 
+Helm charts, overlays `k8s/` y librerías compartidas `pkg/` aún no se han creado; documentados como roadmap en `docs/architecture/overview.md` y `docs/roadmap.md`.
+
 # 3) Frontends
 
-```
-apps/web-app/                # Monorepo JS/TS (pnpm)
-├─ src/
-├─ public/
-├─ vite.config.ts
-└─ package.json
-
-apps/web-soporte/
-apps/mobile-app/             # React Native/Flutter
-```
+**Frontends (roadmap)**: aún no existen repositorios `apps/web-*` ni `apps/mobile-*`. Los requerimientos iniciales viven en `docs/user-portal-squarespace.md` y se activarán cuando el roadmap lo priorice.
 
 # 4) Premisas de creación de archivos
 
@@ -120,7 +71,7 @@ apps/mobile-app/             # React Native/Flutter
 ## Contratos primero
 
 * PRs que cambian API deben actualizar `api/openapi/*.yaml` y ejemplos.
-* Generar SDKs cliente desde OpenAPI/proto en CI y publicar en `packages/*-sdk`.
+* Generar SDKs cliente desde OpenAPI/proto en CI y publicar en `packages/*-sdk` (pendiente; se detalla en el roadmap).
 
 ## Configuración
 
@@ -140,7 +91,7 @@ apps/mobile-app/             # React Native/Flutter
 * Migraciones del auth-service se movieron a carpeta limpia `migrations_clean/` para resolver corrupción histórica.
 * Convención: solo archivos autogenerados (timestamp + slug). No mezclar nombres manuales (`001_`, etc.).
 * Índices/constraints declarados junto al schema base (users, user_roles, audit_security).
-* Próximo (T2): patrón outbox y migraciones de performance (índices adicionales, particiones si aplica).
+* Tenant-service ya opera con outbox + DLQ; Auth/User deben adoptarlo (ver `docs/roadmap.md`).
 * Cada caso de uso encapsulado en transacciones atómicas (pendiente refactor capa app).
 
 ## Testing
@@ -166,7 +117,7 @@ apps/mobile-app/             # React Native/Flutter
   - auth_refresh_rotated_total: Rotaciones exitosas de refresh token.
   - auth_refresh_reuse_blocked_total: Intentos bloqueados de reutilizar un refresh rotado.
 * Rotación refresh: detección de reuse en test (in-memory) y en producción marcada vía Redis (`rotated:<jti>` TTL corto).
-* Backlog: lockouts definitivos, tracing OTel con spans y atributos (`tenant_id`, `user_id`).
+* Backlog: lockouts definitivos y ampliar spans/atributos OTel (`tenant_id`, `user_id`, eventos consumer). La base de tracing ya está activa en Auth y Tenant.
 
 ## Documentación
 
@@ -176,7 +127,7 @@ apps/mobile-app/             # React Native/Flutter
 
 ## Calidad
 
-* Lint y format en pre-commit (`golangci-lint` / `eslint` / `ktlint`).
+* Configurar hooks de pre-commit (`eslint`, formatters) es backlog; hoy se ejecuta vía CI (`npm run lint`).
 * Convenciones de commit: Conventional Commits.
 * Revisiones obligatorias por CODEOWNERS.
 
@@ -205,35 +156,50 @@ apps/mobile-app/             # React Native/Flutter
 * Policy admission (Kyverno): no-run-as-root, readOnlyRootFs.
 * Escaneo dependencias semanal.
 
-# 5) Makefile (targets estándar)
+# 5) Comandos útiles (no hay Makefile aún)
 
 ```
-make bootstrap        # instala toolchains locales
-make gen              # genera SDKs desde openapi/proto
-make lint             # linters todos los paquetes
-make test             # unit + integration
-make build            # binarios
-make docker           # build imagen local
-make migrate-up       # migraciones
-make run              # docker compose local
-make docs             # compila docs API a HTML
+npm --prefix apps/services/auth-service run lint
+npm --prefix apps/services/auth-service test -- --runInBand --coverage
+npm --prefix apps/services/tenant-service run dev
+npm --prefix apps/services/tenant-service run test   # vitest (cuando se active)
+pwsh -File scripts/dev-up.ps1                        # arranque db/redis en Windows
+docker compose up db redis                          # contenedores base (Linux/Mac)
 ```
 
 # 6) Docker Compose local (extracto)
 
 ```
 services:
-  postgres:
-    image: postgres:16
-    env_file: .env
   redis:
-    image: redis:7
-  nats:
-    image: nats:2
-  assembly-service:
-    build: ./apps/services/assembly-service
-    env_file: apps/services/assembly-service/.env.example
-    depends_on: [postgres, redis, nats]
+    image: redis:7.2-alpine
+    ports:
+      - "${REDIS_PORT:-6639}:6379"
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-CHANGE_ME_DB_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DB_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-smartedify}
+    ports:
+      - "${PGPORT:-5542}:5432"
+
+  auth-service:
+    build: ./apps/services/auth-service
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  user-service:
+    build: ./apps/services/user-service
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 ```
 
 # 7) CODEOWNERS (ejemplo)
@@ -276,9 +242,10 @@ Riesgos
 
 # 9) Línea base por servicio (carpetas obligatorias)
 
-* `api/`, `migrations/`, `internal/app|domain|adapters|config/`, `tests/`, `helm/`, `k8s/`.
-* OpenAPI válido, ejemplos en `docs/api/examples/`.
-* Alertas SRE definidas en `ops/sre/alerts/*.yaml`.
+* `api/`, `migrations/`, `internal/{adapters,domain,metrics,observability}`, `tests/` y `cmd/server/` son obligatorios hoy.
+* `helm/`, `k8s/`, `ops/` y librerías compartidas quedan como backlog (ver `docs/roadmap.md`).
+* Mantener OpenAPI actualizado en `api/openapi/*.yaml`; los ejemplos versionados se documentarán junto al contrato.
+* Alertas SRE (`ops/sre/alerts/*.yaml`) y tooling asociado aún no existen.
 
 # 10) Reglas de integración entre servicios
 
@@ -291,16 +258,16 @@ Riesgos
 ## Flujo Estándar Creación / Contexto de Usuario
 
 1. `POST /register` (Auth Service) crea identidad y hash.
-2. User Service guarda/actualiza perfil (opcional en la misma saga) y produce `user.created`.
+2. User Service (hoy en memoria) debe guardar/actualizar perfil y, en roadmap, emitir `user.created`.
 3. Tenant Service asocia el usuario a un tenant (membership global) y luego, si procede, a unidades concretas (`/units/{id}/memberships`).
 4. Roles de junta / gobernanza (admin/presidente/vicepresidente/tesorero) se gestionan en Tenant Service (transfer/delegate). Auth sólo consume contexto.
-5. Auth en login/refresh consulta (o cachea) `/tenant-context` para claims ligeros (`t_roles`, `tenant_ctx_version`).
+5. Auth en login/refresh consultará (cuando se habilite) `/tenant-context` para claims ligeros (`t_roles`, `tenant_ctx_version`).
 6. Servicios consumidores (Assembly, etc.) enriquecen permisos consultando directamente a Tenant Service cuando necesitan granularidad (p.ej. quórum por unidad).
 
 Principios:
 * Separación de dominios: identidad (Auth/User) vs estructura/gobernanza (Tenant).
 * Context versionado para evitar recargar datos en cada refresh.
-* Eventos como fuente de sincronización (outbox): `user.created`, `tenant.created`, `membership.added`, `governance.changed`.
+* Eventos como fuente de sincronización (outbox): `tenant.created` ya emite Tenant; `user.created`, `membership.added`, `governance.changed` están planificados.
 
 ## Seguridad (Auth Service)
 
@@ -342,4 +309,4 @@ Referencias añadidas en `docs/design/diagrams/`:
 
 Backlog diagramas futuros: `schema-validation-flow.mmd`, `contract-testing-flow.mmd`, `supply-chain-security.mmd`, `tracing-span-map.mmd`.
 
-Coherencia documental: cualquier modificación sustancial en mocks, métricas o prioridades debe reflejarse en `README.md` (raíz + este), `spec.md`, `status.md` y en la lista de diagramas.
+Coherencia documental: cualquier modificación sustancial en mocks, métricas o prioridades debe reflejarse en `README.md` (raíz + este), `docs/architecture/overview.md`, `docs/status.md`, `docs/roadmap.md` y en la lista de diagramas.

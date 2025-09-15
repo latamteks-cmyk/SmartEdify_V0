@@ -11,7 +11,7 @@ Estado actual (progreso alcanzado):
 Pendiente dentro de Fase 0:
 4. Optimización gauge memberships (evitar COUNT completo más adelante con materialización incremental).
 5. Tests de integración iniciales (creación tenant, unidad, membership, transferencia admin conflicto/success).
-6. Endpoint `/tenant-context` implementación real (ahora 501) + versión en caché.
+6. Cache `/tenant-context` (TTL + invalidación) y persistencia de versión hash (hoy cálculo in-memory por petición).
 7. Especificar contrato eventos y añadir firma/hash chain (fase posterior).
 
 ## Endpoints (v0.1)
@@ -22,10 +22,10 @@ Implementados (persistencia Postgres para entidades principales):
 - GET /tenants/{id}/units
 - POST /units/{id}/memberships
 - POST /tenants/{id}/governance/transfer-admin (stub siempre success)
+- GET /tenant-context (roles combinados + versión hash calculada al vuelo)
 
 Stub 501 (no implementado aún):
 - POST /tenants/{id}/governance/delegate
-- GET /tenant-context?userId=...
 
 ## Variables de Entorno (draft)
 TENANT_DB_URL=postgres://user:pass@host:5432/tenant
@@ -171,7 +171,7 @@ Si `outbox_publish_latency_seconds` p95 > objetivo:
 ## Próxima Fase (Broker / Publisher Abstraction)
 Preparar interface `Publisher.publish(event)` con implementación stub vs real (Kafka/NATS). Incorporar métricas: `broker_publish_failed_total`, `broker_lag_seconds` (consumer side) y `outbox_inflight`.
 
-Referencias: ver sección "Fase 1" en `docs/tareas.md`.
+Referencias: ver sección "Fase 1" en `docs/roadmap.md`.
 
 ## Publisher / Broker Abstraction (Fase 1 - Implementación Inicial)
 
@@ -263,7 +263,7 @@ Convención de tópicos:
 Partition Key: `aggregateId` (o `partitionKey` si se establece en el envelope) para mantener orden por agregado.
 
 ## Próximas Fases
-Ver `docs/tareas.md` (Fase 1–5).
+Ver `docs/roadmap.md` (Fase 1–5).
 
 ## Notas
 - JWT no se emite aquí; sólo contexto.

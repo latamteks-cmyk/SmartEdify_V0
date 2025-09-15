@@ -2,20 +2,20 @@
 Este documento describe el estado ACTUAL del Auth Service (MVP reforzado) y su posición tras la decisión de separar la **gobernanza multi-tenant (unidades, delegaciones, unicidad admin)** en un **Tenant Service** dedicado (ver `analisis.md`). Se prioriza: hashing seguro, emisión / rotación básica de tokens, protección brute force, recuperación de contraseña y observabilidad técnica inicial. El Auth Service NO gestionará transferencias de administración ni delegaciones; sólo identidad y tokens.
 
 ## Alcance Implementado (MVP actual)
-- Endpoints REST básicos: `/register`, `/login`, `/refresh-token`, `/forgot-password`, `/reset-password`, `/health`, `/metrics`.
-- Seguridad: Argon2id (cost diferenciado por entorno), JWT access + refresh (rotación básica), rate limiting + brute force guard por combinación email+IP.
+- Endpoints REST: `/register`, `/login`, `/logout`, `/refresh-token`, `/forgot-password`, `/reset-password`, `/roles`, `/permissions`, `/health`, `/metrics`, `/.well-known/jwks.json`, `/admin/rotate-keys` (pendiente endurecer auth) y `/debug/current-kid` (solo dev/test).
+- Seguridad: Argon2id (cost diferenciado por entorno), JWT access + refresh con rotación asimétrica (`auth_signing_keys`), rate limiting + brute force guard por combinación email+IP y detección de reuse (`auth_refresh_reuse_blocked_total`).
 - Recuperación de contraseña: token con namespace dedicado en Redis y fallback in-memory durante pruebas.
-- Observabilidad: logging estructurado (pino), métricas técnicas HTTP (Prometheus), health check con verificación Postgres y Redis.
-- Pruebas: suite integración estable (10/10) con Redis mock compartido y reducción de coste Argon2 para evitar timeouts.
+- Observabilidad: logging estructurado (pino + pino-http), métricas técnicas y de negocio (login/reset/refresh, JWKS) y tracing OTel (auto-instrumentación HTTP/Express/PG).
+- Pruebas: suite integración estable (10/10) con Redis mock compartido, `global-setup` que aplica migraciones y reducción de coste Argon2 para evitar timeouts.
 
 ## No Implementado Aún (Backlog Clave)
-- Flujos OIDC completos (`/oauth/authorize`, `/.well-known/openid-configuration`, JWKS dinámico, introspect, revoke, userinfo).
-- Detección avanzada de reuse de refresh tokens (actualmente rotación simple).
+- Flujos OIDC extendidos (`/oauth/authorize`, `/.well-known/openid-configuration`, introspect, revoke, userinfo`).
+- Protección y automatización del endpoint `/admin/rotate-keys` (auth, cron, expiración `retiring→expired`, alertas).
+- Outbox + eventos (`user.registered`, `password.changed`) y consumidores en User/Tenant.
+- Redacción de PII/tokens en logs y métricas de saturación (pool PG, Redis, cache JWKS).
 - MFA (TOTP / WebAuthn) y step-up auth.
-- Outbox + eventos (ej: `user.registered`, `password.changed`).
-- Tracing OTel (spans http + db) y métricas de negocio.
-- Gestión criptográfica con KMS / rotación de llaves.
-- Integración contextual ligera con Tenant Service (`/tenant-context`) para claims opcionales.
+- Gestión criptográfica con KMS/HSM y policies `kid` por entorno.
+- Integración contextual enriquecida con Tenant Service (`tenant_ctx_version`, roles dinámicos) y cache L1.
 
 ## Arquitectura Lógica (Estado Actual + Integración Tenant Context)
 ```mermaid
@@ -74,42 +74,42 @@ Tablas base: `users`, `user_roles`, `audit_security` (extendible). Pendientes: t
 - Métricas técnicas: request counter + histogram duración.
 - Métricas negocio implementadas: `auth_login_success_total`, `auth_login_fail_total`, `auth_password_reset_requested_total`, `auth_password_reset_completed_total`, `auth_refresh_rotated_total`, `auth_refresh_reuse_blocked_total`.
 - Logs estructurados JSON (correlación con `x-request-id`).
-- Próximo: tracing OTel y métricas de saturación (pool conexiones DB, latencias Redis, errores Argon2).
+- Tracing OTel activo (auto-instrumentación HTTP/Express/PG); siguiente paso: spans específicos por endpoint y métricas de saturación (pool conexiones DB, latencias Redis, errores Argon2).
 
 ## Seguridad Implementada
 - Hashing Argon2id con parámetros endurecidos para producción (cost test reducido).
-- JWT firmados (clave estática en `.env` para MVP). Pendiente: rotación clave y uso KMS.
-- Separación de access vs refresh (TTL distinto) y rotación básica.
-- Rate limiting y guard brute force.
-- Tokens reset password aislados y de un solo uso.
+- JWT firmados con claves RSA en `auth_signing_keys` (estados `current/next/retiring`), JWKS público y métricas `auth_jwks_*`.
+- Separación de access vs refresh (TTL distinto), detección de reuse (`auth_refresh_reuse_blocked_total`) y revocación al rotar.
+- Rate limiting y guard brute force por combinación email/IP, con métricas para monitorear bloqueos.
+- Tokens reset password aislados y de un solo uso con TTL configurable.
 
 ## Riesgos y Próximas Mitigaciones
 | Riesgo | Impacto | Mitigación próxima | Prioridad |
 |--------|---------|--------------------|-----------|
-| Falta reuse detection refresh | Escalada de sesión si token robado reutilizado | Implementar almacenamiento estado refresh + jti chain | Alta |
-| Clave JWT estática | Compromiso extiende ventana | Rotación + KMS/HSM | Alta |
-| Sin tracing | Dificultad en RCA latencias | Instrumentar OTel mínimo | Media |
-| Sin métricas negocio | No se detectan picos login fallidos | Añadir counters + alertas | Alta |
-| Password reset tokens sólo in Redis | Falta expiración reforzada y auditoría | Añadir TTL + log de consumo | Media |
+| Endpoint `/admin/rotate-keys` sin autenticación ni cron | Rotación manual susceptible a abuso/omisión | Añadir auth administrativa + job programado + alertas JWKS | Alta |
+| Outbox ausente (`user.registered`, `password.changed`) | Falta sincronización con User/Tenant | Implementar outbox + pruebas integración | Alta |
+| Logs sin redacción de tokens | Riesgo de exposición PII/tokens | Configurar `pino` con redaction + revisar sinks | Media |
+| Falta MFA | Riesgo de takeover si credenciales robadas | Diseñar roadmap TOTP/WebAuthn tras cerrar JWKS/outbox | Media |
+| Integración `tenant_ctx_version` pendiente | Claims pueden quedar obsoletos | Coordinar con Tenant para cache/invalidación | Media |
 
 ## Backlog Priorizado (Top 8 Actualizado)
-1. Refresh reuse detection (revocación cadena + jti tracking).
-2. OpenAPI base y contrato versionado.
-3. Tracing OTel http + db.
-4. Migraciones para sesión/refresh token tracking + revocation list.
-5. MFA (TOTP) base y claim `amr`.
-6. JWKS asimétrico + rotación y endpoints OIDC.
-7. Outbox + eventos (`user.registered`, `password.changed`).
-8. Alertas SLO (latencia login, error rate, reuse attempts).
+1. Proteger `/admin/rotate-keys` y automatizar rotación (cron + alertas `auth_jwks_keys_total`).
+2. Publicar OpenAPI + contract tests (Spectral + snapshots) y pipeline CI correspondiente.
+3. Implementar outbox + eventos (`user.registered`, `password.changed`) con pruebas de integración.
+4. Redactar PII/tokens en logs y exponer métricas de saturación (pool PG, Redis, JWKS cache).
+5. Integrar `tenant_ctx_version` en tokens y coordinar cache/invalidación con Tenant Service.
+6. Diseñar y ejecutar roadmap MFA (TOTP/WebAuthn) tras estabilizar JWKS/outbox.
+7. Evaluar uso de KMS/HSM para firma JWT y rotación por entorno.
+8. Publicar alertas SLO (latencia login p95, tasa de fallos, reuse detectado) en Grafana/Alertmanager.
 
-## Roadmap Técnico Incremental (Rebasado por separación Tenant)
-Semana 1: OpenAPI stub + reuse detection base.
-Semana 2: Tracking sesiones + métricas extendidas + alertas.
-Semana 3: Tracing + MFA TOTP + JWKS asimétrico.
-Semana 4: Outbox eventos seguridad + endpoints OIDC.
+## Roadmap Técnico Incremental (próximos hitos)
+- Semana 1: proteger `/admin/rotate-keys`, cron de rotación automática y métricas/alertas JWKS.
+- Semana 2: publicar OpenAPI + contract tests (Spectral + snapshots) e integrar pipeline CI.
+- Semana 3: implementar outbox (`user.registered`, `password.changed`) + consumer User Service; redactar logs.
+- Semana 4: integrar `tenant_ctx_version` en tokens, preparar ADR MFA y plan KMS/HSM.
 
 ## Referencias
-* `docs/spec.md` (estado global servicios y flujo creación usuario).
+* `docs/architecture/overview.md` (estado global servicios y flujo creación usuario).
 * `PDR_AUTH.md` (visión completa OIDC futura, no confundirse con alcance actual).
 * `analisis.md` (decisión de separar gobernanza a Tenant Service).
 * `incorporacion.md` (adaptación pendiente para reflejar separación).
