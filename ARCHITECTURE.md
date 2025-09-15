@@ -1,6 +1,7 @@
 # Arquitectura — SmartEdify_V0
 
 ## Resumen de la guía de arquitectura
+
 - Principios rectores: un servicio por responsabilidad, contratos primero (OpenAPI y esquemas de eventos), compatibilidad hacia atrás, seguridad *least privilege* y observabilidad integral.
 - Correcciones clave acordadas con el CTO: rotación operativa de JWKS, mensajería en NATS con *subjects* versionados y DLQ por servicio, pipeline CI con *gates* (lint, pruebas, cobertura ≥80 %, SBOM, SAST, escaneo de contenedores) y hardening (contenedores no root, FS inmutable, límites de recursos, CORS estricto).
 - Diseño de servicios: gateway BFF, auth, tenant, assembly, reservation, maintenance y módulos lite para documentos, comunicaciones, finanzas y pagos.
