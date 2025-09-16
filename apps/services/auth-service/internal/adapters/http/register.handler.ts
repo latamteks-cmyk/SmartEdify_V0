@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
 import { RegisterRequestSchema } from './register.dto';
-import { createUser, getUserByEmail } from '../db/pg.adapter';
+import { createUser, getUserByEmail, assignUserRole, getUserRoles } from '../db/pg.adapter';
 import { v4 as uuidv4 } from 'uuid';
 import { mockValidateUser } from '../user-service.mock';
 import { hashPassword } from '../../security/crypto';
+
+const DEFAULT_ROLE = process.env.AUTH_DEFAULT_ROLE || 'user';
 
 // Handler definitivo para /register
 export async function registerHandler(req: Request, res: Response) {
@@ -35,5 +37,17 @@ export async function registerHandler(req: Request, res: Response) {
     name,
     created_at: new Date()
   });
-  return res.status(201).json({ message: 'Usuario registrado', user: { id: user.id, email, name } });
+  try {
+    await assignUserRole(user.id, tenant_id, DEFAULT_ROLE);
+  } catch (e) {
+    if (process.env.AUTH_TEST_LOGS) console.error('[register] assignUserRole failed', e);
+  }
+  let roles: string[] = [];
+  try {
+    roles = await getUserRoles(user.id, tenant_id);
+  } catch (e) {
+    if (process.env.AUTH_TEST_LOGS) console.error('[register] getUserRoles failed', e);
+  }
+  if (!roles || roles.length === 0) roles = [DEFAULT_ROLE];
+  return res.status(201).json({ message: 'Usuario registrado', user: { id: user.id, email, name, roles } });
 }

@@ -106,6 +106,13 @@ export const refreshReuseBlockedCounter = new client.Counter({
 register.registerMetric(refreshRotatedCounter);
 register.registerMetric(refreshReuseBlockedCounter);
 
+export const tokenRevokedCounter = new client.Counter({
+  name: 'auth_token_revoked_total',
+  help: 'Total de tokens revocados por logout o acciones administrativas',
+  labelNames: ['type']
+});
+register.registerMetric(tokenRevokedCounter);
+
 // JWKS metrics
 export const jwksKeysTotal = new client.Gauge({
   name: 'auth_jwks_keys_total',

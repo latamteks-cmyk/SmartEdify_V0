@@ -1,19 +1,81 @@
-import request from 'supertest';
-import app from '../app.test';
+jest.mock('../../internal/security/jwt', () => ({
+  verifyRefresh: jest.fn(),
+  verifyAccess: jest.fn()
+}));
 
-describe('POST /logout', () => {
-  it('debe aceptar logout válido', async () => {
-    const res = await request(app)
-      .post('/logout')
-      .send({ token: 'validtoken12345' });
-    expect(res.status).toBe(204);
+jest.mock('../../internal/adapters/redis/redis.adapter', () => ({
+  revokeRefreshToken: jest.fn(),
+  markRefreshRotated: jest.fn(),
+  addToRevocationList: jest.fn(),
+  deleteSession: jest.fn()
+}));
+
+jest.mock('../../cmd/server/main', () => ({
+  tokenRevokedCounter: { inc: jest.fn() }
+}));
+
+jest.mock('../../internal/adapters/db/pg.adapter', () => ({
+  logSecurityEvent: jest.fn()
+}));
+
+import { logoutHandler } from '../../internal/adapters/http/logout.handler';
+import { verifyRefresh, verifyAccess } from '../../internal/security/jwt';
+import {
+  revokeRefreshToken,
+  markRefreshRotated,
+  addToRevocationList,
+  deleteSession
+} from '../../internal/adapters/redis/redis.adapter';
+import { tokenRevokedCounter } from '../../cmd/server/main';
+
+function mockResponse() {
+  const res: any = {};
+  res.status = jest.fn().mockReturnValue(res);
+  res.json = jest.fn().mockReturnValue(res);
+  res.send = jest.fn().mockReturnValue(res);
+  return res;
+}
+
+describe('logoutHandler', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
   });
 
-  it('debe rechazar logout inválido', async () => {
-    const res = await request(app)
-      .post('/logout')
-      .send({ token: 'bad' });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe('Datos inválidos');
+  it('debe revocar refresh token válido', async () => {
+    (verifyRefresh as jest.Mock).mockResolvedValue({
+      jti: 'refresh-jti',
+      type: 'refresh',
+      exp: Math.floor(Date.now() / 1000) + 300,
+      sub: 'user-1',
+      tenant_id: 'tenant-1'
+    });
+    const req: any = { body: { token: 'refresh-token' }, ip: '127.0.0.1', headers: { 'user-agent': 'jest' } };
+    const res = mockResponse();
+    await logoutHandler(req, res as any);
+    expect(res.status).toHaveBeenCalledWith(204);
+    expect(revokeRefreshToken).toHaveBeenCalledWith('refresh-jti');
+    expect(markRefreshRotated).toHaveBeenCalledWith('refresh-jti', expect.any(Number));
+    expect(addToRevocationList).toHaveBeenCalledWith('refresh-jti', 'refresh', 'logout', expect.any(Number));
+    expect(deleteSession).toHaveBeenCalledWith('refresh-jti');
+    expect(tokenRevokedCounter.inc).toHaveBeenCalledWith({ type: 'refresh' });
+  });
+
+  it('debe rechazar payload inválido', async () => {
+    const req: any = { body: { token: 'bad' } };
+    const res = mockResponse();
+    await logoutHandler(req, res as any);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Datos inválidos' }));
+  });
+
+  it('debe responder 401 cuando el token no es válido', async () => {
+    (verifyRefresh as jest.Mock).mockRejectedValue(new Error('invalid'));
+    (verifyAccess as jest.Mock).mockRejectedValue(new Error('invalid'));
+    const req: any = { body: { token: 'invalid-token-12345' } };
+    const res = mockResponse();
+    await logoutHandler(req, res as any);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Token inválido o expirado' }));
+    expect(revokeRefreshToken).not.toHaveBeenCalled();
   });
 });

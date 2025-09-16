@@ -1,7 +1,15 @@
 import * as jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import { getCurrentKey, getKeyByKid } from './keys';
-import { addToRevocationList, saveRefreshToken, getRefreshToken, revokeRefreshToken, markRefreshRotated, isRefreshRotated } from '../adapters/redis/redis.adapter';
+import {
+  addToRevocationList,
+  saveRefreshToken,
+  getRefreshToken,
+  revokeRefreshToken,
+  markRefreshRotated,
+  isRefreshRotated,
+  isRevoked
+} from '../adapters/redis/redis.adapter';
 
 // In-memory rotated set (MVP). En producción debería sustentarse en Redis para múltiples réplicas.
 const rotatedRefreshJtis = new Set<string>();
@@ -68,7 +76,11 @@ export async function verifyAccess(token: string) {
   }
   const key = await getKeyByKid(kid);
   if (!key) throw new Error('Clave no encontrada para kid');
-  return jwt.verify(token, key.pem_public, { algorithms: ['RS256'] });
+  const verified = jwt.verify(token, key.pem_public, { algorithms: ['RS256'] }) as jwt.JwtPayload;
+  if (verified && typeof verified === 'object' && verified.jti) {
+    if (await isRevoked(verified.jti)) throw new Error('token_revocado');
+  }
+  return verified;
 }
 export async function verifyRefresh(token: string) {
   const decodedHeader: any = jwt.decode(token, { complete: true });
@@ -79,7 +91,11 @@ export async function verifyRefresh(token: string) {
   }
   const key = await getKeyByKid(kid);
   if (!key) throw new Error('Clave no encontrada para kid');
-  return jwt.verify(token, key.pem_public, { algorithms: ['RS256'] });
+  const verified = jwt.verify(token, key.pem_public, { algorithms: ['RS256'] }) as jwt.JwtPayload;
+  if (verified && typeof verified === 'object' && verified.jti) {
+    if (await isRevoked(verified.jti)) throw new Error('token_revocado');
+  }
+  return verified;
 }
 
 export async function rotateRefresh(oldRefreshToken: string): Promise<TokenPair | null> {

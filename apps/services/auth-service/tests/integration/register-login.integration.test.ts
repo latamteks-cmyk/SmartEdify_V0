@@ -19,6 +19,7 @@ describe('Flujo de integración: registro y login', () => {
       .send({ email, password: 'flowpass123', name: 'FlowUser', tenant_id: 'default' });
     expect(regRes.status).toBe(201);
     expect(regRes.body.message).toBe('Usuario registrado');
+    expect(regRes.body.user.roles).toEqual(expect.arrayContaining(['user']));
     const loginRes = await request(app)
       .post('/login')
       .send({ email, password: 'flowpass123', tenant_id: 'default' });
@@ -26,5 +27,6 @@ describe('Flujo de integración: registro y login', () => {
     expect(loginRes.body.message).toBe('Login exitoso');
     expect(loginRes.body.access_token).toBeDefined();
     expect(loginRes.body.refresh_token).toBeDefined();
+    expect(loginRes.body.roles).toEqual(expect.arrayContaining(['user']));
   });
 });

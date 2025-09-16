@@ -9,6 +9,8 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 - Recuperación de contraseña: tokens namespaced en Redis con fallback in-memory para pruebas.
 - Observabilidad: logging estructurado (`pino`), métricas técnicas HTTP (Prometheus) y health check que valida Postgres y Redis.
 - Pruebas: suite de integración estable (10 casos) que cubre el núcleo de registro/login/rotación con mocks controlados.
+- Logout revoca tokens refresh y añade la entrada correspondiente en la deny-list corta de tokens, dejando rastro en auditoría y métricas.
+- Registro asigna automáticamente el rol base (`user`) y expone los roles efectivos en respuestas y JWT.
 
 ### Backlog clave (pendiente)
 - Flujos OIDC completos: `authorize`, `token`, `userinfo`, `jwks`, `introspection`, `revocation`, discovery.
@@ -43,8 +45,8 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 - POST `/logout`
 - POST `/forgot-password`
 - POST `/reset-password`
-- GET `/roles`
-- GET `/permissions`
+- GET `/roles` (acepta `tenantId` opcional)
+- GET `/permissions` (acepta `tenantId` y `role` opcionales)
 
 ## Arquitectura lógica
 ```mermaid
@@ -91,6 +93,7 @@ HandlerRefresh --> CtxAPI
 ## Observabilidad y seguridad
 ### Observabilidad
 - Métricas HTTP + contadores negocio (`auth_login_success_total`, `auth_login_fail_total`, `auth_password_reset_*`, `auth_refresh_rotated_total`, `auth_refresh_reuse_blocked_total`).
+- Nueva métrica `auth_token_revoked_total{type}` que incrementa en flujos de logout o revocación explícita.
 - Logs JSON estructurados con correlación `x-request-id`.
 - Próximo paso: tracing OTel y métricas de saturación (pool DB, latencia Redis, coste Argon2).
 
@@ -99,6 +102,7 @@ HandlerRefresh --> CtxAPI
 - JWT firmados (clave estática MVP) con planes de rotación KMS.
 - Rate limiting y guard anti fuerza bruta.
 - Tokens de recuperación de un solo uso.
+- Revocación de refresh tokens vía logout y deny-list corta para access/refresh tokens comprometidos.
 
 ## Rotación de Claves JWT (JWKS)
 > Procedimiento operacional detallado: [Runbook — Rotación de claves (Auth)](../../../docs/runbooks/incident-auth-key-rotation.md).
@@ -152,11 +156,12 @@ curl -XPOST http://localhost:8080/admin/rotate-keys
 - Login correcto y fallido (password errónea con rate limiting progresivo).
 - Rotación básica de refresh token.
 - Recuperación de contraseña end-to-end.
+- Logout con revocación de refresh token y deny-list.
 
 ### Flujos pendientes
 - Detección de reuse de refresh tokens.
 - Expiración y rechazo de refresh/token.
-- Revocación manual (`/logout`) una vez implementado.
+- Extender logout para revocación en cadena y dispositivos múltiples.
 - Auditoría de eventos de seguridad y MFA.
 
 ### Datos de prueba y aislamiento
