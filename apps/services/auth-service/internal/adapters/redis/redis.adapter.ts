@@ -6,6 +6,8 @@ const redis = new Redis({
   port: Number(process.env.REDIS_PORT) || 6379,
 });
 
+const isTestEnv = process.env.NODE_ENV === 'test';
+
 // Tip: el mock en __mocks__/ioredis.ts ya implementa incr/expire/ttl.
 // Para robustez tipada (aunque no usamos types estricto aquí) agregamos wrappers opcionales
 // que delegan a la instancia real/mocked.
@@ -78,9 +80,45 @@ export async function isRevoked(jti: string) {
   return !!(await redis.get(`revoked:${jti}`));
 }
 
+// Authorization codes (PKCE)
+const inMemoryAuthCodeStore: Map<string, { value: any; expiresAt: number }> = (global as any).__AUTH_CODE_STORE__ || new Map();
+(global as any).__AUTH_CODE_STORE__ = inMemoryAuthCodeStore;
+
+export async function saveAuthorizationCode(code: string, data: any, ttl: number = 600) {
+  if (isTestEnv) {
+    inMemoryAuthCodeStore.set(code, { value: data, expiresAt: Date.now() + ttl * 1000 });
+    return;
+  }
+  await redis.set(`authcode:${code}`, JSON.stringify(data), 'EX', ttl);
+}
+
+export async function getAuthorizationCode(code: string) {
+  if (isTestEnv) {
+    const entry = inMemoryAuthCodeStore.get(code);
+    if (!entry) return null;
+    if (entry.expiresAt < Date.now()) {
+      inMemoryAuthCodeStore.delete(code);
+      return null;
+    }
+    return entry.value;
+  }
+  const data = await redis.get(`authcode:${code}`);
+  return data ? JSON.parse(data) : null;
+}
+
+export async function consumeAuthorizationCode(code: string) {
+  if (isTestEnv) {
+    const entry = await getAuthorizationCode(code);
+    inMemoryAuthCodeStore.delete(code);
+    return entry;
+  }
+  const data = await getAuthorizationCode(code);
+  await redis.del(`authcode:${code}`);
+  return data;
+}
+
 // Password reset tokens (namespace separado)
 // In-memory fallback para tests (evita problemas de mocking multi-instancia)
-const isTestEnv = process.env.NODE_ENV === 'test';
 const inMemoryResetStore: Map<string, { value: any; expiresAt: number }> = (global as any).__PWDRESET_STORE__ || new Map();
 (global as any).__PWDRESET_STORE__ = inMemoryResetStore;
 
