@@ -35,7 +35,7 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
   ```sh
   docker compose up -d db redis
   ```
-  Consulta [docs/docker-setup.md](docs/docker-setup.md) para detalles de puertos, variables de entorno y el script `scripts/dev-up.ps1` que automatiza healthchecks y migraciones.
+  Consulta [docs/docker.md](docs/docker.md#stack-local-persistencia-y-servicios) para detalles de puertos, variables de entorno y el script `scripts/dev-up.ps1` que automatiza healthchecks y migraciones.
 
 ### Ejecutar servicios
 - Auth Service:
@@ -92,8 +92,7 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
 - [docs/spec.md](docs/spec.md) — especificación técnica consolidada.
 - [docs/status.md](docs/status.md) — snapshot ejecutivo y estado de entregables.
 - [docs/operations/ci-cd.md](docs/operations/ci-cd.md) — guía de pipeline de CI/CD.
-- [docs/docker-setup.md](docs/docker-setup.md) — contenedores locales, puertos y variables de entorno.
-- [docs/docker-credenciales.md](docs/docker-credenciales.md) — publicación en registros Docker.
+- [docs/docker.md](docs/docker.md) — stack local y gestión de credenciales de registros.
 - Directorios especializados: `docs/observability/`, `docs/design/`, `docs/security-hardening.md`, `docs/runbooks/`.
 
 ## Contribuciones
