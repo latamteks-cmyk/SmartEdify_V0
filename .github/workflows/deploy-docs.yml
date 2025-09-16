@@ -1,0 +1,40 @@
+name: Deploy API Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Swagger UI generator
+        run: npm install swagger-ui-dist@5 --no-save
+
+      - name: Prepare static site
+        run: |
+          mkdir -p public
+          cp -r node_modules/swagger-ui-dist/* public/
+          cp docs/api-reference/index.html public/index.html
+          cp docs/openapi.yaml public/openapi.yaml
+          touch public/.nojekyll
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./public
+          commit_message: docs: deploy OpenAPI site

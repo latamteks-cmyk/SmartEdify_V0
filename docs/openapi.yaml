@@ -1,0 +1,706 @@
+openapi: 3.1.0
+info:
+  title: SmartEdify Public API
+  summary: API pública para gestionar catálogo de cursos, inscripciones y progreso académico.
+  version: 0.1.0
+  description: |
+    Esta especificación cubre los recursos fundamentales de SmartEdify para construir
+    integraciones personalizadas. Incluye endpoints para administrar cursos, lecciones,
+    usuarios inscritos y autenticación basada en tokens.
+  contact:
+    name: Plataforma SmartEdify
+    url: https://www.smartedify.com
+    email: developers@smartedify.com
+servers:
+  - url: https://api.smartedify.com/v1
+    description: Producción
+  - url: https://staging.api.smartedify.com/v1
+    description: Preproducción
+tags:
+  - name: Courses
+    description: Administración del catálogo de cursos y sus metadatos.
+  - name: Lessons
+    description: Gestión de lecciones dentro de un curso.
+  - name: Enrollments
+    description: Seguimiento del progreso y estado de los estudiantes en los cursos.
+  - name: Users
+    description: Operaciones relacionadas al perfil académico del usuario.
+  - name: Authentication
+    description: Flujos de autenticación y emisión de tokens.
+paths:
+  /courses:
+    get:
+      tags: [Courses]
+      summary: Listar cursos
+      description: Devuelve una lista paginada de cursos visibles para el consumidor.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: category
+          in: query
+          description: Filtra por una categoría específica del catálogo.
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filtra por estado de publicación del curso.
+          schema:
+            type: string
+            enum: [draft, scheduled, published, archived]
+        - name: search
+          in: query
+          description: Texto libre para filtrar por título o descripción.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Colección de cursos recuperada correctamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Course'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+    post:
+      tags: [Courses]
+      summary: Crear curso
+      description: Crea un nuevo curso dentro del catálogo.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseCreate'
+      responses:
+        '201':
+          description: Curso creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /courses/{courseId}:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+    get:
+      tags: [Courses]
+      summary: Obtener curso
+      responses:
+        '200':
+          description: Curso encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Courses]
+      summary: Actualizar curso
+      description: Permite actualizar parcialmente los atributos del curso.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseUpdate'
+      responses:
+        '200':
+          description: Curso actualizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Course'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Courses]
+      summary: Eliminar curso
+      description: Despublica un curso y lo remueve del catálogo activo.
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Curso eliminado.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/lessons:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+    get:
+      tags: [Lessons]
+      summary: Listar lecciones
+      description: Devuelve las lecciones ordenadas según el índice dentro del curso.
+      responses:
+        '200':
+          description: Lista de lecciones.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Lesson'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Lessons]
+      summary: Crear lección
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonCreate'
+      responses:
+        '201':
+          description: Lección creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /courses/{courseId}/lessons/{lessonId}:
+    parameters:
+      - $ref: '#/components/parameters/CourseId'
+      - $ref: '#/components/parameters/LessonId'
+    get:
+      tags: [Lessons]
+      summary: Obtener lección
+      responses:
+        '200':
+          description: Lección encontrada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Lessons]
+      summary: Actualizar lección
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LessonUpdate'
+      responses:
+        '200':
+          description: Lección actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Lesson'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Lessons]
+      summary: Eliminar lección
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Lección eliminada.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users/{userId}/enrollments:
+    parameters:
+      - $ref: '#/components/parameters/UserId'
+    get:
+      tags: [Enrollments]
+      summary: Listar inscripciones de un usuario
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Inscripciones del usuario.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Enrollment'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    post:
+      tags: [Enrollments]
+      summary: Inscribir usuario en curso
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentCreate'
+      responses:
+        '201':
+          description: Inscripción creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrollment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /enrollments/{enrollmentId}:
+    parameters:
+      - $ref: '#/components/parameters/EnrollmentId'
+    patch:
+      tags: [Enrollments]
+      summary: Actualizar inscripción
+      description: Permite actualizar el estado o el progreso de una inscripción.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentUpdate'
+      responses:
+        '200':
+          description: Inscripción actualizada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Enrollment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /auth/token:
+    post:
+      tags: [Authentication]
+      summary: Obtener token de acceso
+      description: Autentica al usuario mediante email y contraseña para obtener tokens JWT.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Token emitido correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      description: Identificador único del curso.
+      schema:
+        type: string
+        format: uuid
+    LessonId:
+      name: lessonId
+      in: path
+      required: true
+      description: Identificador único de la lección.
+      schema:
+        type: string
+        format: uuid
+    EnrollmentId:
+      name: enrollmentId
+      in: path
+      required: true
+      description: Identificador único de la inscripción.
+      schema:
+        type: string
+        format: uuid
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Identificador único del usuario.
+      schema:
+        type: string
+        format: uuid
+    PageParam:
+      name: page
+      in: query
+      description: Número de página a recuperar.
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSizeParam:
+      name: pageSize
+      in: query
+      description: Cantidad de elementos por página.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+  responses:
+    BadRequest:
+      description: La solicitud no pudo procesarse por un error del cliente.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Autenticación requerida o token inválido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: El recurso solicitado no se encuentra disponible.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Course:
+      type: object
+      description: Representa un curso disponible en la plataforma.
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+          description: Identificador amigable para URLs.
+        title:
+          type: string
+        summary:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        status:
+          type: string
+          enum: [draft, scheduled, published, archived]
+        estimatedDuration:
+          type: integer
+          format: int32
+          description: Duración estimada en minutos.
+        featured:
+          type: boolean
+          default: false
+        coverImage:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, slug, title, status, createdAt, updatedAt]
+    CourseCreate:
+      type: object
+      required: [title, summary, description]
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        difficulty:
+          type: string
+          enum: [beginner, intermediate, advanced]
+        estimatedDuration:
+          type: integer
+          format: int32
+        featured:
+          type: boolean
+          default: false
+        coverImage:
+          type: string
+          format: uri
+        publishAt:
+          type: string
+          format: date-time
+          description: Fecha opcional de publicación programada.
+    CourseUpdate:
+      allOf:
+        - $ref: '#/components/schemas/CourseCreate'
+      description: Campos que pueden actualizarse de un curso existente.
+    Lesson:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        order:
+          type: integer
+          minimum: 1
+        durationMinutes:
+          type: integer
+          minimum: 0
+        content:
+          type: string
+          description: Contenido enriquecido de la lección en formato Markdown.
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceLink'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, courseId, title, order, createdAt, updatedAt]
+    LessonCreate:
+      type: object
+      required: [title, order]
+      properties:
+        title:
+          type: string
+        order:
+          type: integer
+          minimum: 1
+        durationMinutes:
+          type: integer
+          minimum: 0
+        content:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceLink'
+    LessonUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+        order:
+          type: integer
+          minimum: 1
+        durationMinutes:
+          type: integer
+          minimum: 0
+        content:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResourceLink'
+    ResourceLink:
+      type: object
+      description: Recursos descargables o enlaces de apoyo para una lección.
+      properties:
+        label:
+          type: string
+        url:
+          type: string
+          format: uri
+        contentType:
+          type: string
+          description: Tipo MIME del recurso.
+      required: [label, url]
+    Enrollment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        courseId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [invited, in_progress, completed, expired, cancelled]
+        progress:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        certificateUrl:
+          type: string
+          format: uri
+        lastAccessedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, userId, courseId, status, progress, createdAt, updatedAt]
+    EnrollmentCreate:
+      type: object
+      required: [courseId]
+      properties:
+        courseId:
+          type: string
+          format: uuid
+        invitedBy:
+          type: string
+          format: uuid
+        initialStatus:
+          type: string
+          enum: [invited, in_progress]
+        expiresAt:
+          type: string
+          format: date-time
+    EnrollmentUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [invited, in_progress, completed, expired, cancelled]
+        progress:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 100
+        completedAt:
+          type: string
+          format: date-time
+    TokenRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+        scope:
+          type: array
+          items:
+            type: string
+          description: Alcances solicitados para el token emitido.
+    TokenResponse:
+      type: object
+      properties:
+        tokenType:
+          type: string
+          enum: [Bearer]
+          default: Bearer
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        expiresIn:
+          type: integer
+          description: Tiempo de vida del token en segundos.
+      required: [tokenType, accessToken, expiresIn]
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          minimum: 1
+        pageSize:
+          type: integer
+          minimum: 1
+        totalItems:
+          type: integer
+          minimum: 0
+        totalPages:
+          type: integer
+          minimum: 0
+      required: [page, pageSize, totalItems, totalPages]
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
+      required: [code, message]
