@@ -66,9 +66,32 @@ jobs:
         run: npm run lint
         working-directory: apps/services/${{ matrix.service }}
 
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Gitleaks
+        uses: zricethezav/gitleaks-action@v2
+        with:
+          args: detect --report-format sarif --report-path gitleaks.sarif
+      - name: Upload Gitleaks SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-sarif
+          path: gitleaks.sarif
+      - name: Publish Gitleaks SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
   unit:
     name: Unit Tests (${{ matrix.service }} · Node ${{ matrix.node }})
-    needs: lint
+    needs: [lint, secret-scan]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -145,7 +168,7 @@ jobs:
 
   integration:
     name: Integration Tests (${{ matrix.service }} · Node ${{ matrix.node }})
-    needs: unit
+    needs: [unit, secret-scan]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -222,7 +245,7 @@ jobs:
 
   contract:
     name: Contract Tests (${{ matrix.service }} · Node ${{ matrix.node }})
-    needs: integration
+    needs: [integration, secret-scan]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -315,7 +338,7 @@ jobs:
 
   coverage:
     name: Coverage summary
-    needs: [unit, integration, contract]
+    needs: [unit, integration, contract, secret-scan]
     runs-on: ubuntu-latest
     env:
       COVERAGE_THRESHOLD: '80'
@@ -403,7 +426,7 @@ jobs:
 
   sast:
     name: SAST (CodeQL)
-    needs: lint
+    needs: [lint, secret-scan]
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -428,7 +451,7 @@ jobs:
 
   trivy:
     name: Trivy FS & Image Scans
-    needs: [contract]
+    needs: [contract, secret-scan]
     runs-on: ubuntu-latest
     permissions:
       contents: read

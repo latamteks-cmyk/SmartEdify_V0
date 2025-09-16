@@ -9,7 +9,17 @@
 > - Dashboards: [Grafana CI/CD](https://grafana.smartedify.internal/d/cicd)
 
 ## Gates obligatorios
-- `lint`, `typecheck`, `test:unit`, `test:int`, `openapi:lint`, `sbom`, `sast`, `container:scan`.
+- `lint`, `typecheck`, `test:unit`, `test:int`, `openapi:lint`, `sbom`, `sast`, `container:scan`, `secret-scan`.
+
+### `secret-scan`
+- Detecta *leaks* y credenciales accidentales utilizando [Gitleaks](https://github.com/gitleaks/gitleaks).
+- El pipeline sube los resultados en formato SARIF a Code Scanning y bloquea el merge si el job falla.
+- Para reproducirlo localmente desde la raíz del repo:
+  ```bash
+  docker run --rm -v "$(pwd)":/repo -w /repo zricethezav/gitleaks:latest \
+    detect --report-format sarif --report-path gitleaks.sarif
+  ```
+  El archivo `gitleaks.sarif` puede abrirse con VS Code o subirse manualmente a GitHub Code Scanning para revisión.
 
 ## Estrategia de despliegue
 - *Canary* por servicio con *feature flags*.
