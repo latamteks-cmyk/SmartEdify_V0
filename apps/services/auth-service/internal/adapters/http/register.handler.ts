@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
-import { RegisterRequestSchema } from './register.dto';
-import { createUser, getUserByEmail, assignUserRole, getUserRoles } from '../db/pg.adapter';
 import { v4 as uuidv4 } from 'uuid';
-import { mockValidateUser } from '../user-service.mock';
+
 import { hashPassword } from '../../security/crypto';
+import * as pgAdapter from '@db/pg.adapter';
+import { mockValidateUser } from '../user-service.mock';
+
+import { RegisterRequestSchema } from './register.dto';
 
 const DEFAULT_ROLE = process.env.AUTH_DEFAULT_ROLE || 'user';
 
@@ -22,14 +24,14 @@ export async function registerHandler(req: Request, res: Response) {
     return res.status(403).json({ error: 'Usuario no permitido por User Service' });
   }
   // Verificar si el usuario ya existe
-  const existing = await getUserByEmail(email, tenant_id);
+  const existing = await pgAdapter.getUserByEmail(email, tenant_id);
   if (existing) {
     return res.status(409).json({ error: 'El usuario ya existe' });
   }
   // Hash Argon2id
   const hashed = await hashPassword(password);
   // Guardar usuario en Postgres (pwd_salt queda en blanco hasta limpiar esquema)
-  const user = await createUser({
+  const user = await pgAdapter.createUser({
     tenant_id,
     email,
     pwd_hash: hashed,
@@ -38,16 +40,20 @@ export async function registerHandler(req: Request, res: Response) {
     created_at: new Date()
   });
   try {
-    await assignUserRole(user.id, tenant_id, DEFAULT_ROLE);
+  await pgAdapter.assignUserRole(user.id, tenant_id, DEFAULT_ROLE);
   } catch (e) {
     if (process.env.AUTH_TEST_LOGS) console.error('[register] assignUserRole failed', e);
   }
   let roles: string[] = [];
   try {
-    roles = await getUserRoles(user.id, tenant_id);
+  roles = await pgAdapter.getUserRoles(user.id, tenant_id);
   } catch (e) {
     if (process.env.AUTH_TEST_LOGS) console.error('[register] getUserRoles failed', e);
   }
   if (!roles || roles.length === 0) roles = [DEFAULT_ROLE];
-  return res.status(201).json({ message: 'Usuario registrado', user: { id: user.id, email, name, roles } });
+  if (process.env.AUTH_TEST_LOGS) {
+    // eslint-disable-next-line no-console
+    console.log('[register.handler] user creado', user);
+  }
+  return res.status(201).json({ message: 'Usuario registrado', user: { id: user?.id, email, name, roles } });
 }

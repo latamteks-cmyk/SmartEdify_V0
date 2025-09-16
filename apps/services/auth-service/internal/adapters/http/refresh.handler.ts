@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
-import { rotateRefresh } from '../../security/jwt';
+
 import { refreshRotatedCounter, refreshReuseBlockedCounter } from '../../../cmd/server/main';
+import { rotateRefresh } from '../../security/jwt';
 
 export async function refreshHandler(req: Request, res: Response) {
   const token = (req.body && req.body.refresh_token) || req.headers['x-refresh-token'];

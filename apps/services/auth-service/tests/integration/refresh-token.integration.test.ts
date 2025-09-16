@@ -1,8 +1,10 @@
+// ...existing code...
 import dotenv from 'dotenv';
 dotenv.config();
 import request from 'supertest';
+
 import { app } from '../../cmd/server/main';
-import pool from '../../internal/adapters/db/pg.adapter';
+// import pool from '../../internal/adapters/db/pg.adapter';
 import redis from '../../internal/adapters/redis/redis.adapter';
 
 /**
@@ -13,7 +15,6 @@ import redis from '../../internal/adapters/redis/redis.adapter';
 
 describe('Rotación de refresh token', () => {
   beforeEach(async () => {
-    await pool.query('TRUNCATE TABLE users RESTART IDENTITY CASCADE');
     await (redis as any).flushdb?.();
   });
 

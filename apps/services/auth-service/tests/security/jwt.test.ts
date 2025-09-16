@@ -1,57 +1,5 @@
 jest.mock('ioredis');
-jest.mock('../../internal/adapters/db/pg.adapter', () => {
-  class MockPool {
-    private data: { auth_signing_keys: any[] } = { auth_signing_keys: [] };
-    query(sql: string, params?: any[]) {
-      const lower = sql.toLowerCase();
-      if (lower.startsWith('select * from auth_signing_keys where status in')) {
-        const wantRetiring = sql.includes('retiring');
-        const statuses = wantRetiring ? ['current','next','retiring'] : ['current','next'];
-        const rows = this.data.auth_signing_keys.filter(k => statuses.includes(k.status));
-        return Promise.resolve({ rows });
-      }
-      if (lower.startsWith('select * from auth_signing_keys where status=') && sql.includes("'current'")) {
-        const rows = this.data.auth_signing_keys.filter(k => k.status === 'current');
-        return Promise.resolve({ rows });
-      }
-      if (lower.startsWith('select * from auth_signing_keys where status=') && sql.includes("'next'")) {
-        const rows = this.data.auth_signing_keys.filter(k => k.status === 'next');
-        return Promise.resolve({ rows });
-      }
-      if (lower.startsWith('select * from auth_signing_keys where kid=')) {
-        const kid = params?.[0];
-        const rows = this.data.auth_signing_keys.filter(k => k.kid === kid);
-        return Promise.resolve({ rows });
-      }
-      if (lower.startsWith('insert into auth_signing_keys')) {
-        const [kid, pem_private, pem_public, status] = params!;
-        const row = { kid, pem_private, pem_public, status, created_at: new Date() };
-        this.data.auth_signing_keys.push(row);
-        return Promise.resolve({ rows: [row] });
-      }
-      if (lower.startsWith('update auth_signing_keys set promoted_at')) {
-        const kid = params?.[0];
-        const row = this.data.auth_signing_keys.find(k => k.kid === kid);
-        if (row) row.promoted_at = new Date();
-        return Promise.resolve({ rows: [] });
-      }
-      if (lower.startsWith('update auth_signing_keys set status=')) {
-        const kid = params?.[0];
-        const row = this.data.auth_signing_keys.find(k => k.kid === kid);
-        if (row) {
-          if (sql.includes("'retiring'")) { row.status = 'retiring'; row.retiring_at = new Date(); }
-          if (sql.includes("'current'")) { row.status = 'current'; row.promoted_at = new Date(); }
-        }
-        return Promise.resolve({ rows: [] });
-      }
-      if (['begin','commit','rollback'].includes(lower.trim())) return Promise.resolve({ rows: [] });
-      return Promise.resolve({ rows: [] });
-    }
-    async connect() { return { query: this.query.bind(this), release: () => {} } as any; }
-  }
-  const pool = new MockPool();
-  return { __esModule: true, default: pool };
-});
+// Eliminado mock inline de pg.adapter para usar el mock global
 import { issueTokenPair, verifyAccess, verifyRefresh, rotateRefresh } from '../../internal/security/jwt';
 import { getCurrentKey } from '../../internal/security/keys';
 
@@ -65,15 +13,18 @@ describe('JWT emisión y verificación', () => {
   test('emite par de tokens con kid', async () => {
     const pair = await basePair();
     expect(pair.accessToken).toBeDefined();
-    const decoded: any = await verifyAccess(pair.accessToken);
-    expect(decoded.sub).toBe('user-1');
-    expect(decoded.type).toBe('access');
+  const decoded = await verifyAccess(pair.accessToken);
+  // decoded puede ser string | JwtPayload
+  const payload = decoded as import('jsonwebtoken').JwtPayload;
+  expect(payload.sub).toBe('user-1');
+  expect(payload.type).toBe('access');
   });
 
   test('verifica refresh token', async () => {
     const pair = await basePair();
-    const decoded: any = await verifyRefresh(pair.refreshToken);
-    expect(decoded.type).toBe('refresh');
+  const decoded = await verifyRefresh(pair.refreshToken);
+  const payload = decoded as import('jsonwebtoken').JwtPayload;
+  expect(payload.type).toBe('refresh');
   });
 
   test('rotación de refresh genera nuevo par y bloquea reuso', async () => {

@@ -1,5 +1,6 @@
-import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
+
 import redis, { incr, ttl as redisTtl, expire as redisExpire } from '../adapters/redis/redis.adapter';
 
 // Rate limiting simple en memoria + refuerzo con Redis para brute force por email

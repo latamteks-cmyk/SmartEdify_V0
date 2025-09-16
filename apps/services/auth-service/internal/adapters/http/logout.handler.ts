@@ -1,14 +1,16 @@
 import { Request, Response } from 'express';
-import { LogoutRequestSchema } from './logout.dto';
+
+import { tokenRevokedCounter } from '../../../cmd/server/main';
 import { verifyRefresh, verifyAccess } from '../../security/jwt';
+import * as pgAdapter from '@db/pg.adapter';
 import {
   revokeRefreshToken,
   markRefreshRotated,
   addToRevocationList,
   deleteSession
 } from '../redis/redis.adapter';
-import { tokenRevokedCounter } from '../../../cmd/server/main';
-import { logSecurityEvent } from '../db/pg.adapter';
+
+import { LogoutRequestSchema } from './logout.dto';
 
 function ttlFromExp(exp?: number): number {
   if (!exp || typeof exp !== 'number') return 0;
@@ -61,7 +63,7 @@ export async function logoutHandler(req: Request, res: Response) {
   } catch {}
 
   try {
-    await logSecurityEvent({
+  await pgAdapter.logSecurityEvent({
       actor: decoded.sub || 'unknown',
       event: 'auth.logout',
       ip: req.ip || '',

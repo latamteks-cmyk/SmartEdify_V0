@@ -1,10 +1,12 @@
 import { Request, Response } from 'express';
-import { LoginRequestSchema } from './login.dto';
-import { getUserByEmail, getUserRoles } from '../db/pg.adapter';
-import { saveSession } from '../redis/redis.adapter';
+
+import { loginSuccessCounter, loginFailCounter } from '../../../cmd/server/main';
 import { verifyPassword } from '../../security/crypto';
 import { issueTokenPair, verifyRefresh } from '../../security/jwt';
-import { loginSuccessCounter, loginFailCounter } from '../../../cmd/server/main';
+import * as pgAdapter from '@db/pg.adapter';
+import { saveSession } from '../redis/redis.adapter';
+
+import { LoginRequestSchema } from './login.dto';
 
 const DEFAULT_ROLE = process.env.AUTH_DEFAULT_ROLE || 'user';
 
@@ -15,10 +17,12 @@ export async function loginHandler(req: Request, res: Response) {
   }
   const { email, password } = parseResult.data;
   const tenant_id = req.body.tenant_id || 'default';
-  const user = await getUserByEmail(email, tenant_id);
+  const user = await pgAdapter.getUserByEmail(email, tenant_id);
+  if (process.env.AUTH_TEST_LOGS) console.log('[login] fetched user', user);
   let valid = false;
   if (user) {
     valid = await verifyPassword(user.pwd_hash, password);
+    if (process.env.AUTH_TEST_LOGS) console.log('[login] verifyPassword', user.pwd_hash, password, '=>', valid);
   }
   if (!user || !valid) {
     loginFailCounter.inc();
@@ -27,7 +31,7 @@ export async function loginHandler(req: Request, res: Response) {
   // Generar tokens (access + refresh)
   let roles: string[] = [];
   try {
-    roles = await getUserRoles(user.id, tenant_id);
+  roles = await pgAdapter.getUserRoles(user.id, tenant_id);
   } catch (e) {
     if (process.env.AUTH_TEST_LOGS) console.error('[login] getUserRoles failed', e);
   }

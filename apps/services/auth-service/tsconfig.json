@@ -7,7 +7,11 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@db/*": ["internal/adapters/db/*"]
+    }
   },
   "include": ["internal", "cmd", "tests", "migrations_ts"]
 }

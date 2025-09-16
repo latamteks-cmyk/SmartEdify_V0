@@ -5,13 +5,15 @@
 type Stored = { value: string; expiresAt?: number };
 
 // Stores compartidos (una sola memoria entre múltiples instancias)
-const sharedStore: Map<string, Stored> = (global as any).__REDIS_MOCK_STORE__ || new Map();
-(global as any).__REDIS_MOCK_STORE__ = sharedStore;
+type GlobalWithRedisMockStore = typeof globalThis & { __REDIS_MOCK_STORE__?: Map<string, Stored> };
+const globalWithStore = global as GlobalWithRedisMockStore;
+const sharedStore: Map<string, Stored> = globalWithStore.__REDIS_MOCK_STORE__ || new Map();
+globalWithStore.__REDIS_MOCK_STORE__ = sharedStore;
 
 class MockRedis {
   private store = sharedStore;
 
-  constructor(_opts?: any) {}
+  constructor(_opts?: unknown) {}
 
   private isExpired(entry?: Stored) {
     return !!(entry && entry.expiresAt && entry.expiresAt < Date.now());
@@ -67,9 +69,11 @@ class MockRedis {
   async quit() { this.store.clear(); }
 }
 
-// Compatibilidad CommonJS + ESModule: si Jest transpila a CJS, default debe ser la clase.
-// Devolvemos tanto module.exports como module.exports.default y export default.
-// Esto evita el error "is not a constructor" cuando ts-jest envuelve en { default: exported }.
-(module as any).exports = MockRedis;
-(module as any).exports.default = MockRedis;
-export default MockRedis;
+// Exportación compatible ESM/CommonJS para Jest
+// Para que `import Redis from 'ioredis'` reciba un objeto con .default
+// y `require('ioredis')` reciba la clase directamente
+// @ts-ignore
+if (typeof module !== 'undefined') {
+  // @ts-ignore
+  module.exports = { default: MockRedis };
+}

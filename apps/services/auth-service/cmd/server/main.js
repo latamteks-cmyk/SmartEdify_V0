@@ -1,4 +1,5 @@
 import express from 'express';
+
 import { registerHandler } from './internal/adapters/http/register.handler';
 // ...import otros handlers
 

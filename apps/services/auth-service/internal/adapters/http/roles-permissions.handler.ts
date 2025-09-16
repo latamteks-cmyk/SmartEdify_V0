@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
-import { listRoles } from '../db/pg.adapter';
+
+import * as pgAdapter from '../db/pg.adapter';
 
 function parseList(value: unknown, fallback: string[]): string[] {
   if (Array.isArray(value)) {
@@ -60,7 +61,7 @@ export async function rolesHandler(req: Request, res: Response) {
   const tenantId = pickTenantId(req);
   let roles: string[] = [];
   try {
-    roles = await listRoles(tenantId);
+  roles = await pgAdapter.listRoles(tenantId);
   } catch (e) {
     if (process.env.AUTH_TEST_LOGS) console.error('[roles] listRoles failed', e);
   }
@@ -73,7 +74,7 @@ export async function permissionsHandler(req: Request, res: Response) {
   const roleFilter = typeof req.query.role === 'string' ? req.query.role.trim() : undefined;
   let roles: string[] = [];
   try {
-    roles = await listRoles(tenantId);
+  roles = await pgAdapter.listRoles(tenantId);
   } catch (e) {
     if (process.env.AUTH_TEST_LOGS) console.error('[permissions] listRoles failed', e);
   }

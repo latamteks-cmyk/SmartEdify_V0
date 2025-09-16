@@ -1,9 +1,9 @@
-import { clearDb } from '../../internal/adapters/db/memory';
 import request from 'supertest';
+
 import app from '../app.test';
 
 describe('POST /login', () => {
-  beforeEach(() => { clearDb(); });
+  // Uso de mock pg in-memory global; no limpiar memory local obsoleta
   it('debe aceptar login válido', async () => {
     const email = `user_${Date.now()}@demo.com`;
     await request(app)

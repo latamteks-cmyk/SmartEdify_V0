@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { startTracing, shutdownTracing } from '../../internal/observability/tracing';
+
 import { context, trace } from '@opentelemetry/api';
 
 // Inicializar tracing (no bloquear si falla)
@@ -7,19 +8,21 @@ startTracing().catch(err => {
   console.error('[tracing] init failed', err);
 });
 
+import { randomUUID } from 'crypto';
+
 import express from 'express';
-import client from 'prom-client';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
-import { randomUUID } from 'crypto';
-import { registerHandler } from '../../internal/adapters/http/register.handler';
-import { loginHandler } from '../../internal/adapters/http/login.handler';
-import { refreshHandler } from '../../internal/adapters/http/refresh.handler';
-import { logoutHandler } from '../../internal/adapters/http/logout.handler';
+import client from 'prom-client';
+
+import * as pgAdapter from '@db/pg.adapter';
 import { forgotPasswordHandler } from '../../internal/adapters/http/forgot-password.handler';
+import { loginHandler } from '../../internal/adapters/http/login.handler';
+import { logoutHandler } from '../../internal/adapters/http/logout.handler';
+import { refreshHandler } from '../../internal/adapters/http/refresh.handler';
+import { registerHandler } from '../../internal/adapters/http/register.handler';
 import { resetPasswordHandler } from '../../internal/adapters/http/reset-password.handler';
 import { rolesHandler, permissionsHandler } from '../../internal/adapters/http/roles-permissions.handler';
-import pool from '../../internal/adapters/db/pg.adapter';
 import { redisPing } from '../../internal/adapters/redis/redis.adapter';
 import { loginRateLimiter, bruteForceGuard } from '../../internal/middleware/rate-limit';
 import { getPublicJwks, rotateKeys, getCurrentKey } from '../../internal/security/keys';
@@ -176,7 +179,7 @@ app.get('/health', async (req, res) => {
   let dbOk = false;
   let redisOk = false;
   try {
-    await pool.query('SELECT 1');
+  await pgAdapter.pool.query('SELECT 1');
     dbOk = true;
   } catch (e) {
     logger.error({ err: e }, 'DB health check failed');

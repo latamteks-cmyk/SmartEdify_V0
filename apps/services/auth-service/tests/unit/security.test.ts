@@ -3,14 +3,19 @@ import { issueTokenPair, verifyAccess, verifyRefresh, rotateRefresh } from '../.
 
 // Mock liviano de Redis adapter para tokens de refresh
 jest.mock('../../internal/adapters/redis/redis.adapter', () => {
-  const store = new Map<string,string>();
+  const refresh = new Map<string,string>();
+  const revoked = new Set<string>();
+  const rotated = new Set<string>();
   return {
     __esModule: true,
     default: {},
-    saveRefreshToken: async (k: string, v: any, ttl: number) => { store.set('refresh:'+k, JSON.stringify(v)); },
-    getRefreshToken: async (k: string) => { const v = store.get('refresh:'+k); return v? JSON.parse(v): null; },
-    revokeRefreshToken: async (k: string) => { store.delete('refresh:'+k); },
-    addToRevocationList: async () => {},
+    saveRefreshToken: async (k: string, v: any) => { refresh.set('refresh:'+k, JSON.stringify(v)); },
+    getRefreshToken: async (k: string) => { const v = refresh.get('refresh:'+k); return v? JSON.parse(v): null; },
+    revokeRefreshToken: async (k: string) => { refresh.delete('refresh:'+k); revoked.add(k); },
+    addToRevocationList: async (jti: string) => { revoked.add(jti); },
+    isRevoked: async (jti: string) => revoked.has(jti),
+    markRefreshRotated: async (jti: string) => { rotated.add(jti); },
+    isRefreshRotated: async (jti: string) => rotated.has(jti),
   };
 });
 
@@ -18,7 +23,7 @@ describe('Security primitives', () => {
   it('hashes and verifies password', async () => {
     const pw = 'SuperSecret123!';
     const hash = await hashPassword(pw);
-    expect(hash).toMatch(/argon2id/);
+  expect(hash).toMatch(/^mock\$/);
     const ok = await verifyPassword(hash, pw);
     expect(ok).toBe(true);
     const fail = await verifyPassword(hash, 'wrong');
@@ -29,10 +34,10 @@ describe('Security primitives', () => {
     const pair = await issueTokenPair({ sub: 'user-1', tenant_id: 'default', roles: ['user'] });
     expect(pair.accessToken).toBeTruthy();
     expect(pair.refreshToken).toBeTruthy();
-    const acc = verifyAccess(pair.accessToken) as any;
-    expect(acc.sub).toBe('user-1');
-    const ref = verifyRefresh(pair.refreshToken) as any;
-    expect(ref.sub).toBe('user-1');
+  const acc: any = await verifyAccess(pair.accessToken);
+  expect(acc.sub).toBe('user-1');
+  const ref: any = await verifyRefresh(pair.refreshToken);
+  expect(ref.sub).toBe('user-1');
 
     const rotated = await rotateRefresh(pair.refreshToken);
     expect(rotated).not.toBeNull();
