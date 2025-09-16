@@ -40,6 +40,12 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 - AUTH_LOG_LEVEL
 
 ## Endpoints principales
+- GET `/authorize`
+- POST `/token`
+- GET `/userinfo`
+- POST `/introspection`
+- POST `/revocation`
+- GET `/.well-known/openid-configuration`
 - POST `/register`
 - POST `/login`
 - POST `/logout`
@@ -85,10 +91,61 @@ HandlerRefresh --> CtxAPI
 | Métricas | HTTP genéricas + contadores negocio iniciales | Visibilidad rápida del MVP | Sin métricas avanzadas de seguridad | Instrumentar métricas específicas en backlog |
 
 ## Flujos implementados
+- Authorization Code + PKCE con validación de `client_id`, `redirect_uri`, `scope` y `grant_type` según RFC 6749/7636.
 - Registro de usuario con validación y hash Argon2id.
 - Login con emisión de access/refresh tokens, rate limiting y lookup opcional de contexto Tenant.
 - Refresh token con rotación básica y fallback de compatibilidad simétrica.
 - Recuperación de contraseña: emisión de token namespaced y consumo único en reset.
+
+### Ejemplo Authorization Code + PKCE
+1. **Redirección inicial** (requiere un access token válido del usuario):
+   ```bash
+   curl -i -G "http://localhost:8080/authorize" \
+     -H "Authorization: Bearer <ACCESS_TOKEN>" \
+     --data-urlencode "response_type=code" \
+     --data-urlencode "client_id=squarespace" \
+     --data-urlencode "redirect_uri=https://www.smart-edify.com/auth/callback" \
+     --data-urlencode "scope=openid profile email offline_access" \
+     --data-urlencode "code_challenge=<CODE_CHALLENGE>" \
+     --data-urlencode "code_challenge_method=S256"
+   ```
+   La respuesta devuelve `302` con el parámetro `code` en la URL de callback.
+
+2. **Intercambio de código por tokens**:
+   ```bash
+   curl -X POST http://localhost:8080/token \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=authorization_code" \
+     -d "code=<CODE_FROM_STEP_1>" \
+     -d "redirect_uri=https://www.smart-edify.com/auth/callback" \
+     -d "client_id=squarespace" \
+     -d "code_verifier=<CODE_VERIFIER>"
+   ```
+   Respuesta: `access_token`, `refresh_token`, `id_token`, `scope` y `expires_in`.
+
+3. **UserInfo con scopes `profile`/`email`**:
+   ```bash
+   curl http://localhost:8080/userinfo \
+     -H "Authorization: Bearer <ACCESS_TOKEN>"
+   ```
+
+4. **Introspección y revocación**:
+   ```bash
+   curl -X POST http://localhost:8080/introspection \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "client_id=squarespace" \
+     -d "token=<ACCESS_OR_REFRESH_TOKEN>"
+
+   curl -X POST http://localhost:8080/revocation \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "client_id=squarespace" \
+     -d "token=<ACCESS_OR_REFRESH_TOKEN>"
+   ```
+
+5. **Discovery OIDC**:
+   ```bash
+   curl http://localhost:8080/.well-known/openid-configuration | jq
+   ```
 
 ## Observabilidad y seguridad
 ### Observabilidad

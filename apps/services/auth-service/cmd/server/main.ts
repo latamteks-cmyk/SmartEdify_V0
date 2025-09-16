@@ -19,6 +19,12 @@ import { logoutHandler } from '../../internal/adapters/http/logout.handler';
 import { forgotPasswordHandler } from '../../internal/adapters/http/forgot-password.handler';
 import { resetPasswordHandler } from '../../internal/adapters/http/reset-password.handler';
 import { rolesHandler, permissionsHandler } from '../../internal/adapters/http/roles-permissions.handler';
+import { authorizeHandler } from '../../internal/adapters/http/authorize.handler';
+import { tokenHandler } from '../../internal/adapters/http/token.handler';
+import { userinfoHandler } from '../../internal/adapters/http/userinfo.handler';
+import { introspectionHandler } from '../../internal/adapters/http/introspection.handler';
+import { revocationHandler } from '../../internal/adapters/http/revocation.handler';
+import { openIdConfigurationHandler } from '../../internal/adapters/http/openid-configuration.handler';
 import pool from '../../internal/adapters/db/pg.adapter';
 import { redisPing } from '../../internal/adapters/redis/redis.adapter';
 import { loginRateLimiter, bruteForceGuard } from '../../internal/middleware/rate-limit';
@@ -130,6 +136,7 @@ export const app = express();
 // Export util para tests que permita limpiar intervalo si en algún momento se inicializa
 export async function _cleanupMetrics() { /* noop actual (mantener API por si cambiamos) */ }
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // Middleware request-id
 app.use((req, res, next) => {
@@ -224,6 +231,8 @@ app.get('/.well-known/jwks.json', async (_req, res) => {
   }
 });
 
+app.get('/.well-known/openid-configuration', openIdConfigurationHandler);
+
 // Rotación manual (MVP) - proteger en producción
 app.post('/admin/rotate-keys', async (_req, res) => {
   try {
@@ -244,6 +253,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Endpoints principales
+app.get('/authorize', authorizeHandler);
+app.post('/token', tokenHandler);
+app.get('/userinfo', userinfoHandler);
+app.post('/introspection', introspectionHandler);
+app.post('/revocation', revocationHandler);
 app.post('/register', registerHandler);
 app.post('/login', loginRateLimiter, bruteForceGuard, loginHandler);
 app.post('/logout', logoutHandler);
