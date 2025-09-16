@@ -48,12 +48,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
         working-directory: apps/services/${{ matrix.service }}
+      - name: Type check
+        shell: bash
+        working-directory: apps/services/${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)" >/dev/null 2>&1; then
+            npm run build -- --noEmit
+          elif node -e "process.exit(require('./package.json').scripts?.typecheck ? 0 : 1)" >/dev/null 2>&1; then
+            npm run typecheck
+          elif [ -f tsconfig.json ] && [ -f node_modules/typescript/package.json ]; then
+            npx tsc --noEmit
+          else
+            echo "No typecheck script detected; skipping"
+          fi
       - name: Run ESLint
         run: npm run lint
         working-directory: apps/services/${{ matrix.service }}
 
-  test:
-    name: Tests (${{ matrix.service }} · Node ${{ matrix.node }})
+  unit:
+    name: Unit Tests (${{ matrix.service }} · Node ${{ matrix.node }})
     needs: lint
     runs-on: ubuntu-latest
     strategy:
@@ -110,23 +124,201 @@ jobs:
         run: npm run migrate
         working-directory: ${{ env.SERVICE_DIR }}
       - name: Run unit tests with coverage
-        run: npm test -- --runInBand --coverage --coverageReporters=cobertura --coverageReporters=text-summary
+        shell: bash
         working-directory: ${{ env.SERVICE_DIR }}
-      - name: Upload coverage artifact
+        run: |
+          set -euo pipefail
+          coverage_dir="coverage/unit"
+          if node -e "process.exit(require('./package.json').scripts?.['test:proj:unit'] ? 0 : 1)" >/dev/null 2>&1; then
+            npm run test:proj:unit -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
+          else
+            npm test -- --runInBand --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov --testPathPattern=tests/unit
+          fi
+      - name: Upload unit coverage artifact
         uses: actions/upload-artifact@v4
         with:
-          name: coverage_${{ matrix.service }}_node_${{ matrix.node }}
+          name: coverage__${{ matrix.service }}__${{ matrix.node }}__unit
           path: |
-            ${{ env.SERVICE_DIR }}/coverage/cobertura-coverage.xml
-            ${{ env.SERVICE_DIR }}/coverage/lcov.info
+            ${{ env.SERVICE_DIR }}/coverage/unit/cobertura-coverage.xml
+            ${{ env.SERVICE_DIR }}/coverage/unit/lcov.info
+          if-no-files-found: error
+
+  integration:
+    name: Integration Tests (${{ matrix.service }} · Node ${{ matrix.node }})
+    needs: unit
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-service
+            node: 18.x
+          - service: auth-service
+            node: 20.x
+          - service: user-service
+            node: 18.x
+          - service: user-service
+            node: 20.x
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: smartedify
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
+    env:
+      SERVICE_DIR: apps/services/${{ matrix.service }}
+      NODE_ENV: test
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: smartedify
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      AUTH_LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run database migrations
+        if: matrix.service == 'auth-service'
+        run: npm run migrate
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run integration tests with coverage
+        shell: bash
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          set -euo pipefail
+          coverage_dir="coverage/integration"
+          if node -e "process.exit(require('./package.json').scripts?.['test:proj:integration'] ? 0 : 1)" >/dev/null 2>&1; then
+            npm run test:proj:integration -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
+          else
+            npm test -- --runInBand --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov --testPathPattern=tests/integration
+          fi
+      - name: Upload integration coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage__${{ matrix.service }}__${{ matrix.node }}__integration
+          path: |
+            ${{ env.SERVICE_DIR }}/coverage/integration/cobertura-coverage.xml
+            ${{ env.SERVICE_DIR }}/coverage/integration/lcov.info
+          if-no-files-found: error
+
+  contract:
+    name: Contract Tests (${{ matrix.service }} · Node ${{ matrix.node }})
+    needs: integration
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-service
+            node: 18.x
+          - service: auth-service
+            node: 20.x
+          - service: user-service
+            node: 18.x
+          - service: user-service
+            node: 20.x
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: smartedify
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
+    env:
+      SERVICE_DIR: apps/services/${{ matrix.service }}
+      NODE_ENV: test
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: smartedify
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      AUTH_LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run database migrations
+        if: matrix.service == 'auth-service'
+        run: npm run migrate
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run contract tests
+        id: contract_tests
+        shell: bash
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          set -euo pipefail
+          coverage_dir="coverage/contract"
+          if node -e "process.exit(require('./package.json').scripts?.['test:proj:contract'] ? 0 : 1)" >/dev/null 2>&1; then
+            npm run test:proj:contract -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
+            echo "coverage=true" >> "$GITHUB_OUTPUT"
+          elif node -e "process.exit(require('./package.json').scripts?.['test:proj:security'] ? 0 : 1)" >/dev/null 2>&1; then
+            npm run test:proj:security -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
+            echo "coverage=true" >> "$GITHUB_OUTPUT"
+          elif [ -d tests/contract ] || [ -d tests/security ]; then
+            pattern='tests/contract'
+            if [ -d tests/security ] && [ -d tests/contract ]; then
+              pattern='tests/(contract|security)'
+            elif [ -d tests/security ]; then
+              pattern='tests/security'
+            fi
+            npm test -- --runInBand --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov --testPathPattern="$pattern"
+            echo "coverage=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No contract/security tests defined; skipping."
+            echo "coverage=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload contract coverage artifact
+        if: steps.contract_tests.outputs.coverage == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage__${{ matrix.service }}__${{ matrix.node }}__contract
+          path: |
+            ${{ env.SERVICE_DIR }}/coverage/contract/cobertura-coverage.xml
+            ${{ env.SERVICE_DIR }}/coverage/contract/lcov.info
           if-no-files-found: error
 
   coverage:
     name: Coverage summary
-    needs: test
+    needs: [unit, integration, contract]
     runs-on: ubuntu-latest
     env:
-      COVERAGE_THRESHOLD: '60'
+      COVERAGE_THRESHOLD: '80'
     steps:
       - name: Download coverage artifacts
         uses: actions/download-artifact@v4
@@ -147,22 +339,49 @@ jobs:
               sys.exit(1)
 
           threshold = float(os.environ.get('COVERAGE_THRESHOLD', '0'))
-          summary_lines = ['| Service | Node | Line coverage (%) |', '| --- | --- | --- |']
+          from collections import defaultdict
+
+          summary_lines = ['| Service | Node | Suite | Line coverage (%) |', '| --- | --- | --- | --- |']
+          service_rates = defaultdict(list)
           below_threshold = []
 
-          for xml_path in files:
+          def parse_artifact_name(name: str):
+              parts = name.split('__')
+              if len(parts) != 4 or parts[0] != 'coverage':
+                  return None
+              _, service, node, suite = parts
+              return service, node, suite
+
+          for xml_path in sorted(files):
               artifact = xml_path.parts[1]
-              service_section, node_section = artifact.replace('coverage_', '', 1).split('_node_', 1)
-              service = service_section
-              node = node_section
+              parsed = parse_artifact_name(artifact)
+              if not parsed:
+                  print(f"::warning::Skipping unexpected artifact naming: {artifact}")
+                  continue
+
+              service, node, suite = parsed
 
               tree = ET.parse(xml_path)
               root = tree.getroot()
               line_rate = float(root.attrib.get('line-rate', '0')) * 100
-              summary_lines.append(f"| {service} | {node} | {line_rate:.2f} |")
+              summary_lines.append(f"| {service} | {node} | {suite} | {line_rate:.2f} |")
+              service_rates[service].append(line_rate)
 
-              if line_rate < threshold:
-                  below_threshold.append(f"{service} (Node {node}) -> {line_rate:.2f}%")
+          if not service_rates:
+              print('::error::No recognizable coverage reports found')
+              sys.exit(1)
+
+          summary_lines.append('')
+          summary_lines.append('### Service coverage (minimum across suites & nodes)')
+          summary_lines.append('| Service | Min coverage (%) | Status |')
+          summary_lines.append('| --- | --- | --- |')
+
+          for service in sorted(service_rates):
+              min_rate = min(service_rates[service])
+              status = '✅' if min_rate >= threshold else '❌'
+              summary_lines.append(f"| {service} | {min_rate:.2f} | {status} |")
+              if min_rate < threshold:
+                  below_threshold.append(f"{service} -> {min_rate:.2f}%")
 
           summary = '\n'.join(summary_lines) + '\n'
           pathlib.Path('coverage-summary.md').write_text(summary)
@@ -209,7 +428,7 @@ jobs:
 
   trivy:
     name: Trivy FS & Image Scans
-    needs: [test]
+    needs: [contract]
     runs-on: ubuntu-latest
     permissions:
       contents: read
