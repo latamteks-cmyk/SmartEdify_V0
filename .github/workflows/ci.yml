@@ -456,15 +456,116 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      id-token: write
+    env:
+      SERVICES: "auth-service tenant-service user-service"
     steps:
       - uses: actions/checkout@v4
       - name: Build service images
         run: |
           set -euo pipefail
-          services=(auth-service tenant-service user-service)
+          read -ra services <<< "${SERVICES}"
           for service in "${services[@]}"; do
             docker build -t smartedify/${service}:ci apps/services/${service}
           done
+      - name: Install Syft CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
+          syft version
+      - name: Install Trivy CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          trivy --version
+      - name: Set up Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.1.1'
+      - name: Generate SBOMs (Syft & Trivy)
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          mkdir -p supply-chain/sboms/syft supply-chain/sboms/trivy
+          for service in "${services[@]}"; do
+            image="smartedify/${service}:ci"
+            syft_dir="supply-chain/sboms/syft/${service}"
+            trivy_dir="supply-chain/sboms/trivy/${service}"
+            mkdir -p "${syft_dir}" "${trivy_dir}"
+
+            syft "${image}" -q -o cyclonedx-json --file "${syft_dir}/syft-${service}-cyclonedx.json"
+            syft "${image}" -q -o spdx-json --file "${syft_dir}/syft-${service}-spdx.json"
+
+            trivy sbom --quiet --skip-db-update --format cyclonedx --output "${trivy_dir}/trivy-${service}-cyclonedx.json" "${image}"
+            trivy sbom --quiet --skip-db-update --format spdx-json --output "${trivy_dir}/trivy-${service}-spdx.json" "${image}"
+          done
+      - name: Record image digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          mkdir -p supply-chain/digests
+          for service in "${services[@]}"; do
+            image="smartedify/${service}:ci"
+            digest=$(docker image inspect --format='{{index .RepoDigests 0}}' "${image}" || true)
+            if [ -z "${digest}" ]; then
+              image_id=$(docker image inspect --format='{{.Id}}' "${image}")
+              digest="smartedify/${service}@${image_id}"
+            fi
+            printf '%s\n' "${digest}" > "supply-chain/digests/${service}.txt"
+          done
+      - name: Sign container images (Cosign)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_YES: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          mkdir -p supply-chain/signatures
+          for service in "${services[@]}"; do
+            image="smartedify/${service}:ci"
+            sign_dir="supply-chain/signatures/${service}"
+            mkdir -p "${sign_dir}"
+            cosign sign --keyless --upload=false --tlog-upload=false \
+              --output-signature "${sign_dir}/image.sig" \
+              --output-certificate "${sign_dir}/image.pem" \
+              "${image}"
+          done
+      - name: Create CycloneDX attestations (Cosign)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_YES: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          mkdir -p supply-chain/attestations
+          for service in "${services[@]}"; do
+            image="smartedify/${service}:ci"
+            predicate="supply-chain/sboms/syft/${service}/syft-${service}-cyclonedx.json"
+            attest_dir="supply-chain/attestations/${service}"
+            mkdir -p "${attest_dir}"
+            cosign attest --keyless --upload=false --tlog-upload=false \
+              --type cyclonedx \
+              --predicate "${predicate}" \
+              --output-signature "${attest_dir}/cyclonedx.sig" \
+              --output-certificate "${attest_dir}/cyclonedx.pem" \
+              "${image}" > "${attest_dir}/cyclonedx.intoto.jsonl"
+          done
+      - name: Upload SBOM and signing artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-artifacts
+          path: |
+            supply-chain/sboms
+            supply-chain/signatures
+            supply-chain/attestations
+            supply-chain/digests
+          if-no-files-found: error
       - name: Trivy filesystem scan (report)
         uses: aquasecurity/trivy-action@v0
         with:

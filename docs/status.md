@@ -47,7 +47,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 | Seguridad | Hashing + rotación refresh + JWKS dual | Automatizar rotación + revoke list access |
 | Eventos | Outbox + DLQ tenant | Emitir `user.registered` completo y consumirlo en user-service |
 | CI/CD | Workflow auth parcial | Unificar plantillas + publicar reportes métricas en summary |
-| Supply-chain | SBOM script manual (Syft/Trivy) | Integrar SBOM + cosign en pipeline (no-op gate inicial) |
+| Supply-chain | SBOM + firmas automatizadas (Syft/Trivy/Cosign) | Definir políticas de verificación y volver el gate bloqueante |
 
 ## 4. Riesgos
 ### Mitigados
@@ -55,6 +55,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 - DLQ sin estrategia de purga → Endpoint purge + métricas edad.
 - Fugas de handles Jest → Teardown explícito (Pool/Redis/metrics).
 - Sin rotación JWKS (claves estáticas) → Rotación dual + alerting expiración.
+- Ausencia de SBOM/firma en CI → Pipeline Syft+Trivy+Cosign con artefactos firmados y attestations.
 
 ### Abiertos
 | Riesgo | Impacto | Prob. | Mitigación Propuesta | ETA |
@@ -62,7 +63,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 | Contract tests incompletos (Auth/Tenant) | Regresiones API silenciosas | Medio-Alto | Finalizar Spectral + snapshots end-to-end | T+10d |
 | Tracing parcial en Tenant | Diagnóstico degradado | Medio | Instrumentar tenant-context y outbox | T+7d |
 | Métricas negocio Tenant ausentes | Falta visibilidad activaciones | Medio | Definir KPIs + exponer gauges/counters | T+12d |
-| SBOM/Firma sin validación pipeline | Riesgo supply-chain | Medio-Alto | Integrar Syft+Trivy+cosign en CI (warning gate) | T+14d |
+| Validación automática SBOM/firma aún manual | Riesgo supply-chain | Medio | Automatizar políticas OPA/Cosign para bloquear deployments si falla verificación | T+21d |
 | Logout sin invalidación estricta access | Ventana reutilización tokens | Medio | Lista corta revocados + TTL | T+21d |
 | Falta de gate de cobertura en CI | Riesgo de regresiones silenciosas | Medio | Añadir umbral/badge automático post-reportes | T+21d |
 
@@ -71,7 +72,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 2. Extender tracing distribuido a tenant-context/outbox y publicar tableros iniciales.
 3. Instrumentar métricas de negocio Tenant (tenants activos, memberships vigentes).
 4. Automatizar rotación JWKS (cron job + verificación post-rotación) y short deny-list access tokens.
-5. Integrar Syft/Trivy/cosign en pipeline (generación artefactos + firma, gate informativo).
+5. Automatizar verificación de firmas/SBOM en pipeline (policy controller + gate bloqueante).
 
 ## 6. Métricas Clave (Baseline / Objetivo)
 | Métrica | Baseline | Objetivo T+14d |
@@ -101,7 +102,8 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 - [ ] Instrumentar tracing en `tenant-context` y colas outbox.
 - [ ] Configurar dashboard Grafana con métricas Auth negocio.
 - [ ] Preparar script automation rotación JWKS (dry-run en staging).
-- [ ] Añadir job Syft+Trivy en CI (sin gate crítico inicial).
+- [x] Añadir job Syft+Trivy en CI (artefactos SBOM + firmas Cosign publicados).
+- [ ] Definir gate automático para verificar Cosign/SBOM antes de despliegues.
 
 ## 10. Notas / Observaciones
 - Evitar introducir mocks globales nuevos sin revisar documento de política (ver sección 8 spec.md).
