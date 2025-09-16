@@ -51,6 +51,22 @@ export async function getUserRoles(user_id: string, tenant_id: string) {
   return res.rows.map(r => r.role);
 }
 
+export async function assignUserRole(user_id: string, tenant_id: string, role: string) {
+  await pool.query(
+    'INSERT INTO user_roles (user_id, tenant_id, role) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+    [user_id, tenant_id, role]
+  );
+}
+
+export async function listRoles(tenant_id?: string) {
+  if (tenant_id) {
+    const res = await pool.query('SELECT DISTINCT role FROM user_roles WHERE tenant_id=$1 ORDER BY role ASC', [tenant_id]);
+    return res.rows.map(r => r.role);
+  }
+  const res = await pool.query('SELECT DISTINCT role FROM user_roles ORDER BY role ASC');
+  return res.rows.map(r => r.role);
+}
+
 // Auditoría
 export async function logSecurityEvent(event: {
   actor: string;

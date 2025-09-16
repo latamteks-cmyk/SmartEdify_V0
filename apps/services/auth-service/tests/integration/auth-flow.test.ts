@@ -40,6 +40,7 @@ describe('Flujo de autenticación completo', () => {
     expect(res.status).toBe(200);
     expect(res.body.access_token).toBeDefined();
     expect(res.body.refresh_token).toBeDefined();
+    expect(res.body.roles).toEqual(expect.arrayContaining(['user']));
     accessToken = res.body.access_token;
     refreshToken = res.body.refresh_token;
   });
@@ -63,12 +64,19 @@ describe('Flujo de autenticación completo', () => {
   test('roles -> static list', async () => {
     const res = await request(app).get('/roles');
     expect(res.status).toBe(200);
-    expect(res.body.roles).toContain('admin');
+    expect(res.body.roles).toEqual(expect.arrayContaining(['admin', 'user']));
   });
 
   test('permissions -> static list', async () => {
     const res = await request(app).get('/permissions');
     expect(res.status).toBe(200);
     expect(res.body.permissions).toContain('read');
+  });
+
+  test('permissions filtradas por rol', async () => {
+    const res = await request(app).get('/permissions').query({ role: 'user' });
+    expect(res.status).toBe(200);
+    expect(res.body.role).toBe('user');
+    expect(res.body.permissions).toEqual(expect.arrayContaining(['read']));
   });
 });
