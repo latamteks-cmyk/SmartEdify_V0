@@ -8,7 +8,7 @@ COPY . .
 FROM node:20-alpine AS runtime
 ENV NODE_ENV=production TZ=UTC
 WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -S -g 1001 app && adduser -S -G app -u 1001 app
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app .

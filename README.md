@@ -108,6 +108,22 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
 - [SECURITY.md](SECURITY.md) — política de seguridad y divulgación responsable.
 - Directorios especializados: `docs/observability/`, `docs/design/`, `docs/security-hardening.md`, `docs/runbooks/`.
 
+## Seguridad de contenedores y límites de recursos
+- Los servicios propios (`auth-service`, `user-service`, `tenant-service`) crean un usuario sin privilegios (`app`, UID/GID 1001) durante la construcción de la imagen y se ejecutan con ese contexto mediante `docker-compose`. Esto reduce el impacto de un compromiso al evitar permisos de root dentro del contenedor y mantiene la coherencia con los ficheros generados en volúmenes compartidos.
+- Las imágenes de terceros se fuerzan a ejecutarse con cuentas sin privilegios conocidas: Redis y Postgres usan `999:999` (usuarios provistos en las imágenes oficiales), Prometheus se ejecuta como `65534:65534` (`nobody`) y el collector de OpenTelemetry se limita a `1000:1000` porque solo necesita acceso de lectura al fichero de configuración montado. Cualquier despliegue puede adaptar estos valores mediante variables de entorno si necesita otra política de control de acceso.
+- Se definieron límites de CPU y memoria por servicio para evitar que un proceso agote recursos del host durante pruebas locales:
+
+  | Servicio | CPU (máx) | Memoria (máx) | Justificación |
+  | --- | --- | --- | --- |
+  | Redis | 0.50 | 256 MiB | Cache ligera y colas in-memory, con consumo predecible. |
+  | Postgres | 1.50 | 1 GiB | Necesita más recursos para migraciones y consultas complejas. |
+  | Auth Service | 0.75 | 512 MiB | API HTTP con hashing y validación de tokens. |
+  | User Service | 0.75 | 512 MiB | Cargas similares a Auth para endpoints CRUD. |
+  | OTEL Collector | 0.50 | 256 MiB | Recolección y reenvío de trazas; suficiente para entornos locales. |
+  | Prometheus | 1.00 | 512 MiB | Scraping periódico y retención corta en desarrollo. |
+
+- Los límites sirven como base para entornos de desarrollo; en producción deben ajustarse a los perfiles reales de carga y, en caso de usar Swarm/Kubernetes, complementarse con peticiones (`requests`) y alertas de saturación.
+
 ## Licencia
 Este proyecto se distribuye bajo la licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.
 

@@ -8,6 +8,12 @@ services:
   redis:
     image: redis:7.2-alpine
     container_name: smartedify-redis
+    user: "999:999"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: "256M"
     ports:
       - "${REDIS_PORT:-6639}:6379"
     volumes:
@@ -22,6 +28,12 @@ services:
   db:
     image: postgres:15-alpine
     container_name: smartedify-db
+    user: "999:999"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.50"
+          memory: "1G"
     environment:
       # IMPORTANTE: NO usar credenciales reales por defecto. Definir en .env local/CI.
       POSTGRES_DB: ${POSTGRES_DB:-smartedify}
@@ -43,6 +55,12 @@ services:
       context: ./apps/services/auth-service
       dockerfile: Dockerfile
     container_name: auth-service
+    user: "1001:1001"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: "512M"
     depends_on:
       db:
         condition: service_healthy
@@ -67,6 +85,12 @@ services:
       context: ./apps/services/user-service
       dockerfile: Dockerfile
     container_name: user-service
+    user: "1001:1001"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: "512M"
     depends_on:
       db:
         condition: service_healthy
@@ -89,6 +113,12 @@ services:
   otel-collector:
     image: otel/opentelemetry-collector:0.88.0
     container_name: otel-collector
+    user: "1000:1000"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: "256M"
     command: ["--config=/etc/otel-collector-config.yaml"]
     volumes:
       - ./observability/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
@@ -101,6 +131,12 @@ services:
   prometheus:
     image: prom/prometheus:v2.52.0
     container_name: prometheus
+    user: "65534:65534"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: "512M"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
     volumes:
