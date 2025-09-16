@@ -93,6 +93,7 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
 - [docs/status.md](docs/status.md) — snapshot ejecutivo y estado de entregables.
 - [docs/operations/ci-cd.md](docs/operations/ci-cd.md) — guía de pipeline de CI/CD.
 - [docs/docker.md](docs/docker.md) — stack local y gestión de credenciales de registros.
+- [SECURITY.md](SECURITY.md) — política de seguridad y divulgación responsable.
 - Directorios especializados: `docs/observability/`, `docs/design/`, `docs/security-hardening.md`, `docs/runbooks/`.
 
 ## Contribuciones
