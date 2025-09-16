@@ -1,0 +1,348 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  lint:
+    name: Lint (${{ matrix.service }} · Node ${{ matrix.node }} · ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-service
+            node: 18.x
+            os: ubuntu-latest
+          - service: auth-service
+            node: 20.x
+            os: ubuntu-latest
+          - service: tenant-service
+            node: 18.x
+            os: ubuntu-latest
+          - service: tenant-service
+            node: 20.x
+            os: ubuntu-latest
+          - service: auth-service
+            node: 20.x
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: apps/services/${{ matrix.service }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/services/${{ matrix.service }}
+      - name: Run ESLint
+        run: npm run lint
+        working-directory: apps/services/${{ matrix.service }}
+
+  test:
+    name: Tests (${{ matrix.service }} · Node ${{ matrix.node }})
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-service
+            node: 18.x
+          - service: auth-service
+            node: 20.x
+          - service: user-service
+            node: 18.x
+          - service: user-service
+            node: 20.x
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: smartedify
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
+    env:
+      SERVICE_DIR: apps/services/${{ matrix.service }}
+      NODE_ENV: test
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: smartedify
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      AUTH_LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run database migrations
+        if: matrix.service == 'auth-service'
+        run: npm run migrate
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run unit tests with coverage
+        run: npm test -- --runInBand --coverage --coverageReporters=cobertura --coverageReporters=text-summary
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage_${{ matrix.service }}_node_${{ matrix.node }}
+          path: |
+            ${{ env.SERVICE_DIR }}/coverage/cobertura-coverage.xml
+            ${{ env.SERVICE_DIR }}/coverage/lcov.info
+          if-no-files-found: error
+
+  coverage:
+    name: Coverage summary
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_THRESHOLD: '60'
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-reports
+      - name: Generate summary
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import sys
+          import xml.etree.ElementTree as ET
+
+          base = pathlib.Path('coverage-reports')
+          files = list(base.rglob('cobertura-coverage.xml'))
+          if not files:
+              print('::error::No coverage reports found')
+              sys.exit(1)
+
+          threshold = float(os.environ.get('COVERAGE_THRESHOLD', '0'))
+          summary_lines = ['| Service | Node | Line coverage (%) |', '| --- | --- | --- |']
+          below_threshold = []
+
+          for xml_path in files:
+              artifact = xml_path.parts[1]
+              service_section, node_section = artifact.replace('coverage_', '', 1).split('_node_', 1)
+              service = service_section
+              node = node_section
+
+              tree = ET.parse(xml_path)
+              root = tree.getroot()
+              line_rate = float(root.attrib.get('line-rate', '0')) * 100
+              summary_lines.append(f"| {service} | {node} | {line_rate:.2f} |")
+
+              if line_rate < threshold:
+                  below_threshold.append(f"{service} (Node {node}) -> {line_rate:.2f}%")
+
+          summary = '\n'.join(summary_lines) + '\n'
+          pathlib.Path('coverage-summary.md').write_text(summary)
+
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary_path:
+              with open(summary_path, 'a', encoding='utf-8') as handle:
+                  handle.write(summary)
+
+          if below_threshold:
+              print('::error::Coverage below threshold for: ' + ', '.join(below_threshold))
+              sys.exit(1)
+          PY
+      - name: Upload coverage summary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage-summary.md
+
+  sast:
+    name: SAST (CodeQL)
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
+
+  trivy:
+    name: Trivy FS & Image Scans
+    needs: [test]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build service images
+        run: |
+          set -euo pipefail
+          services=(auth-service tenant-service user-service)
+          for service in "${services[@]}"; do
+            docker build -t smartedify/${service}:ci apps/services/${service}
+          done
+      - name: Trivy filesystem scan (report)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-fs.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+      - name: Enforce critical findings (filesystem)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          format: table
+          output: trivy-fs-critical.txt
+          severity: CRITICAL
+          skip-db-update: true
+          exit-code: '1'
+      - name: Upload filesystem scan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-reports
+          path: |
+            trivy-fs.sarif
+            trivy-fs-critical.txt
+      - name: Upload filesystem SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+      - name: Trivy image scan (auth-service report)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/auth-service:ci
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-auth-service.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          skip-db-update: true
+      - name: Enforce critical findings (auth-service image)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/auth-service:ci
+          ignore-unfixed: true
+          format: table
+          output: trivy-auth-service-critical.txt
+          severity: CRITICAL
+          skip-db-update: true
+          exit-code: '1'
+      - name: Trivy image scan (tenant-service report)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/tenant-service:ci
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-tenant-service.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          skip-db-update: true
+      - name: Enforce critical findings (tenant-service image)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/tenant-service:ci
+          ignore-unfixed: true
+          format: table
+          output: trivy-tenant-service-critical.txt
+          severity: CRITICAL
+          skip-db-update: true
+          exit-code: '1'
+      - name: Trivy image scan (user-service report)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/user-service:ci
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-user-service.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          skip-db-update: true
+      - name: Enforce critical findings (user-service image)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/user-service:ci
+          ignore-unfixed: true
+          format: table
+          output: trivy-user-service-critical.txt
+          severity: CRITICAL
+          skip-db-update: true
+          exit-code: '1'
+      - name: Upload image scan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-reports
+          path: |
+            trivy-auth-service.sarif
+            trivy-auth-service-critical.txt
+            trivy-tenant-service.sarif
+            trivy-tenant-service-critical.txt
+            trivy-user-service.sarif
+            trivy-user-service-critical.txt
+      - name: Upload image SARIF (auth-service)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-auth-service.sarif
+          category: trivy-auth-service
+      - name: Upload image SARIF (tenant-service)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-tenant-service.sarif
+          category: trivy-tenant-service
+      - name: Upload image SARIF (user-service)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-user-service.sarif
+          category: trivy-user-service
