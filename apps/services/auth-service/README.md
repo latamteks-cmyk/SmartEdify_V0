@@ -302,6 +302,12 @@ Sólo unitarias:
 npm test -- tests/unit
 ```
 
+Flujos críticos RBAC (`authorize`/`token`/`introspection`/`revocation`):
+```powershell
+npm run test:rbac
+```
+Ejecuta la validación end-to-end contra Postgres real (stage `integration`) y revalida los contratos HTTP (stage `contract`) para bloquear regresiones de scopes/roles.
+
 #### Mocks
 - `tests/security/*` mockean `../../internal/adapters/db/pg.adapter` e `ioredis` para evitar dependencias externas.
 - Los mocks se declaran dentro de cada archivo para no interferir con el resto de la suite.
