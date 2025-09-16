@@ -109,67 +109,46 @@ Estructura monorepo y premisas. Objetivo: entrega rápida, calidad constante, au
 
 > Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-15). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
 
-### 1) Estructura de carpetas (top-level)
+### 1) Estructura de carpetas (estado actual — 2025-09-22)
 
 ```
 smartedify/
-├─ apps/                     # Ejecutables (front y servicios)
-│  ├─ web-app/               # Web App (RBAC único)
-│  ├─ web-soporte/           # NOC/Helpdesk
-│  ├─ mobile-app/            # iOS/Android (owner-only)
-│  └─ services/              # Microservicios
+├─ .github/                  # Workflows y plantillas activas
+├─ api/
+├─ apps/
+│  └─ services/
 │     ├─ assembly-service/
 │     ├─ auth-service/
-│     ├─ user-service/
-│     ├─ tenant-service/            # Nuevo (gobernanza, unidades, memberships)
-│     ├─ finance-service/
-│     ├─ document-service/
-│     ├─ communication-service/
-│     ├─ payments-service/
-│     ├─ compliance-service/
-│     ├─ reservation-service/
-│     ├─ maintenance-service/
-│     ├─ payroll-service/
-│     ├─ certification-service/
-│     └─ facilitysecurity-service/
-├─ packages/                 # Librerías compartidas (no ejecutables)
-│  ├─ core-domain/           # DDD, tipos, errores comunes
-│  ├─ security/              # JWT, JWKS, WebAuthn, TOTP helpers
-│  ├─ http-kit/              # Middlewares, client, retry, tracing
-│  ├─ event-bus/             # Kafka/NATS SDK + outbox/inbox
-│  ├─ persistence/           # Repos genéricos, migraciones helpers
-│  ├─ validation/            # Esquemas Zod/JSON-Schema
-│  ├─ i18n/                  # Mensajes y plantillas
-│  └─ ui-kit/                # Componentes UI compartidos (web)
-├─ api/                      # Contratos externos
-│  ├─ openapi/               # *.yaml por servicio
-│  └─ proto/                 # *.proto para gRPC internos
-├─ db/                       # Migraciones y seeds
-│  ├─ assembly/
-│  ├─ auth/
-│  └─ ...
-├─ infra/                    # Infraestructura declarativa
-│  ├─ terraform/             # VPC, KMS, RDS, S3/WORM, CDN
-│  ├─ k8s/                   # Helm charts/overlays (dev,stg,prod)
-│  ├─ docker/                # Dockerfiles base + compose local
-│  └─ gateway/               # Reglas API Gateway/WAF, OIDC
-├─ ops/                      # Operaciones y runbooks
-│  ├─ runbooks/
-│  ├─ sre/                   # Alertas, SLO, dashboards
-│  └─ playbooks/             # Respuesta a incidentes
-├─ docs/                     # Documentación viva
-│  ├─ prd/                   # PRD por servicio
-│  ├─ design/                # ADR, diagramas C4/BPMN/Mermaid
-│  ├─ api/                   # Docs HTML generadas de OpenAPI
-│  └─ legal/                 # Plantillas actas, checklist legal
-├─ tools/                    # CLI internas, generadores, linters
-├─ .github/                  # CI/CD (Actions), CODEOWNERS, templates
-├─ scripts/                  # make, task runners, dev tooling
-├─ Makefile                  # or Taskfile.yml
-├─ CODEOWNERS
-├─ LICENSE
-└─ README.md
+│     ├─ tenant-service/
+│     └─ user-service/
+├─ docs/
+├─ plans/
+├─ scripts/
+├─ ARCHITECTURE.md
+├─ README.md
+├─ docker-compose.yml
+├─ package-lock.json
+├─ task.md
+└─ .env.example
 ```
+
+El árbol anterior refleja únicamente los directorios presentes hoy en el repositorio. Cualquier carpeta no listada permanece en planificación o fue retirada tras auditorías previas.
+
+### 1.b) Directorios objetivo y cronograma referencial
+
+| Directorio objetivo | Propósito | Estado actual | ETA referencial |
+|---|---|---|---|
+| `apps/web-app/` | Portal web para usuarios finales (pnpm) | En backlog de producto | T3 2025 (posterior a gateway y permisos finos) |
+| `apps/web-soporte/` | Consola de soporte/NOC | En backlog | T3 2025 |
+| `apps/mobile-app/` | Cliente móvil (React Native/Flutter) | En discovery | T3 2025 |
+| `packages/` (`core-domain`, `security`, `http-kit`, `event-bus`, `persistence`, `validation`, `i18n`, `ui-kit`) | Librerías compartidas para servicios y frontends | Diseño técnico en curso | T2 2025 (tras consolidar contract tests y eventos) |
+| `db/` | Migraciones y *seeds* centralizados por dominio | Definición pendiente | T2 2025 |
+| `infra/` (`terraform/`, `k8s/`, `docker/`, `gateway/`) | Infraestructura declarativa y artefactos de despliegue | En preparación | T2 2025 |
+| `ops/` (`runbooks/`, `sre/`, `playbooks/`) | Operaciones, SLO y respuesta a incidentes | Planificado | T2 2025 |
+| `tools/` | CLI internas y automatizaciones | En evaluación | T2 2025 |
+| `docs/prd`, `docs/api`, `docs/legal` | Documentación generada y plantillas regulatorias | Backlog de documentación | T2 2025 |
+
+El seguimiento detallado de estas entregas vive en `docs/status.md` y `docs/tareas.md`; las fechas podrán ajustarse según dependencias técnicas y capacidad del equipo.
 
 ### 2) Plantilla de servicio (apps/services/*-service)
 
@@ -204,15 +183,17 @@ smartedify/
 
 ### 3) Frontends
 
+Los directorios front-end aún no existen en el monorepo; permanecerán en backlog hasta completar la capa de gateway y los contratos compartidos.
+
 ```
-apps/web-app/                # Monorepo JS/TS (pnpm)
+apps/web-app/                # Estructura objetivo (no creada)
 ├─ src/
 ├─ public/
 ├─ vite.config.ts
 └─ package.json
 
-apps/web-soporte/
-apps/mobile-app/             # React Native/Flutter
+apps/web-soporte/            # Estructura objetivo (no creada)
+apps/mobile-app/             # Estructura objetivo (no creada)
 ```
 
 ### 4) Premisas de creación de archivos
