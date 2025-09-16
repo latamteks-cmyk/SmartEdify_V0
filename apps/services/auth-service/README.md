@@ -193,8 +193,8 @@ Limitaciones pendientes:
 - Faltan alertas sobre ausencia de `next` o edad excesiva de `current`.
 
 ### Validación automatizada
-- `tests/security/keys.test.ts` garantiza que la rotación promueve `next`, deja la clave previa en `retiring` y que `getPublicJwks()` publica simultáneamente `current`, `next` y `retiring`.
-- `tests/security/jwt.test.ts` simula expiraciones y desfases de reloj ajustando temporalmente los TTL de access/refresh para confirmar que los tokens caducados se rechazan y que existe tolerancia antes de alcanzar el límite.
+- `tests/security/keys.test.ts` fuerza `rotateKeys()` y comprueba que la clave anterior queda marcada como `retiring` (incluyendo la marca `retiring_at`) y que el JWKS expone entradas para `current`, `next` y `retiring` con los `kid` esperados.
+- `tests/security/jwt.test.ts` redefine temporalmente `AUTH_JWT_ACCESS_TTL=5s` y `AUTH_JWT_REFRESH_TTL=10s`, mockea el reloj para provocar `TokenExpiredError` y verifica que existe tolerancia al clock-skew mientras el desfase permanezca dentro del TTL.
 
 Pruebas locales rápidas:
 ```bash

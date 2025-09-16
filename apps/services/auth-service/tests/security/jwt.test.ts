@@ -58,7 +58,9 @@ const originalRefreshTtl = process.env.AUTH_JWT_REFRESH_TTL;
 process.env.AUTH_JWT_ACCESS_TTL = '5s';
 process.env.AUTH_JWT_REFRESH_TTL = '10s';
 import { issueTokenPair, verifyAccess, verifyRefresh, rotateRefresh } from '../../internal/security/jwt';
-import { getCurrentKey } from '../../internal/security/keys';
+
+const ACCESS_TTL_MS = 5 * 1000;
+const REFRESH_TTL_MS = 10 * 1000;
 
 process.env.NODE_ENV = 'test';
 
@@ -110,10 +112,10 @@ describe('JWT emisión y verificación', () => {
     const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => fakeNow);
     try {
       const pair = await basePair();
-      fakeNow = baseNow + 6_000; // > 5s TTL access
-      await expect(verifyAccess(pair.accessToken)).rejects.toThrow(/jwt expired/i);
-      fakeNow = baseNow + 11_000; // > 10s TTL refresh
-      await expect(verifyRefresh(pair.refreshToken)).rejects.toThrow(/jwt expired/i);
+      fakeNow = baseNow + ACCESS_TTL_MS + 200; // > 5s TTL access
+      await expect(verifyAccess(pair.accessToken)).rejects.toMatchObject({ name: 'TokenExpiredError' });
+      fakeNow = baseNow + REFRESH_TTL_MS + 200; // > 10s TTL refresh
+      await expect(verifyRefresh(pair.refreshToken)).rejects.toMatchObject({ name: 'TokenExpiredError' });
     } finally {
       nowSpy.mockRestore();
     }
@@ -125,10 +127,10 @@ describe('JWT emisión y verificación', () => {
     const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => fakeNow);
     try {
       const pair = await basePair();
-      fakeNow = baseNow + 4_000; // 4s adelantado, aún válido para access
+      fakeNow = baseNow + ACCESS_TTL_MS - 1_000; // sigue dentro del TTL de access
       const decodedAccess: any = await verifyAccess(pair.accessToken);
       expect(decodedAccess.type).toBe('access');
-      fakeNow = baseNow + 9_000; // 9s adelantado, aún válido para refresh
+      fakeNow = baseNow + REFRESH_TTL_MS - 1_000; // sigue dentro del TTL de refresh
       const decodedRefresh: any = await verifyRefresh(pair.refreshToken);
       expect(decodedRefresh.type).toBe('refresh');
     } finally {
