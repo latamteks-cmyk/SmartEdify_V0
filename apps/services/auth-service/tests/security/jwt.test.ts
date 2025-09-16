@@ -52,6 +52,11 @@ jest.mock('../../internal/adapters/db/pg.adapter', () => {
   const pool = new MockPool();
   return { __esModule: true, default: pool };
 });
+
+const originalAccessTtl = process.env.AUTH_JWT_ACCESS_TTL;
+const originalRefreshTtl = process.env.AUTH_JWT_REFRESH_TTL;
+process.env.AUTH_JWT_ACCESS_TTL = '5s';
+process.env.AUTH_JWT_REFRESH_TTL = '10s';
 import { issueTokenPair, verifyAccess, verifyRefresh, rotateRefresh } from '../../internal/security/jwt';
 import { getCurrentKey } from '../../internal/security/keys';
 
@@ -62,6 +67,11 @@ async function basePair() {
 }
 
 describe('JWT emisión y verificación', () => {
+  afterAll(() => {
+    process.env.AUTH_JWT_ACCESS_TTL = originalAccessTtl;
+    process.env.AUTH_JWT_REFRESH_TTL = originalRefreshTtl;
+  });
+
   test('emite par de tokens con kid', async () => {
     const pair = await basePair();
     expect(pair.accessToken).toBeDefined();
@@ -92,5 +102,37 @@ describe('JWT emisión y verificación', () => {
     header.kid = 'non-existent';
     const fake = Buffer.from(JSON.stringify(header)).toString('base64url') + '.' + parts[1] + '.' + parts[2];
     await expect(verifyAccess(fake)).rejects.toThrow();
+  });
+
+  test('tokens expirados son rechazados', async () => {
+    const baseNow = Date.now();
+    let fakeNow = baseNow;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => fakeNow);
+    try {
+      const pair = await basePair();
+      fakeNow = baseNow + 6_000; // > 5s TTL access
+      await expect(verifyAccess(pair.accessToken)).rejects.toThrow(/jwt expired/i);
+      fakeNow = baseNow + 11_000; // > 10s TTL refresh
+      await expect(verifyRefresh(pair.refreshToken)).rejects.toThrow(/jwt expired/i);
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  test('tolera skew de reloj menor al TTL', async () => {
+    const baseNow = Date.now();
+    let fakeNow = baseNow;
+    const nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => fakeNow);
+    try {
+      const pair = await basePair();
+      fakeNow = baseNow + 4_000; // 4s adelantado, aún válido para access
+      const decodedAccess: any = await verifyAccess(pair.accessToken);
+      expect(decodedAccess.type).toBe('access');
+      fakeNow = baseNow + 9_000; // 9s adelantado, aún válido para refresh
+      const decodedRefresh: any = await verifyRefresh(pair.refreshToken);
+      expect(decodedRefresh.type).toBe('refresh');
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
