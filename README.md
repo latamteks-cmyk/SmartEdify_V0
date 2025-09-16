@@ -96,6 +96,9 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
 - [SECURITY.md](SECURITY.md) — política de seguridad y divulgación responsable.
 - Directorios especializados: `docs/observability/`, `docs/design/`, `docs/security-hardening.md`, `docs/runbooks/`.
 
+## Licencia
+Este proyecto se distribuye bajo la licencia MIT. Consulta el archivo [LICENSE](LICENSE) para más detalles.
+
 ## Contribuciones
 1. Abre un issue o referencia una entrada en `docs/tareas.md` antes de iniciar trabajo.
 2. Sigue los linters y pruebas (`npm run lint`, `npm test`) en cada servicio modificado.

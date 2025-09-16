@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024 SmartEdify contributors
+ * Licensed under the MIT License. See the LICENSE file in the project root for details.
+ */
+
 import 'dotenv/config';
 import { startTracing, shutdownTracing } from '../../internal/observability/tracing';
 import { context, trace } from '@opentelemetry/api';
