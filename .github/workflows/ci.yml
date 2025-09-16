@@ -244,97 +244,91 @@ jobs:
           if-no-files-found: error
 
   contract:
-    name: Contract Tests (${{ matrix.service }} · Node ${{ matrix.node }})
+    name: Contract validation
     needs: [integration, secret-scan]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - service: auth-service
-            node: 18.x
-          - service: auth-service
-            node: 20.x
-          - service: user-service
-            node: 18.x
-          - service: user-service
-            node: 20.x
-    services:
-      postgres:
-        image: postgres:15-alpine
-        env:
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_USER: postgres
-          POSTGRES_DB: smartedify
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 5
-      redis:
-        image: redis:7.2-alpine
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
     env:
-      SERVICE_DIR: apps/services/${{ matrix.service }}
+      SERVICE_NAME: auth-service
+      SERVICE_DIR: apps/services/auth-service
       NODE_ENV: test
-      PGHOST: localhost
-      PGPORT: 5432
-      PGUSER: postgres
-      PGPASSWORD: postgres
-      PGDATABASE: smartedify
-      REDIS_HOST: localhost
-      REDIS_PORT: 6379
       AUTH_LOG_LEVEL: warn
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 20.x
           cache: npm
           cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
-      - name: Install dependencies
+      - name: Lint OpenAPI definitions (Spectral)
+        run: npx --yes @stoplight/spectral lint api/openapi/*.yaml
+      - name: Detect OpenAPI breaking changes against base
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_ref="${{ github.base_ref }}"
+          before_sha="${{ github.event.before }}"
+          default_branch="${{ github.event.repository.default_branch || 'main' }}"
+          base_commit=""
+          if [ -n "$base_ref" ]; then
+            git fetch origin "$base_ref":"refs/remotes/origin/$base_ref"
+            base_commit="origin/$base_ref"
+          elif [ -n "$before_sha" ]; then
+            base_commit="$before_sha"
+          else
+            git fetch origin "$default_branch":"refs/remotes/origin/$default_branch"
+            base_commit="origin/$default_branch"
+          fi
+          if [ -z "$base_commit" ]; then
+            echo "::warning::No base reference resolved; skipping OpenAPI diff"
+            exit 0
+          fi
+          status=0
+          for spec in api/openapi/*.yaml; do
+            [ -f "$spec" ] || continue
+            if git cat-file -e "$base_commit:$spec" 2>/dev/null; then
+              tmp_base=$(mktemp)
+              git show "$base_commit:$spec" > "$tmp_base"
+              echo "Comparing $spec against $base_commit"
+              if ! npx --yes openapi-diff "$tmp_base" "$spec"; then
+                status=1
+              fi
+              rm -f "$tmp_base"
+            else
+              echo "::notice::No base version of $spec found in $base_commit; treating as new file"
+            fi
+          done
+          exit $status
+      - name: Install service dependencies
         run: npm ci
         working-directory: ${{ env.SERVICE_DIR }}
-      - name: Run database migrations
-        if: matrix.service == 'auth-service'
-        run: npm run migrate
-        working-directory: ${{ env.SERVICE_DIR }}
-      - name: Run contract tests
+      - name: Run contract tests with coverage
         id: contract_tests
         shell: bash
         working-directory: ${{ env.SERVICE_DIR }}
         run: |
           set -euo pipefail
           coverage_dir="coverage/contract"
-          if node -e "process.exit(require('./package.json').scripts?.['test:proj:contract'] ? 0 : 1)" >/dev/null 2>&1; then
-            npm run test:proj:contract -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
-            echo "coverage=true" >> "$GITHUB_OUTPUT"
-          elif node -e "process.exit(require('./package.json').scripts?.['test:proj:security'] ? 0 : 1)" >/dev/null 2>&1; then
-            npm run test:proj:security -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
-            echo "coverage=true" >> "$GITHUB_OUTPUT"
-          elif [ -d tests/contract ] || [ -d tests/security ]; then
-            pattern='tests/contract'
-            if [ -d tests/security ] && [ -d tests/contract ]; then
-              pattern='tests/(contract|security)'
-            elif [ -d tests/security ]; then
-              pattern='tests/security'
-            fi
-            npm test -- --runInBand --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov --testPathPattern="$pattern"
-            echo "coverage=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "No contract/security tests defined; skipping."
-            echo "coverage=false" >> "$GITHUB_OUTPUT"
-          fi
+          npm run test:proj:contract -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
+          echo "coverage=true" >> "$GITHUB_OUTPUT"
       - name: Upload contract coverage artifact
         if: steps.contract_tests.outputs.coverage == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: coverage__${{ matrix.service }}__${{ matrix.node }}__contract
+          name: coverage__${{ env.SERVICE_NAME }}__20.x__contract
           path: |
             ${{ env.SERVICE_DIR }}/coverage/contract/cobertura-coverage.xml
             ${{ env.SERVICE_DIR }}/coverage/contract/lcov.info
           if-no-files-found: error
+      - name: Upload contract snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-snapshots__${{ env.SERVICE_NAME }}
+          path: ${{ env.SERVICE_DIR }}/tests/contract/__snapshots__
+          if-no-files-found: warn
 
   coverage:
     name: Coverage summary

@@ -43,6 +43,14 @@ module.exports = {
       setupFiles: ['<rootDir>/tests/integration/jest.integration.setup.ts'],
       setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.ts'],
       testTimeout: 20000
+    },
+    {
+      ...base,
+      displayName: 'contract',
+      testMatch: ['<rootDir>/tests/contract/**/*.test.ts'],
+      setupFiles: ['<rootDir>/tests/contract/jest.contract.setup.ts'],
+      setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.ts'],
+      testTimeout: 20000
     }
   ]
 };
