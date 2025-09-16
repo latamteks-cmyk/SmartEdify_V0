@@ -77,7 +77,7 @@ describe('Signing Keys', () => {
     expect(kNext!.status).toBe('next');
   });
 
-  test('rotación promueve next y genera nuevo next', async () => {
+  test('rotación promueve next, marca la actual como retiring y actualiza JWKS', async () => {
     const beforeCurrent = await getCurrentKey();
     const beforeNext = await getNextKey();
     const { newCurrent, newNext } = await rotateKeys();
@@ -89,6 +89,11 @@ describe('Signing Keys', () => {
     expect(retired).not.toBeNull();
     expect(retired!.status).toBe('retiring');
     expect(retired!.retiring_at).toBeInstanceOf(Date);
+    const jwks = await getPublicJwks();
+    expect(Array.isArray(jwks.keys)).toBe(true);
+    expect(jwks.keys.some((k: any) => k.status === 'current' && k.kid === newCurrent.kid)).toBe(true);
+    expect(jwks.keys.some((k: any) => k.status === 'next' && k.kid === newNext!.kid)).toBe(true);
+    expect(jwks.keys.some((k: any) => k.status === 'retiring' && k.kid === beforeCurrent.kid)).toBe(true);
   });
 
   test('getPublicJwks expone current/next/retiring', async () => {
@@ -97,11 +102,21 @@ describe('Signing Keys', () => {
     await rotateKeys();
     const jwks = await getPublicJwks();
     expect(Array.isArray(jwks.keys)).toBe(true);
-    expect(jwks.keys.length).toBeGreaterThanOrEqual(3);
     const statuses = new Set(jwks.keys.map((k: any) => k.status));
     expect(statuses.has('current')).toBe(true);
     expect(statuses.has('next')).toBe(true);
     expect(statuses.has('retiring')).toBe(true);
+    const byStatus = jwks.keys.reduce((acc: Record<string, any[]>, key: any) => {
+      acc[key.status] = acc[key.status] || [];
+      acc[key.status].push(key);
+      return acc;
+    }, {});
+    expect(byStatus.current).toBeDefined();
+    expect(byStatus.next).toBeDefined();
+    expect(byStatus.retiring).toBeDefined();
+    expect(byStatus.current!.every((k: any) => k.use === 'sig' && k.alg === 'RS256')).toBe(true);
+    expect(byStatus.next!.every((k: any) => k.use === 'sig' && k.alg === 'RS256')).toBe(true);
+    expect(byStatus.retiring!.length).toBeGreaterThan(0);
     for (const key of jwks.keys) {
       expect(key).toHaveProperty('kty');
       expect(key).toHaveProperty('n');
