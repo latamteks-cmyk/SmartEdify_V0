@@ -37,6 +37,18 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
   ```
   Consulta [docs/docker.md](docs/docker.md#stack-local-persistencia-y-servicios) para detalles de puertos, variables de entorno y el script `scripts/dev-up.ps1` que automatiza healthchecks y migraciones.
 
+### Observabilidad local (OpenTelemetry + Prometheus)
+- Para habilitar la recolección de métricas y trazas ejecuta:
+  ```sh
+  docker compose up -d otel-collector prometheus
+  ```
+- Endpoints expuestos por el collector (puertos configurables mediante variables de entorno):
+  - OTLP gRPC: `localhost:${OTEL_COLLECTOR_GRPC_PORT:-4317}`.
+  - OTLP HTTP para traces: `http://localhost:${OTEL_COLLECTOR_HTTP_PORT:-4318}/v1/traces`.
+  - OTLP HTTP para métricas: `http://localhost:${OTEL_COLLECTOR_HTTP_PORT:-4318}/v1/metrics`.
+  - Métricas Prometheus: `http://localhost:${OTEL_COLLECTOR_PROM_PORT:-8889}/metrics`.
+- Interfaz de Prometheus para explorar series: `http://localhost:${PROMETHEUS_PORT:-9090}`.
+
 ### Ejecutar servicios
 - Auth Service:
   ```sh
