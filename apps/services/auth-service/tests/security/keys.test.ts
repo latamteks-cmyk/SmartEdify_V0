@@ -53,7 +53,7 @@ jest.mock('../../internal/adapters/db/pg.adapter', () => {
   const pool = new MockPool();
   return { __esModule: true, default: pool };
 });
-import { getCurrentKey, getNextKey, rotateKeys, buildJwks, getKeyByKid } from '../../internal/security/keys';
+import { getCurrentKey, getNextKey, rotateKeys, getKeyByKid, getPublicJwks } from '../../internal/security/keys';
 
 // Forzar entorno test
 envSetup();
@@ -85,18 +85,30 @@ describe('Signing Keys', () => {
     expect(newCurrent.status).toBe('current');
     expect(newNext).toBeDefined();
     expect(newNext!.status).toBe('next');
-    // El current anterior pasa a retiring
+    const retired = await getKeyByKid(beforeCurrent.kid);
+    expect(retired).not.toBeNull();
+    expect(retired!.status).toBe('retiring');
+    expect(retired!.retiring_at).toBeInstanceOf(Date);
   });
 
-  test('JWKS incluye current y next/retiring', async () => {
-    const { keys } = buildJwks([(await getCurrentKey()), (await getNextKey())!]);
-    expect(keys.length).toBeGreaterThanOrEqual(1);
-    const first = keys[0];
-    expect(first).toHaveProperty('kty');
-    expect(first).toHaveProperty('n');
-    expect(first).toHaveProperty('e');
-    expect(first).toHaveProperty('kid');
-    expect(first).toHaveProperty('alg', 'RS256');
+  test('getPublicJwks expone current/next/retiring', async () => {
+    await getCurrentKey();
+    await getNextKey();
+    await rotateKeys();
+    const jwks = await getPublicJwks();
+    expect(Array.isArray(jwks.keys)).toBe(true);
+    expect(jwks.keys.length).toBeGreaterThanOrEqual(3);
+    const statuses = new Set(jwks.keys.map((k: any) => k.status));
+    expect(statuses.has('current')).toBe(true);
+    expect(statuses.has('next')).toBe(true);
+    expect(statuses.has('retiring')).toBe(true);
+    for (const key of jwks.keys) {
+      expect(key).toHaveProperty('kty');
+      expect(key).toHaveProperty('n');
+      expect(key).toHaveProperty('e');
+      expect(key).toHaveProperty('kid');
+      expect(key).toHaveProperty('alg', 'RS256');
+    }
   });
 
   test('lookup por kid devuelve clave', async () => {

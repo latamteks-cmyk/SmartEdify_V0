@@ -192,6 +192,10 @@ Limitaciones pendientes:
 - Endpoint de rotación sin control de acceso.
 - Faltan alertas sobre ausencia de `next` o edad excesiva de `current`.
 
+### Validación automatizada
+- `tests/security/keys.test.ts` garantiza que la rotación promueve `next`, deja la clave previa en `retiring` y que `getPublicJwks()` publica simultáneamente `current`, `next` y `retiring`.
+- `tests/security/jwt.test.ts` simula expiraciones y desfases de reloj ajustando temporalmente los TTL de access/refresh para confirmar que los tokens caducados se rechazan y que existe tolerancia antes de alcanzar el límite.
+
 Pruebas locales rápidas:
 ```bash
 curl -s http://localhost:8080/.well-known/jwks.json | jq
