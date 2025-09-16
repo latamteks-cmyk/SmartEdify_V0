@@ -1,4 +1,7 @@
 /// <reference types="../..//types/fastify-di" />
+// Copyright (c) 2024 SmartEdify contributors
+// Licensed under the MIT License. See the LICENSE file in the project root for details.
+
 import Fastify from 'fastify';
 import { config } from '../../internal/config/env.js';
 import { pool } from '../../internal/adapters/repo/db.js';
