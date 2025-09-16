@@ -1,16 +1,32 @@
-# ADR 0004: Publisher Abstraction & Enriched Event Envelope
 
-## Status
-Accepted (2025-09-14)
+---
+title: "ADR-0004: Publisher Abstraction & Enriched Event Envelope"
+date: 2025-09-14
+status: Aceptado
+authors: [Equipo Backend SmartEdify]
 
-## Context
+# ADR-0004: Publisher Abstraction & Enriched Event Envelope
+
+## Tabla de Contenido
+1. [Contexto](#contexto)
+2. [Decisión](#decisión)
+3. [Envelope v1 (JSON Schema informal)](#envelope-v1-json-schema-informal)
+4. [Alternativas Consideradas](#alternativas-consideradas)
+5. [Consecuencias](#consecuencias)
+6. [Plan de Rollout](#plan-de-rollout)
+7. [Preguntas Abiertas](#preguntas-abiertas)
+8. [Referencias](#referencias)
+
+---
+
+## 1. Contexto
 El Tenant Service emite eventos de dominio (p.ej. `governance.changed`) mediante un patrón Outbox (tabla `outbox_events`) que garantiza atomicidad y consistencia frente a la DB principal. Hasta ahora el "publisher" era implícito dentro del poller, sin separación de responsabilidades, lo que dificultaba:
 - Sustituir la implementación de transporte (Kafka, NATS JetStream, RabbitMQ) sin tocar lógica de reintentos.
 - Estandarizar la forma de serializar eventos y añadir metadata evolutiva.
 - Instrumentar métricas de publicación específicas del broker.
 - Introducir futuros concerns (firma, compresión, correlación) sin inflar el poller.
 
-## Decision
+## 2. Decisión
 1. Introducir interface `Publisher` con método único `publish(envelope): Promise<{ ok: boolean; error?: any }>`.
 2. Extraer construcción del envelope enriquecido (campos base) en el poller antes de invocar publisher.
 3. Añadir `LoggingPublisher` inicial (no-op broker) para permitir evolución incremental sin dependencia externa.
@@ -22,7 +38,7 @@ El Tenant Service emite eventos de dominio (p.ej. `governance.changed`) mediante
 5. Exponer métricas broker neutrales: `broker_publish_total`, `broker_publish_failed_total`.
 6. Mantener retries y backoff exclusivamente en el poller (capa outbox), asumiendo publisher no reintenta internamente.
 
-## Envelope v1 (JSON Schema informal)
+## 3. Envelope v1 (JSON Schema informal)
 ```json
 {
   "id": "uuid",
@@ -42,7 +58,7 @@ El Tenant Service emite eventos de dominio (p.ej. `governance.changed`) mediante
 }
 ```
 
-## Alternatives Considered
+## 4. Alternativas Consideradas
 | Alternativa | Motivo Rechazo |
 |-------------|----------------|
 | Inyectar cliente Kafka directamente en poller | Mezcla responsabilidades y dificulta test aislado. |
@@ -50,30 +66,31 @@ El Tenant Service emite eventos de dominio (p.ej. `governance.changed`) mediante
 | No enriquecer envelope todavía | Aplaza decisiones y obliga migración disruptiva futura. |
 | Usar CloudEvents completo | Overhead inicial innecesario; se puede mapear a futuro si se requiere interoperabilidad. |
 
-## Consequences
-Positivas:
+## 5. Consecuencias
+**Positivas:**
 - Testeabilidad: publisher stub simplifica pruebas.
 - Evolución: añadir `KafkaPublisher` solo requiere implementar interface.
 - Observabilidad: métricas separadas broker vs. outbox.
 - Extensibilidad futura (firma, compresión, headers específicos) sin tocar poller central.
 
-Negativas / Costes:
+**Negativas / Costes:**
 - Ligero overhead de construcción de envelope.
 - Necesidad de mantener sincronía entre `eventVersion` y migraciones de payload (política por definir).
 
-## Rollout Plan
+## 6. Plan de Rollout
 1. (Hecho) Introducir interface + LoggingPublisher.
 2. Añadir validación schema (opcional) antes de publicar (fase siguiente si se detecta necesidad).
 3. Implementar adapter real (Kafka/NATS) y feature flag para activar.
 4. Añadir consumer separado + métrica `broker_lag_seconds`.
 5. Documentar convención de versionado de eventos (tabla contract → versión).
 
-## Open Questions
+## 7. Preguntas Abiertas
 - ¿Se necesita cadena de firmas (hash chain) al nivel envelope o solo para governance? (Pendiente ADR específica).
-- ¿PartitionKey = always aggregateId? (Para multi-aggregate events quizá otra lógica). 
+- ¿PartitionKey = always aggregateId? (Para multi-aggregate events quizá otra lógica).
 - ¿Incluir `source` y `specVersion` para compatibilidad CloudEvents? (Reevaluar en Fase 2+).
 
-## References
+## 8. Referencias
 - Outbox Pattern (Fowler / Debezium docs)
 - CloudEvents v1.0 (para mapeo futuro)
 - ADR 0003 Outbox Event Propagation (base de diseño previo)
+- [ARCHITECTURE.md](../../../ARCHITECTURE.md)

@@ -1,5 +1,9 @@
 # Runbook — Reprocesamiento DLQ
 
+> **Referencias:**
+> - ADR: [ADR-0005-consumer-processing.md](../design/adr/ADR-0005-consumer-processing.md)
+> - Diagrama: [consumer-retry-sequence.mmd](../design/diagrams/consumer-retry-sequence.mmd)
+
 ## Purpose
 Restablecer el flujo de eventos movidos a la *dead letter queue* (DLQ) del Tenant Service cuando se detecta acumulación anómala o fallos permanentes. El objetivo es reprocesar sólo los eventos seguros, mantener el tamaño de la cola bajo control y recuperar la consistencia en los consumidores downstream.
 
@@ -67,6 +71,7 @@ Restablecer el flujo de eventos movidos a la *dead letter queue* (DLQ) del Tenan
   ```
   Asegura que sólo queden eventos con causa raíz abierta o aprobados para retenerse.
 - Revisa dashboards de consumidor downstream para confirmar que no hay nuevos errores asociados al lote reprocesado (por ejemplo, `broker_consumer_lag_max` estable).
+- **Recuperación exitosa:** No deben generarse nuevas alertas de DLQ ni errores de reprocesamiento en los dashboards de monitoreo durante al menos 30 minutos tras la intervención.
 
 ## Rollback
 1. Si los reprocesos generan fallos, detén el bucle (`Ctrl+C`) e incrementa `TENANT_DLQ_REPROCESS_DISABLED=true` (feature flag) para pausar reintentos automáticos.

@@ -1,48 +1,72 @@
-# Arquitectura — SmartEdify_V0
 
 ## Resumen de la guía de arquitectura
 
-- Principios rectores: un servicio por responsabilidad, contratos primero (OpenAPI y esquemas de eventos), compatibilidad hacia atrás, seguridad *least privilege* y observabilidad integral.
-- Correcciones clave acordadas con el CTO: rotación operativa de JWKS, mensajería en NATS con *subjects* versionados y DLQ por servicio, pipeline CI con *gates* (lint, pruebas, cobertura ≥80 %, SBOM, SAST, escaneo de contenedores) y hardening (contenedores no root, FS inmutable, límites de recursos, CORS estricto).
-- Diseño de servicios: gateway BFF, auth, tenant, assembly, reservation, maintenance y módulos lite para documentos, comunicaciones, finanzas y pagos.
-- Prácticas operativas: versionado `/v1` en HTTP y `v1.<dominio>.<evento>` en eventos, idempotencia con `409` + `idempotency-key` y `event_id`, migraciones *forward-only* con planes de rollback y retenciones definidas (outbox 7 días, DLQ 30 días, documentos WORM).
-- Observabilidad y seguridad: export OTLP con `trace_id` en logs, dashboards para latencia/error/*consumer lag*, JWT con *claims* obligatorias, TLS de extremo a extremo, HSTS y gestión de secretos en GitHub Secrets + AWS Secrets Manager.
-- Documentación viva: `docs/README.md#documento-rector--smartedify_v0` y este archivo se actualizan mediante PR.
 
 Consulta la guía completa en [docs/architecture/guidelines.md](docs/architecture/guidelines.md).
 
 ## Visión
 Plataforma SaaS con dominios: User Portal, Admin Portal, Mobile App. Servicios base: auth, user, tenant. Integración asincrónica con outbox y broker. Seguridad por defecto.
 
-## Contexto (C4 nivel 1)
-- Usuarios finales → User Portal y Mobile.
-- Operadores → Admin Portal.
-- Servicios internos → Auth, User, Tenant, Notificaciones (futuro).
-- Infra → Postgres, Redis, Broker (Kafka/NATS), OTel Collector.
-
-## Contenedores (C4 nivel 2)
-- auth-service: emisión y verificación JWT, JWKS con rotación.
-- user-service: perfil y preferencias. Cache selectivo en Redis.
-- tenant-service: multitenancy, límites y *billing hooks*.
-- api-gateway (futuro): rate-limit, WAF, agregación.
-
-## Integración
-- HTTP+JSON síncrono. Contratos en `api/openapi`.
-- Eventos dominio: `user.created`, `tenant.provisioned`. Validación Zod. DLQ obligatoria.
-
-## Seguridad
-- Zero trust interno. mTLS entre servicios (futuro).
-- JWT con `aud`, `iss`, `kid`. Rotación 3 estados.
-- Secret management en GitHub Secrets y AWS Secrets Manager.
-
-## Observabilidad
-- Trazas OTel. Logs con `trace_id`. Métricas SLI: latencia p95, tasa error, *consumer lag*.
-
-## Datos
-- Migraciones por servicio. Esquemas versionados. Backfill seguro.
-
-## DevOps
-- CI monorepo. SBOM. Escaneo contenedores. Despliegue canario con rollback.
-
 ## Diagramas
 Ver `docs/design/diagrams/*`.
+
+# Documento Rector de Arquitectura — SmartEdify_V0
+
+## 1. Visión y Alcance
+SmartEdify es una plataforma SaaS modular para educación, compuesta por tres dominios principales (User Portal, Admin Portal, Mobile App) y una base de servicios desacoplados (Auth, User, Tenant, Assembly, Reservation, Maintenance). El objetivo es ofrecer una solución escalable, segura y observable, con integración asincrónica y contratos claros.
+
+### Alcance
+- **MVP**: Auth Service (registro, autenticación, recuperación de credenciales), Tenant Service Fase 0 (tenants, unidades, memberships, transferencia de administrador), User Service (perfil básico).
+- **Interfaces**: Web y móvil en backlog, gestionadas en `docs/tareas.md`.
+- **Integración**: HTTP+JSON y eventos de dominio (ver `api/openapi/` y `docs/eventing-guidelines.md`).
+
+## 2. Principios Rectores
+- Un servicio por responsabilidad (SRP).
+- Contratos primero: OpenAPI y esquemas de eventos versionados.
+- Compatibilidad hacia atrás y migraciones *forward-only*.
+- Seguridad *least privilege* y zero trust.
+- Observabilidad integral: tracing, métricas, logs con `trace_id`.
+- Documentación viva y trazable (ver `docs/README.md#documento-rector--smartedify_v0`).
+
+## 3. Diseño de Servicios y Dominios
+- **Auth Service**: JWT, JWKS con rotación, refresh tokens, métricas Prometheus.
+- **Tenant Service**: multitenancy, límites, unidades, memberships, roles y gobierno.
+- **User Service**: perfil, preferencias, cache selectivo en Redis.
+- **Assembly, Reservation, Maintenance**: ver planes y roadmap en `plans/`.
+- **Gateway BFF**: rate-limit, WAF, agregación (ver `plans/gateway/gateway-service.md`).
+
+## 4. Integración y Contratos
+- HTTP+JSON síncrono (contratos en `api/openapi/`).
+- Eventos de dominio: versionado `v1.<dominio>.<evento>`, validación Zod, DLQ obligatoria.
+- Idempotencia: `409` + `idempotency-key` y `event_id`.
+
+## 5. Seguridad
+- JWT con `aud`, `iss`, `kid`. Rotación 3 estados (`current`, `next`, `retiring`).
+- mTLS entre servicios (futuro), TLS extremo a extremo, HSTS.
+- Gestión de secretos: GitHub Secrets y AWS Secrets Manager.
+- Hardening: contenedores no root, FS inmutable, límites de recursos, CORS estricto.
+
+## 6. Observabilidad
+- Trazas OTel, logs enriquecidos, métricas SLI (latencia p95, tasa error, *consumer lag*).
+- Dashboards y alertas (ver `docs/observability/`).
+
+## 7. Datos y Migraciones
+- Migraciones por servicio, esquemas versionados, backfill seguro.
+- Retenciones: outbox 7 días, DLQ 30 días, documentos WORM.
+
+## 8. DevOps y Operación
+- CI monorepo, SBOM, escaneo de contenedores, gates de calidad (lint, pruebas, cobertura ≥80 %, SAST).
+- Despliegue canario con rollback.
+- Protocolos y guías en `docs/operations/ci-cd.md` y `docs/docker.md`.
+
+## 9. Diagramas y Referencias
+- Diagramas actualizados en `docs/design/diagrams/*` (ver `architecture-overview.mmd`, `network-ports.mmd`, `auth-sequence.mmd`, etc.).
+- Decisiones clave y ADR en `docs/design/adr/`.
+- Runbooks y guías operativas en `docs/runbooks/`.
+
+## 10. Documentación y Trazabilidad
+- Este documento es el rector técnico. El índice operativo y de referencia está en `docs/README.md`.
+- Todas las actualizaciones deben reflejarse en ambos documentos y en los diagramas correspondientes.
+
+---
+> **Nota:** Para detalles de endpoints, catálogos activos y dependencias, consultar `docs/README.md` y los contratos OpenAPI.

@@ -1,43 +1,74 @@
+---
+title: "ADR-0007: Rotación y Distribución de Claves JWT (JWKS)"
+date: 2025-09-14
+status: Propuesto
+authors: [Equipo de arquitectura]
+
 # ADR-0007: Rotación y Distribución de Claves JWT (JWKS)
 
-Fecha: 2025-09-14
-Estado: Propuesto
+## Tabla de Contenido
+1. [Contexto](#contexto)
+2. [Decisión](#decisión)
+3. [Consecuencias y Criterios de Aceptación](#consecuencias-y-criterios-de-aceptación)
+4. [Flujo de Rotación](#flujo-de-rotación)
+5. [Ejemplo de Endpoint JWKS](#ejemplo-de-endpoint-jwks)
+6. [Referencias](#referencias)
 
-## Contexto
+---
+
+## 1. Contexto
 El ecosistema requiere validar tokens en múltiples servicios (`tenant-service`, futuros servicios). Actualmente dependemos de una clave pública estática (`TENANT_JWT_PUBLIC_KEY`). Riesgos:
 - Rotación manual lenta, provoca ventanas de uso de claves comprometidas.
 - Revocación difícil de refresh tokens y sesiones asociadas.
 - No existe endpoint JWKS para distribución automática.
 
-## Objetivos
-1. Rotar claves de firma (primary/next) sin downtime.
-2. Exponer JWKS (`/.well-known/jwks.json`) con claves activas.
-3. Permitir revocación inmediata de refresh tokens asociados a compromisos o logout global.
-4. Facilitar auditoría (kid, created_at, last_used_at).
+## 2. Decisión
+Implementar un Key Store interno gestionando un conjunto de claves (al menos 2 activas: `current`, `next`).
 
-## Decisión
-Implementar un Key Store interno gestionando un conjunto de claves (al menos 2 activas: `current`, `next`). Proceso:
+**Proceso:**
 - Generación anticipada de nueva clave (RS256 inicialmente, contemplar ES256 posteriormente).
-- Publicación en JWKS con `use":"sig"`, `alg":"RS256"`, `kid` único, sólo contenido de la parte pública.
+- Publicación en JWKS con `use: "sig"`, `alg: "RS256"`, `kid` único, sólo contenido de la parte pública.
 - Al iniciar rotación: marcar `next` como `current` y generar una nueva `next`. Mantener la clave previamente usada durante un período de gracia (overlap) para validar tokens emitidos antes del switch.
 
-Refresh Tokens:
+**Refresh Tokens:**
 - Guardar refresh tokens hash (argon2) + `kid` de la clave con la que se firmó el access token inicial.
 - En rotación: invalidar refresh tokens con claves marcadas `retiring=true` si se detecta compromiso.
 - Tabla `auth_refresh_sessions(id, user_id, kid, revoked_at, expires_at, metadata)`.
 
-## Flujo de Rotación (High-Level)
+## 3. Consecuencias y Criterios de Aceptación
+### Consecuencias
+- Rotación de claves sin downtime.
+- Revocación inmediata de refresh tokens asociados a compromisos o logout global.
+- Auditoría de claves (`kid`, `created_at`, `last_used_at`).
+
+### Criterios de aceptación
+- [ ] El endpoint `/.well-known/jwks.json` expone siempre al menos dos claves activas (`current`, `next`).
+- [ ] El proceso de rotación no interrumpe la validación de tokens emitidos previamente.
+- [ ] Refresh tokens pueden ser revocados por `kid`.
+- [ ] Auditoría de uso y rotación disponible.
+
+## 4. Flujo de Rotación
 1. Operación `rotateKeys` (manual o job) crea nueva clave -> almacena como `next`.
 2. Después de ventana T (ej. 24h) se promueve `next` a `current`, la anterior `current` pasa a `retiring` (validar solamente, no firmar).
 3. Pasado período de gracia (ej. 72h) las claves `retiring` se eliminan (o se archivan) y se invalidan refresh tokens asociados.
 
-## Endpoint JWKS
+## 5. Ejemplo de Endpoint JWKS
 `GET /.well-known/jwks.json` devuelve:
+
 ```json
 {
   "keys": [
     {"kty": "RSA", "kid": "kidCurrent", "n": "<base64url>", "e": "AQAB", "alg": "RS256", "use": "sig"},
     {"kty": "RSA", "kid": "kidNext", "n": "<base64url>", "e": "AQAB", "alg": "RS256", "use": "sig"}
+  ]
+}
+```
+
+## 6. Referencias
+- [Diagrama de secuencia de rotación JWKS](../diagrams/jwks-rotation-sequence.mmd)
+- [Flujo de estados de JWKS](../diagrams/jwks-rotation-state.mmd)
+- [ARCHITECTURE.md](../../../ARCHITECTURE.md)
+- [OpenID Connect Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html)
   ]
 }
 ```

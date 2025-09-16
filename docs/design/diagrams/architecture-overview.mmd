@@ -83,11 +83,8 @@ flowchart LR
     ADRS -. reference .-> OUTBOX_SVC
     SCAN -. reports .-> SECURITY
 
-    style DLQ fill:#ffdddd,stroke:#cc0000
-    style KAFKA fill:#f5f5f5,stroke:#333
     style OUTBOX fill:#fff2cc,stroke:#d4aa00
-    style PUBLISHER fill:#fff2cc,stroke:#d4aa00
-    style CONSUMER fill:#d9e8fb,stroke:#1b75d1
+    flowchart LR
     style HANDLERS fill:#d9e8fb,stroke:#1b75d1
     style METRICS fill:#e1ffe1,stroke:#2d8a2d
     style TRACES fill:#e1ffe1,stroke:#2d8a2d

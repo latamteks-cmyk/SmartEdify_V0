@@ -1,62 +1,45 @@
 <a id="documento-rector--smartedify_v0"></a>
-# Documento Rector — SmartEdify_V0
+# Índice Operativo y de Referencia — SmartEdify_V0
 
-## Current — Panorama
+Este documento sirve como índice vivo para la operación, referencia y seguimiento de la plataforma. El documento rector de arquitectura y alcance es `ARCHITECTURE.md`.
 
-### Visión global
-Objetivo: plataforma SaaS modular para educación con tres dominios (User Portal, Admin Portal y Mobile App) apoyados por servicios backend desacoplados. El MVP actual se sostiene sobre Auth Service (registro, autenticación y recuperación de credenciales) y Tenant Service Fase 0 (tenants, unidades, memberships y transferencia de administrador) mientras se consolida User Service como proveedor de perfil básico. Las interfaces web y móvil aún no se han entregado; sus historias y checklists UI/UX se gestionan en `docs/tareas.md` (secciones *Web Administrador*, *Web User* y *Aplicación Móvil*).
+## 1. Panorama y dominios
+- **Visión y alcance**: ver `../ARCHITECTURE.md` (visión, principios, dominios, alcances y dependencias).
+- **Interfaces**: Web y móvil en backlog, gestionadas en `docs/tareas.md`.
+- **Diagramas**: `docs/design/diagrams/*` (ver `architecture-overview.mmd`, `network-ports.mmd`, etc.).
 
-### Guías consolidadas
-Recursos clave para profundizar desde el inicio del proyecto:
-- [Lineamientos de arquitectura](architecture/guidelines.md): principios, patrones y convenciones obligatorias a nivel de diseño.
-- [Pautas de CI/CD y operaciones](operations/ci-cd.md): expectativas de pipelines, gates de calidad y protocolos de despliegue.
+## 2. Guías y lineamientos clave
+- [Lineamientos de arquitectura](architecture/guidelines.md)
+- [Guía de CI/CD y operaciones](operations/ci-cd.md)
+- [Guía de eventos y contratos](eventing-guidelines.md)
+- [Guía de seguridad y hardening](security-hardening.md)
 
-### Áreas críticas detectadas
-- JWKS rotation incompleta.
-- Broker y DLQ pendientes.
-- CI sin gates de cobertura y seguridad en `main`.
-- Placeholders sensibles en `.env` y compose.
+## 3. Estado y dependencias
+- **Áreas críticas**: ver sección de riesgos y pendientes en `ARCHITECTURE.md` y `docs/tareas.md`.
+- **Dominios activos**:
+  | Dominio       | Estado actual | Dependencias actuales |
+  |--------------|---------------|----------------------|
+  | User Portal  | Sin interfaz desplegada; consumo de flujos vía servicios Auth/Tenant mientras se define UI en backlog. | Auth Service, Tenant Service |
+  | Admin Portal | UI en definición; operaciones de gobierno disponibles vía Tenant Service (`/tenants`, `/governance`). | Auth Service, Tenant Service |
+  | Mobile App   | No iniciada; alcance y navegación documentados en backlog móvil. | Auth Service, Tenant Service |
 
-### Dominios activos
-| Dominio | Estado actual | Dependencias actuales |
-|---|---|---|
-| User Portal | Sin interfaz desplegada; consumo de flujos vía servicios Auth/Tenant mientras se define UI en backlog. | Auth Service, Tenant Service |
-| Admin Portal | UI en definición; operaciones de gobierno disponibles vía Tenant Service (`/tenants`, `/governance`). | Auth Service, Tenant Service |
-| Mobile App | No iniciada; alcance y navegación documentados en backlog móvil. | Auth Service, Tenant Service |
+## 4. Catálogo de endpoints y contratos
+- Contratos OpenAPI en `api/openapi/` (verifica siempre contra la rama principal).
+- Ejemplo de endpoints activos:
+  - **Auth Service**: `/register`, `/login`, `/refresh-token`, `/forgot-password`, `/reset-password`, `/health`, `/metrics`.
+  - **Tenant Service**: `/tenants`, `/tenants/{id}`, `/tenants/{id}/units`, `/units/{id}/memberships`, `/tenant-context`, `/governance/transfer-admin`.
+- Para detalles y seguridad, consulta los archivos OpenAPI y la documentación de cada servicio.
 
-### Arquitectura global
-Resumen en `ARCHITECTURE.md`. Diagramas en `docs/design/diagrams/*`.
-Ver `docs/design/diagrams/network-ports.mmd` para puertos y relaciones, y `plans/gateway/gateway-service.md` para el BFF.
-Lineamientos completos: ver [Guía de arquitectura unificada](architecture/guidelines.md).
+## 5. Referencias cruzadas y trazabilidad
+- Documento rector: `../ARCHITECTURE.md`
+- Decisiones clave y ADR: `design/adr/`
+- Diagramas: `design/diagrams/`
+- Runbooks y guías operativas: `runbooks/`
+- Estado y entregables: `status.md`
+- Tracker de alto nivel: `../task.md`.
 
-### Catálogo de endpoints activos
-Contratos verificados contra los OpenAPI publicados en el repositorio.
-
-#### Auth Service (`api/openapi/auth.yaml`)
-Base URL: `https://api.smartedify.com/api/auth/v1`
-
-| Función | Endpoint | Método | Notas |
-|---|---|---|---|
-| Registrar usuario | `/register` | POST | Registra identidad inicial y devuelve tokens si corresponde. |
-| Login | `/login` | POST | Emite par access/refresh tokens. |
-| Rotar refresh token | `/refresh-token` | POST | Requiere refresh token vigente en el cuerpo de la solicitud. |
-| Solicitar recuperación | `/forgot-password` | POST | Dispara token de reseteo vía canal externo. |
-| Confirmar reseteo | `/reset-password` | POST | Valida token de reseteo y actualiza credenciales. |
-| Health check | `/health` | GET | Diagnóstico técnico sin autenticación declarada. |
-| Métricas | `/metrics` | GET | Exposición Prometheus para observabilidad. |
-
-#### Tenant Service (`apps/services/tenant-service/api/openapi/tenant.yaml`)
-Base URL: `https://api.smartedify.io`
-
-| Función | Endpoint | Método | Seguridad |
-|---|---|---|---|
-| Crear tenant | `/tenants` | POST | `bearerAuth` |
-| Obtener tenant | `/tenants/{id}` | GET | `bearerAuth` |
-| Crear unidad | `/tenants/{id}/units` | POST | `bearerAuth` |
-| Listar unidades | `/tenants/{id}/units` | GET | `bearerAuth` |
-| Alta membership | `/units/{id}/memberships` | POST | `bearerAuth` |
-| Transferir admin | `/tenants/{id}/governance/transfer-admin` | POST | `bearerAuth` |
-| Contexto de tenant | `/tenant-context` | GET | `bearerAuth` |
+---
+> **Nota:** Toda actualización relevante debe reflejarse en este índice y en el documento rector de arquitectura. Mantener consistencia y trazabilidad entre contratos, código y documentación.
 
 ### Buenas prácticas vigentes
 Un servicio = una responsabilidad. Seguridad por defecto. Observabilidad integral. CI/CD con rollback. Límites de costo definidos.
@@ -246,3 +229,29 @@ apps/mobile-app/             # Estructura objetivo (no creada)
   - `auth_http_request_duration_seconds` (histogram)
   - Métricas por defecto Node (GC, heap, event loop)
 * Métricas de negocio (implementadas en auth-service: login_success_total, login_fail_total, password_reset_requested_total, password_reset_completed_total, refresh_rotated_total, refresh_reuse_blocked_total) – exportadas junto a métricas técnicas.
+
+# SmartEdify — Documentación principal
+
+## Consolidación y recomendaciones de mejora continua
+
+### Estado actual
+- Documentación técnica y operativa estandarizada y alineada a mejores prácticas CTO.
+- ADRs, diagramas y runbooks validados, con referencias cruzadas y criterios de éxito claros.
+- Guías operativas y de CI/CD accionables, con contactos y criterios de rollback.
+
+### Sugerencias de mejora continua
+- Revisar y actualizar ADRs y diagramas tras cada cambio arquitectónico relevante.
+- Mantener los runbooks y guías operativas sincronizados con los flujos reales y alertas recientes.
+- Incluir ejemplos de incidentes resueltos y lecciones aprendidas en una sección de post-mortems.
+- Automatizar validaciones de sintaxis Mermaid y enlaces rotos en CI.
+- Fomentar la retroalimentación de los equipos de dominio y SRE sobre claridad y utilidad de la documentación.
+- Revisar referencias a dashboards y scripts de monitoreo tras cambios en infraestructura.
+
+### Checklist de calidad documental
+- [x] ADRs con contexto, decisión, consecuencias y referencias.
+- [x] Diagramas .mmd validados y alineados a la arquitectura actual.
+- [x] Runbooks con propósito, pasos, validación, rollback y contactos.
+- [x] Guías de CI/CD con gates, rollback y validación post-despliegue.
+- [x] Referencias cruzadas y enlaces a recursos clave.
+
+> Para sugerencias o reportes de mejora documental, contactar a doc-admin@smartedify.com

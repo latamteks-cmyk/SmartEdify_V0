@@ -1,10 +1,30 @@
-# ADR 0003: Outbox Event Propagation Pattern
 
-Fecha: 2025-09-14
-Estado: Propuesto (Implementación inicial parcial lista)
-Autores: Plataforma / Backend
+---
+title: "ADR-0003: Outbox Event Propagation Pattern"
+date: 2025-09-14
+status: Propuesto (Implementación inicial parcial lista)
+authors: [Plataforma / Backend]
 
-## Contexto
+# ADR-0003: Outbox Event Propagation Pattern
+
+## Tabla de Contenido
+1. [Contexto](#contexto)
+2. [Decisión](#decisión)
+3. [Alternativas Consideradas](#alternativas-consideradas)
+4. [Consecuencias](#consecuencias)
+5. [Implementación (Fases)](#implementación-fases)
+6. [Detalles Técnicos](#detalles-técnicos)
+7. [Métricas](#métricas)
+8. [Observabilidad y Alertas](#observabilidad-y-alertas)
+9. [Pruebas](#pruebas)
+10. [Riesgos y Mitigaciones](#riesgos-y-mitigaciones)
+11. [Migraciones Futuras](#migraciones-futuras)
+12. [Seguimiento / TODO](#seguimiento--todo)
+13. [Referencias](#referencias)
+
+---
+
+## 1. Contexto
 El ecosistema SmartEdify evoluciona hacia arquitectura orientada a eventos para desacoplar microservicios (Auth, Tenant, User, Assembly, frontends) y permitir extensibilidad (reactivar proyecciones, auditoría, analítica). Actualmente:
 - Existe tabla `outbox_events` en Tenant Service (creada en migraciones iniciales) y eventos como `governance.changed`.
 - No hay aún publicador asíncrono ni bus definitivo (Kafka / NATS / Redpanda evaluados).
@@ -16,7 +36,7 @@ Problemas a resolver:
 2. Riesgo de pérdida o duplicación de eventos si se publica dentro de la misma transacción sin confirmación fiable.
 3. Necesidad de retries controlados y visibilidad operativa (latencia, backlog, tasa de fallos permanentes).
 
-## Decisión
+## 2. Decisión
 Adoptar patrón Outbox transaccional con publicador asíncrono confiable:
 1. Persistir evento en tabla `outbox_events` dentro de la misma transacción que la mutación de dominio.
 2. Un worker (poller) periódico consulta lote ordenado por `next_retry_at, created_at` y publica al broker elegido.
@@ -26,7 +46,7 @@ Adoptar patrón Outbox transaccional con publicador asíncrono confiable:
 6. Añadir métricas Prometheus: `outbox_publish_attempts_total`, `outbox_published_total`, `outbox_retry_total`, `outbox_failed_permanent_total`, `outbox_backlog_gauge`.
 7. Alertas SRE: backlog > umbral (p.e. 500) o edad promedio > 60s.
 
-## Alternativas Consideradas
+## 3. Alternativas Consideradas
 | Alternativa | Pros | Contras |
 |-------------|------|---------|
 | Publicar directamente dentro de la transacción | Simplicidad | Rollo back parcial, riesgo de publicación sin commit real (doble escritura) |
@@ -36,18 +56,18 @@ Adoptar patrón Outbox transaccional con publicador asíncrono confiable:
 
 Elegimos Outbox transaccional por equilibrio entre simplicidad operativa y garantías de consistencia eventual.
 
-## Consecuencias
-Positivas:
+## 4. Consecuencias
+**Positivas:**
 - Consistencia eventual confiable sin acoplar lógica de dominio al broker.
 - Control explícito de reintentos y DLQ facilita operaciones.
 - Métricas y alertas habilitan observabilidad temprana.
 
-Negativas / Costes:
+**Negativas / Costes:**
 - Lógica adicional (poller + mantenimiento + limpieza histórica).
 - Latencia añadida (poll interval) frente a publicación directa.
 - Gestión de evolución de esquema outbox y DLQ.
 
-## Implementación (Fases)
+## 5. Implementación (Fases)
 1. (Listo) Persistencia de eventos y pruebas de reintentos básicos.
 2. (Pendiente) Worker poller (intervalo 500ms - 2s adaptativo) con locking (FOR UPDATE SKIP LOCKED) para concurrencia segura.
 3. (Pendiente) Integración broker (preferencia NATS JetStream por simplicidad y persistencia ligera; fallback Kafka si necesidades de throughput > 10K eps).
@@ -57,7 +77,7 @@ Negativas / Costes:
 7. (Pendiente) Backoff exponencial con jitter y límite máximo (p.e. 5m) + clasificación errores permanentes.
 8. (Pendiente) Limpieza eventos publicados > N días (job programado) y particionado futuro.
 
-## Detalles Técnicos
+## 6. Detalles Técnicos
 Tabla actual `outbox_events` (resumen esperado):
 - id (uuid v7)
 - aggregate_type, aggregate_id
@@ -73,7 +93,7 @@ Indices necesarios:
 - idx_outbox_published_at (para limpieza)
 
 Worker pseudocódigo:
-```
+```sql
 BEGIN;
 SELECT * FROM outbox_events
  WHERE published_at IS NULL
@@ -93,7 +113,7 @@ Backoff inicial: `baseDelayMs = 50`, incremento lineal `baseDelayMs * retry_coun
 
 Errores permanentes: clasificación por códigos del broker o validación semántica (payload inválido) -> mover a DLQ inmediatamente.
 
-## Métricas (Definición)
+## 7. Métricas
 - Counter `outbox_publish_attempts_total{service}`
 - Counter `outbox_published_total{service}`
 - Counter `outbox_retry_total{service}`
@@ -101,18 +121,18 @@ Errores permanentes: clasificación por códigos del broker o validación semán
 - Gauge `outbox_backlog_gauge{service}` (eventos pendientes)
 - Histogram `outbox_publish_latency_seconds{service}` (desde created_at hasta published_at)
 
-## Observabilidad y Alertas
+## 8. Observabilidad y Alertas
 Alertas iniciales:
 - Backlog > 500 por 5m
 - Edad P95 publish latency > 30s
 - Fallos permanentes ratio > 1% últimas 15m
 
-## Pruebas
+## 9. Pruebas
 - Unit: cálculo backoff, clasificación errores, función publish wrapper.
 - Integración: insertar eventos -> simular fallos temporales -> verificar escalado `next_retry_at` y publicación exitosa.
 - E2E (posterior): consumir desde broker y verificar idempotencia con doble envío.
 
-## Riesgos y Mitigaciones
+## 10. Riesgos y Mitigaciones
 | Riesgo | Mitigación |
 |--------|------------|
 | Bloqueo prolongado en SELECT | Lotes pequeños (<=50) y transacciones cortas |
@@ -120,12 +140,12 @@ Alertas iniciales:
 | DLQ crecimiento ilimitado | Política retención + métrica y alerta |
 | Desorden temporal | Orden por `created_at` secundario reduce reordenamiento |
 
-## Migraciones Futuras
+## 11. Migraciones Futuras
 - Añadir columna `error_class` y `last_error_at`.
 - Crear tabla `outbox_events_dlq`.
 - Indices parciales para estado listo.
 
-## Seguimiento / TODO
+## 12. Seguimiento / TODO
 - Implementar worker poller (prioridad alta)
 - Instrumentar métricas Prometheus
 - Integrar broker (NATS JetStream POC)
@@ -133,7 +153,8 @@ Alertas iniciales:
 - Exponenciar backoff con jitter
 - Limpieza automática y retención configurable
 
-## Decisión Revisit
-Reevaluar cuando: throughput > 5K eventos/s, necesidad orden global estricto, o aparición de múltiples consumidores con diferentes QoS.
+## 13. Referencias
+- [ARCHITECTURE.md](../../../ARCHITECTURE.md)
+- [Outbox Pattern (Fowler / Debezium docs)](https://microservices.io/patterns/data/transactional-outbox.html)
 
 ---

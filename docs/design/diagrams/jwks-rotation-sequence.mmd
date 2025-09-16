@@ -22,8 +22,11 @@ sequenceDiagram
     Auth-->>Client: JWKS {K1,K2,K3}
 
     Note over Admin: Promoción tras periodo T
+
     Admin->>Auth: POST /admin/promote-key K2
-    Auth->>DB: UPDATE K2->current; K1->retiring; K3->next
+    Auth->>DB: UPDATE K2 status=current
+    Auth->>DB: UPDATE K1 status=retiring
+    Auth->>DB: UPDATE K3 status=next
     DB-->>Auth: ok
 
     Client->>Auth: GET /.well-known/jwks.json

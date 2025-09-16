@@ -1,5 +1,9 @@
 # Runbook — Rotación de claves (Auth)
 
+> **Referencias:**
+> - ADR: [ADR-0007-jwks-rotation.md](../design/adr/ADR-0007-jwks-rotation.md)
+> - Diagrama: [jwks-rotation-sequence.mmd](../design/diagrams/jwks-rotation-sequence.mmd)
+
 ## Purpose
 Ejecutar una rotación controlada de las claves RSA utilizadas por Auth Service para firmar tokens JWT. El objetivo es mitigar exposiciones, cumplir con políticas de rotación y garantizar que los consumidores actualicen el JWKS sin pérdida de disponibilidad.
 
@@ -83,6 +87,7 @@ PY
   NEW_KID=$(curl -s "$AUTH_API/login" -d '{"email":"ops-check@example.com","password":"<SECRET>"}' | jq -r '.access_token' | cut -d'.' -f2 | base64 -d | jq -r '.kid')
   ```
   Debe coincidir con la clave `current` registrada.
+- **Recuperación exitosa:** No deben generarse nuevas alertas de autenticación ni errores de validación de tokens en los dashboards de monitoreo durante al menos 15 minutos tras la rotación.
 
 ## Rollback
 1. Identifica el `kid` previo (estado `retiring`).
