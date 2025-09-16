@@ -102,6 +102,10 @@ export const brokerPublisherConnectFailTotal = new client.Counter({
   name: 'broker_publisher_connect_fail_total',
   help: 'Fallos al intentar conectar el publisher (inicio diferido)'
 });
+export const brokerDeadLetterMessagesGauge = new client.Gauge({
+  name: 'broker_dead_letter_messages',
+  help: 'Mensajes acumulados en la cola dead-letter del broker'
+});
 
 // Consumer lag
 export const brokerConsumerLagGauge = new client.Gauge({
@@ -174,6 +178,7 @@ registry.registerMetric(brokerPayloadBytesTotal);
 registry.registerMetric(outboxValidationFailedTotal);
 registry.registerMetric(brokerPublisherHealthGauge);
 registry.registerMetric(brokerPublisherConnectFailTotal);
+registry.registerMetric(brokerDeadLetterMessagesGauge);
 registry.registerMetric(brokerConsumerLagGauge);
 registry.registerMetric(brokerConsumerLagMaxGauge);
 registry.registerMetric(brokerConsumerLagPollFailedTotal);
