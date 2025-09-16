@@ -80,8 +80,13 @@
     <script src="./swagger-ui-standalone-preset.js" charset="UTF-8"></script>
     <script>
       window.onload = () => {
+        const currentPath = window.location.pathname;
+        const specUrl = currentPath.includes("/api-reference/")
+          ? "../openapi.yaml"
+          : "openapi.yaml";
+
         window.ui = SwaggerUIBundle({
-          url: "../openapi.yaml",
+          url: specUrl,
           dom_id: "#swagger-ui",
           deepLinking: true,
           docExpansion: "none",
