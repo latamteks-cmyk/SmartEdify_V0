@@ -168,8 +168,8 @@ Se implementó un almacén de claves rotativas en la tabla `auth_signing_keys` c
 
 Endpoints:
 - `GET /.well-known/jwks.json` devuelve claves públicas activas (`current`, `next`, `retiring`).
-- `POST /admin/rotate-keys` fuerza rotación manual (MVP sin auth; proteger en producción).
-- `POST /admin/revoke-kid` invalida sesiones activas firmadas con un `kid` comprometido y marca la clave como revocada.
+- `POST /admin/rotate-keys` fuerza rotación manual (requiere credencial administrativa).
+- `POST /admin/revoke-kid` invalida sesiones activas firmadas con un `kid` comprometido y marca la clave como revocada (requiere credencial administrativa).
 
 Emisión y verificación de tokens:
 - Los access y refresh tokens se firman con `RS256` usando la clave `current` e incluyen `kid`.
@@ -190,17 +190,23 @@ Formato JWKS:
 
 Limitaciones pendientes:
 - No hay job que marque `retiring -> expired` tras periodo de gracia.
-- Endpoint de rotación sin control de acceso.
+- Pendiente migrar a mecanismo de autenticación mutua (mTLS / IAM) para el endpoint administrativo.
 - Faltan alertas sobre ausencia de `next` o edad excesiva de `current`.
 
 ### Validación automatizada
 - `tests/security/keys.test.ts` fuerza `rotateKeys()` y comprueba que la clave anterior queda marcada como `retiring` (incluyendo la marca `retiring_at`) y que el JWKS expone entradas para `current`, `next` y `retiring` con los `kid` esperados.
 - `tests/security/jwt.test.ts` redefine temporalmente `AUTH_JWT_ACCESS_TTL=5s` y `AUTH_JWT_REFRESH_TTL=10s`, mockea el reloj para provocar `TokenExpiredError` y verifica que existe tolerancia al clock-skew mientras el desfase permanezca dentro del TTL.
 
+### Operaciones administrativas protegidas
+
+- Establece `AUTH_ADMIN_API_KEY` con una credencial segura (idealmente inyectada vía secret manager).
+- Opcionalmente redefine el header esperado mediante `AUTH_ADMIN_API_HEADER` (por defecto `x-admin-api-key`).
+- Solicitudes sin credencial retornan `401`, credenciales inválidas `403` y una credencial válida permite el flujo (`200`).
+
 Pruebas locales rápidas:
 ```bash
 curl -s http://localhost:8080/.well-known/jwks.json | jq
-curl -XPOST http://localhost:8080/admin/rotate-keys
+curl -XPOST http://localhost:8080/admin/rotate-keys -H "X-Admin-Api-Key: $AUTH_ADMIN_API_KEY"
 ```
 
 ## Estrategia de pruebas
