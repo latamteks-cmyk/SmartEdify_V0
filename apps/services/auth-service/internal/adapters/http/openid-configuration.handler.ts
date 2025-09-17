@@ -12,6 +12,7 @@ export async function openIdConfigurationHandler(_req: Request, res: Response) {
   const responseTypes = unique(clients.flatMap(client => client.responseTypes));
   const grantTypes = unique(clients.flatMap(client => client.grantTypes));
   const scopes = getSupportedScopes();
+  const tokenAuthMethods = getTokenEndpointAuthMethods();
   const codeChallengeMethods = new Set<string>();
   let allowPlain = false;
   for (const client of clients) {
@@ -38,11 +39,14 @@ export async function openIdConfigurationHandler(_req: Request, res: Response) {
     grant_types_supported: grantTypes.length ? grantTypes : ['authorization_code', 'refresh_token'],
     scopes_supported: scopes.length ? scopes : ['openid', 'profile', 'email', 'offline_access'],
     code_challenge_methods_supported: Array.from(codeChallengeMethods.values()),
-    token_endpoint_auth_methods_supported: getTokenEndpointAuthMethods(),
+    token_endpoint_auth_methods_supported: tokenAuthMethods,
     response_modes_supported: ['query'],
     subject_types_supported: ['public'],
     id_token_signing_alg_values_supported: ['RS256'],
-    claims_supported: ['sub', 'tenant_id', 'roles', 'email', 'name', 'scope']
+    claims_supported: ['sub', 'tenant_id', 'roles', 'email', 'name', 'scope'],
+    service_documentation: 'https://github.com/smartedify/SmartEdify_V0/blob/main/docs/README.md',
+    revocation_endpoint_auth_methods_supported: tokenAuthMethods,
+    introspection_endpoint_auth_methods_supported: tokenAuthMethods
   };
 
   res.setHeader('Cache-Control', 'no-store');

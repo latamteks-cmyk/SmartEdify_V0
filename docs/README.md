@@ -13,7 +13,7 @@ Este documento sirve como índice vivo para la operación, referencia y seguimie
 - [Guía de CI/CD y operaciones](operations/ci-cd.md)
 - [Guía de eventos y contratos](eventing-guidelines.md)
 - [Guía de seguridad y hardening](security-hardening.md)
-- Lint OpenAPI automatizado: `npm run lint:openapi` (Spectral) y job `ci.yml` → `OpenAPI Lint`
+- Lint OpenAPI automatizado: `npm run lint:openapi` (Spectral con `.spectral.yaml`) y job `ci.yml` → `OpenAPI Lint`.
 
 ## 3. Estado y dependencias
 - **Áreas críticas**: ver sección de riesgos y pendientes en `ARCHITECTURE.md` y `docs/tareas.md`.
@@ -26,20 +26,20 @@ Este documento sirve como índice vivo para la operación, referencia y seguimie
 
 ## 4. Catálogo de endpoints y contratos
 - **Contratos OpenAPI**:
-  - **Auth Service** (`v1.2.0`): `api/openapi/auth.yaml`. Se incorporaron los flujos `/authorize`, `/token`, `/userinfo`, `/introspection`, `/revocation`, los alias `/oauth/*`, discovery `/.well-known/*`, métricas y rotación manual de JWKS. Quedan trazados los códigos de error estándar y ejemplos consistentes con los handlers actuales.
+  - **Auth Service** (`v1.2.0`): `api/openapi/auth.yaml`. Incluye los flujos `/authorize`, `/token`, `/userinfo`, `/introspection`, `/revocation`, los alias `/oauth/*`, discovery `/.well-known/*`, métricas y rotación manual de JWKS. Se añadieron los campos opcionales de discovery (`service_documentation`, métodos de autenticación por endpoint) y ejemplos de error consistentes con la implementación actual.
   - **Tenant Service** (`v0.4.x`): contrato en consolidación (ver `docs/openapi-guidelines.md` y backlog en `docs/tareas.md`).
-  - **Assembly Service** (`v1.0.0`): `api/openapi/assembly.yaml`.
-  - **User Service** (`v0.1.0`): `api/openapi/user.yaml`.
+  - **Assembly Service** (`v1.1.0`): `api/openapi/assembly.yaml` con descripciones enriquecidas, respuestas de error estandarizadas y ejemplos para flujos de convocatoria, check-in y voto.
+  - **User Service** (`v1.0.0`): `api/openapi/user.yaml` con contrato CRUD completo, ejemplos y respuestas estandarizadas.
 - **Documentos de descubrimiento OIDC** (mantener sincronizados con despliegues):
-  - `docs/oidc/openid-configuration.json`
-  - `docs/oidc/jwks.json`
+  - `/.well-known/openid-configuration` y `/.well-known/jwks.json` contienen la instantánea canonical del proveedor.
+  - `docs/oidc/openid-configuration.json` y `docs/oidc/jwks.json` replican los valores publicados para referencia offline.
 - **Hallazgos de auditoría — Auth Service**:
   1. El contrato previo sólo cubría el MVP (`/register`, `/login`, `/refresh-token`) → se añadieron todos los endpoints públicos activos y alias `/oauth/*`.
   2. No se documentaban los códigos de error ni los payloads de respuesta → se normalizaron respuestas JSON, `operationId` y esquemas reutilizables.
   3. Los documentos `/.well-known/*` no estaban versionados → se añadieron snapshots en `docs/oidc/` para discovery y JWKS.
   4. No existía automatización formal de rotación JWKS → se agregó el job `npm run jwks:rotate` con verificación y métricas de edad.
 - **Ejemplos de endpoints activos**:
-  - **Auth Service**: `/register`, `/login`, `/refresh-token`, `/logout`, `/forgot-password`, `/reset-password`, `/roles`, `/permissions`, `/authorize`, `/token`, `/userinfo`, `/introspection`, `/revocation`, `/.well-known/openid-configuration`, `/.well-known/jwks.json`, `/health`, `/metrics`.
+  - **Auth Service**: `/register`, `/login`, `/refresh-token`, `/logout`, `/forgot-password`, `/reset-password`, `/roles`, `/permissions`, `/authorize`, `/oauth/authorize`, `/token`, `/oauth/token`, `/userinfo`, `/oauth/userinfo`, `/introspection`, `/oauth/introspection`, `/revocation`, `/oauth/revocation`, `/.well-known/openid-configuration`, `/.well-known/jwks.json`, `/health`, `/metrics`.
   - **Tenant Service**: `/tenants`, `/tenants/{id}`, `/tenants/{id}/units`, `/units/{id}/memberships`, `/tenant-context`, `/governance/transfer-admin`.
 - Para detalles y seguridad, consulta los archivos OpenAPI y la documentación de cada servicio.
 
@@ -47,6 +47,17 @@ Este documento sirve como índice vivo para la operación, referencia y seguimie
 - **Authorization Code + PKCE**:
   ```bash
   curl -G "https://auth.smartedify.com/authorize" \
+    -H "Authorization: Bearer <ACCESS_TOKEN>" \
+    --data-urlencode "response_type=code" \
+    --data-urlencode "client_id=squarespace" \
+    --data-urlencode "redirect_uri=https://www.smart-edify.com/auth/callback" \
+    --data-urlencode "scope=openid profile email offline_access" \
+    --data-urlencode "code_challenge=<CODE_CHALLENGE>" \
+    --data-urlencode "code_challenge_method=S256"
+  ```
+- **Authorization Code + PKCE (alias `/oauth/authorize`)**:
+  ```bash
+  curl -G "https://auth.smartedify.com/oauth/authorize" \
     -H "Authorization: Bearer <ACCESS_TOKEN>" \
     --data-urlencode "response_type=code" \
     --data-urlencode "client_id=squarespace" \
@@ -65,6 +76,14 @@ Este documento sirve como índice vivo para la operación, referencia y seguimie
     -d "client_id=squarespace" \
     -d "code_verifier=<CODE_VERIFIER>"
   ```
+- **Intercambio de tokens (alias `/oauth/token`)**:
+  ```bash
+  curl -X POST https://auth.smartedify.com/oauth/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=refresh_token" \
+    -d "refresh_token=<REFRESH_TOKEN>" \
+    -u "client-id:client-secret"
+  ```
 - **UserInfo con scope `profile email`**:
   ```bash
   curl https://auth.smartedify.com/userinfo \
@@ -74,6 +93,11 @@ Este documento sirve como índice vivo para la operación, referencia y seguimie
   ```bash
   curl https://auth.smartedify.com/.well-known/openid-configuration | jq
   ```
+- **Rotación JWKS (job batch)**:
+  ```bash
+  npm run jwks:rotate
+  ```
+  El job publica nuevas llaves via `/admin/rotate-keys`, verifica el documento `/.well-known/jwks.json` y emite métricas `auth_jwks_key_age_hours{status="current"}` y `auth_jwks_key_age_hours{status="next"}` en stdout.
 
 ## 5. Referencias cruzadas y trazabilidad
 - Documento rector: `../ARCHITECTURE.md`
