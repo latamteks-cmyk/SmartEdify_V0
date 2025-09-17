@@ -25,7 +25,8 @@ const envelopeSchema = z.object({
   correlationId: z.string().optional(),
   partitionKey: z.string().optional(),
   headers: z.record(z.string()).optional(),
-  traceId: z.string().optional()
+  traceId: z.string().optional(),
+  spanId: z.string().optional()
 });
 
 export function validateEnvelope(env: OutboxEnvelope, cfg: EnvelopeValidationConfig): EnvelopeValidationResult {

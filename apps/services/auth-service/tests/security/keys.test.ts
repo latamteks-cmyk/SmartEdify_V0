@@ -49,11 +49,14 @@ jest.mock('../../internal/adapters/db/pg.adapter', () => {
       return Promise.resolve({ rows: [] });
     }
     async connect() { return { query: this.query.bind(this), release: () => {} } as any; }
+    reset() { this.data = { auth_signing_keys: [] }; }
   }
   const pool = new MockPool();
+  (pool as any).__resetMock = () => pool.reset();
   return { __esModule: true, default: pool };
 });
-import { getCurrentKey, getNextKey, rotateKeys, getKeyByKid, getPublicJwks } from '../../internal/security/keys';
+import { getCurrentKey, getNextKey, rotateKeys, getKeyByKid, getPublicJwks, __resetKeyCacheForTests } from '../../internal/security/keys';
+const dbPoolMock = require('../../internal/adapters/db/pg.adapter').default as any;
 
 // Forzar entorno test
 envSetup();
@@ -63,6 +66,10 @@ function envSetup() {
 }
 
 describe('Signing Keys', () => {
+  beforeEach(() => {
+    dbPoolMock.__resetMock?.();
+    __resetKeyCacheForTests();
+  });
   test('crea clave inicial al solicitar current', async () => {
     const k = await getCurrentKey();
     expect(k).toBeDefined();
@@ -131,5 +138,25 @@ describe('Signing Keys', () => {
     const found = await getKeyByKid(curr.kid);
     expect(found).not.toBeNull();
     expect(found!.kid).toBe(curr.kid);
+  });
+
+  test('rotaciones consecutivas conservan historial multi-kid', async () => {
+    const initialCurrent = await getCurrentKey();
+    const initialNext = await getNextKey();
+    const firstRotation = await rotateKeys();
+    expect(firstRotation.newCurrent.kid).toBe(initialNext!.kid);
+    expect(firstRotation.newNext).not.toBeNull();
+
+    const secondRotation = await rotateKeys();
+    expect(secondRotation.newCurrent.kid).toBe(firstRotation.newNext!.kid);
+
+    const jwks = await getPublicJwks();
+    const retiringKids = jwks.keys.filter((k: any) => k.status === 'retiring').map((k: any) => k.kid);
+    expect(new Set(retiringKids).size).toBe(retiringKids.length);
+    expect(retiringKids).toEqual(expect.arrayContaining([initialCurrent.kid, initialNext!.kid]));
+    const currentKids = jwks.keys.filter((k: any) => k.status === 'current').map((k: any) => k.kid);
+    expect(currentKids).toContain(secondRotation.newCurrent.kid);
+    const nextKids = jwks.keys.filter((k: any) => k.status === 'next').map((k: any) => k.kid);
+    expect(nextKids).toContain(secondRotation.newNext!.kid);
   });
 });
