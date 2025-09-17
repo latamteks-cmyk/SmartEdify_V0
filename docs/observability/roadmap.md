@@ -16,3 +16,7 @@
 - `auth_refresh_reuse_detected_total` con alerta si ocurre >0 en ventanas cortas.
 - `tenant_context_fetch_duration_seconds` con objetivo inicial p95 < 120 ms.
 - `outbox_pending` versus `outbox_event_age_seconds` con alerta si p95 de age > 5 minutos.
+
+## Smoke de tracing
+- Ejecutar `npm run --prefix apps/services/tenant-service test:smoke` para levantar el servicio contra el mock OTLP basado en `observability/otel-collector-config.yaml`.
+- La prueba confirma que el pipeline emite spans con `service.name=tenant-service` y atributos de dominio como `tenant.id` y `tenant.code` al crear un tenant.

@@ -10,9 +10,10 @@
     "start": "node dist/cmd/server/main.js",
     "lint": "eslint . --ext .ts",
     "typecheck": "tsc --noEmit",
-  "test": "vitest run",
+    "test": "vitest run",
     "test:watch": "vitest --setupFiles tests/setup-env.ts",
-  "test:integration": "vitest run tests/integration"
+    "test:integration": "vitest run tests/integration",
+    "test:smoke": "vitest run tests/smoke.test.ts"
   },
   "dependencies": {
     "fastify": "^4.28.0",
