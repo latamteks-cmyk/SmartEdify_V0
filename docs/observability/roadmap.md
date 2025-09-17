@@ -7,7 +7,7 @@
 ## Fases
 1. **Actual**: métricas técnicas + logs estructurados (auth-service completo, tenant-service parcial).
 2. **Siguiente**: tracing OTel mínimo con spans por endpoint y propagación de `x-request-id` hacia `trace_id`.
-3. **Expansión**: métricas de negocio de autenticación (`login_success`, `login_fail`, `refresh_reuse`, `password_reset`) y dashboards.
+3. **Expansión**: métricas de negocio de autenticación (`login_success`, `login_fail`, `refresh_reuse`, `password_reset`) y dashboards (tableros publicados: *Auth Service · Métricas de negocio* y *Auth Service · Salud técnica*).
 4. **Madurez**: alertas SLO (latencia p99 login, tasa de fallos refresh, picos de reuse detection) acompañadas de playbooks.
 5. **Correlación cross-service**: atributos consistentes (`tenant_id`, `user_id`) entre Assembly, Tenant y Auth.
 

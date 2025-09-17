@@ -57,7 +57,8 @@ const originalAccessTtl = process.env.AUTH_JWT_ACCESS_TTL;
 const originalRefreshTtl = process.env.AUTH_JWT_REFRESH_TTL;
 process.env.AUTH_JWT_ACCESS_TTL = '5s';
 process.env.AUTH_JWT_REFRESH_TTL = '10s';
-import { issueTokenPair, verifyAccess, verifyRefresh, rotateRefresh } from '../../internal/security/jwt';
+import { issueTokenPair, verifyAccess, verifyRefresh, rotateRefresh, revokeSessionsByKid } from '../../internal/security/jwt';
+import { addAccessTokenToDenyList } from '../../internal/adapters/redis/redis.adapter';
 
 const ACCESS_TTL_MS = 5 * 1000;
 const REFRESH_TTL_MS = 10 * 1000;
@@ -136,5 +137,26 @@ describe('JWT emisión y verificación', () => {
     } finally {
       nowSpy.mockRestore();
     }
+  });
+
+  test('deny-list de access tokens invalida verificaciones subsecuentes', async () => {
+    const pair = await basePair();
+    const decoded: any = await verifyAccess(pair.accessToken);
+    expect(decoded.jti).toBeTruthy();
+    await addAccessTokenToDenyList(decoded.jti, 'test', 30);
+    await expect(verifyAccess(pair.accessToken)).rejects.toThrow('token_deny_list');
+  });
+
+  test('revocación por kid invalida sesiones activas', async () => {
+    const pair = await basePair();
+    const header = JSON.parse(Buffer.from(pair.accessToken.split('.')[0], 'base64url').toString());
+    const kid = header?.kid;
+    expect(typeof kid).toBe('string');
+    const result = await revokeSessionsByKid(kid);
+    expect(result.revoked).toBeGreaterThanOrEqual(1);
+    await expect(verifyAccess(pair.accessToken)).rejects.toThrow('kid_revocado');
+    await expect(verifyRefresh(pair.refreshToken)).rejects.toThrow('kid_revocado');
+    const rotated = await rotateRefresh(pair.refreshToken);
+    expect(rotated).toBeNull();
   });
 });

@@ -5,7 +5,8 @@ import {
   revokeRefreshToken,
   markRefreshRotated,
   addToRevocationList,
-  deleteSession
+  deleteSession,
+  addAccessTokenToDenyList
 } from '../redis/redis.adapter';
 import { tokenRevokedCounter } from '../../../cmd/server/main';
 import { logSecurityEvent } from '../db/pg.adapter';
@@ -50,6 +51,7 @@ export async function logoutHandler(req: Request, res: Response) {
       try { await deleteSession(decoded.jti); } catch {}
     } else {
       await addToRevocationList(decoded.jti, 'access', 'logout', ttl);
+      await addAccessTokenToDenyList(decoded.jti, 'logout', ttl);
     }
   } catch (e) {
     if (process.env.AUTH_TEST_LOGS) console.error('[logout] revocation failed', e);

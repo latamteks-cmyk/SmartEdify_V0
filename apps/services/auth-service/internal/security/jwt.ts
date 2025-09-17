@@ -3,12 +3,19 @@ import { randomUUID } from 'crypto';
 import { getCurrentKey, getKeyByKid } from './keys';
 import {
   addToRevocationList,
+  addAccessTokenToDenyList,
   saveRefreshToken,
   getRefreshToken,
   revokeRefreshToken,
   markRefreshRotated,
   isRefreshRotated,
-  isRevoked
+  isRevoked,
+  isAccessTokenDenied,
+  markKidRevoked,
+  isKidRevoked,
+  getRefreshTokensByKid,
+  getRefreshTokenTtl,
+  deleteSession
 } from '../adapters/redis/redis.adapter';
 import { getIssuer } from '../config/issuer';
 
@@ -54,6 +61,10 @@ export interface TokenPair {
   roles?: string[];
   sub?: string;
   tenant_id?: string;
+  accessKid?: string;
+  refreshKid?: string;
+  accessJti?: string;
+  refreshJti?: string;
 }
 
 export interface TokenIssueParams {
@@ -105,7 +116,8 @@ export async function issueTokenPair(base: TokenIssueParams): Promise<TokenPair>
     tenant_id: base.tenant_id,
     roles: base.roles,
     scope: scopeString,
-    client_id: base.client_id
+    client_id: base.client_id,
+    kid: refresh.kid
   }, refresh.expSeconds);
   return {
     accessToken: access.token,
@@ -115,7 +127,11 @@ export async function issueTokenPair(base: TokenIssueParams): Promise<TokenPair>
     client_id: base.client_id,
     roles: base.roles,
     sub: base.sub,
-    tenant_id: base.tenant_id
+    tenant_id: base.tenant_id,
+    accessKid: access.kid,
+    refreshKid: refresh.kid,
+    accessJti: access.jti,
+    refreshJti: refresh.jti
   };
 }
 
@@ -131,7 +147,9 @@ export async function verifyAccess(token: string) {
   const verified = jwt.verify(token, key.pem_public, { algorithms: ['RS256'] }) as jwt.JwtPayload;
   if (verified && typeof verified === 'object' && verified.jti) {
     if (await isRevoked(verified.jti)) throw new Error('token_revocado');
+    if (await isAccessTokenDenied(verified.jti)) throw new Error('token_deny_list');
   }
+  if (await isKidRevoked(kid)) throw new Error('kid_revocado');
   return verified;
 }
 export async function verifyRefresh(token: string) {
@@ -147,6 +165,7 @@ export async function verifyRefresh(token: string) {
   if (verified && typeof verified === 'object' && verified.jti) {
     if (await isRevoked(verified.jti)) throw new Error('token_revocado');
   }
+  if (await isKidRevoked(kid)) throw new Error('kid_revocado');
   return verified;
 }
 
@@ -186,6 +205,33 @@ export async function rotateRefresh(oldRefreshToken: string): Promise<TokenPair 
     if (process.env.NODE_ENV === 'test' || process.env.DEBUG_REFRESH) console.log('[rotateRefresh] error verifying refresh', (e as any)?.message);
     return null;
   }
+}
+
+export async function revokeSessionsByKid(kid: string, reason: string = 'kid_revocado'): Promise<{ kid: string; revoked: number }> {
+  const normalizedKid = typeof kid === 'string' ? kid.trim() : '';
+  if (!normalizedKid) return { kid: normalizedKid, revoked: 0 };
+  await markKidRevoked(normalizedKid, REFRESH_TTL_SECONDS);
+  const tokens = await getRefreshTokensByKid(normalizedKid);
+  const uniqueTokens = Array.from(new Set(tokens));
+  let revoked = 0;
+  for (const tokenId of uniqueTokens) {
+    const ttl = await getRefreshTokenTtl(tokenId);
+    const ttlSeconds = ttl > 0 ? ttl : REFRESH_TTL_SECONDS;
+    try {
+      await addToRevocationList(tokenId, 'refresh', reason, ttlSeconds);
+    } catch {}
+    try {
+      await markRefreshRotated(tokenId, ttlSeconds);
+    } catch {}
+    try {
+      await revokeRefreshToken(tokenId);
+    } catch {}
+    try {
+      await deleteSession(tokenId);
+    } catch {}
+    revoked += 1;
+  }
+  return { kid: normalizedKid, revoked };
 }
 
 export async function signIdToken(params: {

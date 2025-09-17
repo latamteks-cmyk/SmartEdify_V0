@@ -89,18 +89,37 @@ PY
   Debe coincidir con la clave `current` registrada.
 - **Recuperación exitosa:** No deben generarse nuevas alertas de autenticación ni errores de validación de tokens en los dashboards de monitoreo durante al menos 15 minutos tras la rotación.
 
+### Verificación continua (cada 15 minutos)
+1. Automatiza un chequeo `cron` que ejecute:
+   ```bash
+   curl -fsS "$AUTH_API/.well-known/jwks.json" | jq -r '.keys[] | "\(.kid),\(.status)"' > /tmp/jwks-status.csv
+   curl -fsS "$AUTH_API/metrics" | grep -E 'auth_jwks_keys_total|auth_token_revoked_total|auth_login_success_total' > /tmp/jwks-metrics.log
+   ```
+   El *job* debe alertar si falta un `kid` en estado `current` o si desaparece la clave `retiring` antes de tiempo.
+2. Supervisa en Grafana el tablero **Auth Service · Métricas de negocio**:
+   - Panel `Rotación JWKS`: tendencia de `auth_jwks_rotation_total` y edad de la clave `current`.
+   - Panel `Tokens revocados`: rate de `auth_token_revoked_total{type="access"}` y `auth_token_revoked_total{type="refresh"}`.
+3. Mantén habilitada la alerta `AuthJWKSRotationMissingNext` (Prometheus) que dispara si `auth_jwks_keys_total{status="next"} == 0` durante más de 10 minutos.
+4. Documenta resultados en el ticket de rotación y adjunta capturas del dashboard tras las primeras 2 ejecuciones.
+
 ## Rollback
-1. Identifica el `kid` previo (estado `retiring`).
-2. Restituye el estado en la base de datos:
+1. Identifica el `kid` previo (estado `retiring`) y regístralo en el ticket del incidente.
+2. Invoca la API de revocación por clave para invalidar sesiones activas firmadas con la clave comprometida:
+   ```bash
+   curl -XPOST "$AUTH_API/admin/revoke-kid" -H "Content-Type: application/json" -d '{"kid":"<KID_COMPROMETIDO>"}' | jq
+   ```
+   El payload de respuesta incluye el número de sesiones invalidadas.
+3. Restituye el estado en la base de datos si necesitas volver a promover la clave anterior:
    ```bash
    psql "$AUTH_DB_URL" <<SQL
-   UPDATE auth_signing_keys SET status='current', promoted_at=NOW() WHERE kid='<KID_RETIRING>'; 
-   UPDATE auth_signing_keys SET status='retiring', retiring_at=NOW() WHERE kid='<KID_NUEVO>'; 
+   UPDATE auth_signing_keys SET status='current', promoted_at=NOW() WHERE kid='<KID_RETIRING>';
+   UPDATE auth_signing_keys SET status='retiring', retiring_at=NOW() WHERE kid='<KID_NUEVO>';
    DELETE FROM auth_signing_keys WHERE status='next' AND kid <> '<KID_RETIRING>';
    SQL
    ```
-3. Limpia caches aplicando `POST /admin/rotate-keys` para recrear una nueva `next` segura una vez contenido el incidente.
-4. Regenera *refresh tokens* afectados y comunica al equipo de seguridad el rollback ejecutado.
+4. Ejecuta `POST /admin/rotate-keys` para regenerar una nueva clave `next` segura una vez contenida la incidencia.
+5. Monitorea la alerta `AuthKidRevokedSessions` (cubre spikes de `auth_token_revoked_total`) y confirma que las métricas de login se estabilizan.
+6. Regenera *refresh tokens* afectados (flujo login forzado) y comunica al equipo de seguridad el rollback ejecutado con enlace al ticket de seguimiento.
 
 ## Contacts
 - **On-call Seguridad**: `#sec-oncall` / security@smartedify.com
