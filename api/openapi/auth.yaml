@@ -1,114 +1,1030 @@
 openapi: 3.1.0
 info:
-  title: Auth Service API (MVP)
-  version: 0.1.0
-  description: >
-    MVP del Auth Service: registro, login, rotación refresh, recuperación de contraseña,
-    health y métricas. Contrato se ampliará a OIDC completo en iteraciones futuras.
+  title: Auth Service API
+  summary: Autenticación central, emisión de tokens y flujos OIDC de SmartEdify.
+  version: 1.2.0
+  description: |
+    El Auth Service concentra el registro de usuarios, autenticación básica y los
+    flujos OAuth 2.0 / OpenID Connect expuestos a consumidores internos y externos.
+    El contrato incluye los endpoints REST heredados del MVP (`/register`, `/login`,
+    `/refresh-token`, recuperación de contraseña) y los flujos OIDC (`/authorize`,
+    `/token`, `/userinfo`, `/introspection`, `/revocation`, discovery y JWKS).
+
+    Todos los endpoints públicos deben considerarse idempotentes respecto a errores,
+    devolver respuestas JSON estructuradas y respetar los encabezados de control de
+    caché. Los alias bajo `/oauth/*` se publicarán para compatibilidad con clientes
+    de terceros y comparten el mismo contrato que los endpoints raíz.
+  termsOfService: https://www.smartedify.com/terms
+  contact:
+    name: Plataforma SmartEdify — Equipo Auth
+    email: developers@smartedify.com
+    url: https://www.smartedify.com/docs/auth
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+externalDocs:
+  description: Guía operacional y de referencia del Auth Service
+  url: https://github.com/smartedify/SmartEdify_V0/tree/main/docs
 servers:
+  - url: https://auth.smartedify.com
+    description: Producción (issuer canonical)
+  - url: https://staging-auth.smartedify.com
+    description: Preproducción
   - url: https://api.smartedify.com/api/auth/v1
+    description: Gateway HTTP (prefijo legado `/api/auth/v1`)
+tags:
+  - name: Discovery
+    description: Documentos de descubrimiento y JWKS publicados para clientes OIDC.
+  - name: OAuth
+    description: Flujos Authorization Code + PKCE, refresh tokens y revocación.
+  - name: Authentication
+    description: Registro, login y operaciones de sesión con JWT propietario.
+  - name: Directory
+    description: Roles y permisos expuestos a consumidores multi-tenant.
+  - name: Operations
+    description: Salud, métricas y diagnósticos de la plataforma.
+  - name: Administration
+    description: Rotación manual de JWKS (uso controlado / automatizaciones internas).
+security:
+  - {}
 paths:
+  /.well-known/openid-configuration:
+    get:
+      tags: [Discovery]
+      summary: Obtener metadatos OIDC
+      description: |
+        Devuelve el documento de configuración OpenID Connect con los endpoints,
+        métodos de autenticación y scopes soportados por la plataforma.
+      operationId: getOpenIdConfiguration
+      responses:
+        '200':
+          description: Metadatos actualizados del proveedor OpenID Connect.
+          headers:
+            Cache-Control:
+              description: Siempre "no-store" para evitar caché de clientes.
+              schema:
+                type: string
+            Pragma:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenIdProviderConfiguration'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /.well-known/jwks.json:
+    get:
+      tags: [Discovery]
+      summary: Obtener JWKS público
+      description: |
+        Publica las llaves RSA activas (`current`, `next`, `retiring`) utilizadas para
+        firmar `id_token` y JWT propietarios. Cada entrada expone el `kid`, algoritmo y
+        estado operativo para permitir rotación paulatina.
+      operationId: getJwksDocument
+      responses:
+        '200':
+          description: Documento JWKS con claves activas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwksDocument'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /authorize:
+    get:
+      tags: [OAuth]
+      summary: Iniciar Authorization Code con PKCE
+      description: |
+        Inicia el flujo Authorization Code + PKCE. El usuario debe llegar autenticado
+        con un `access_token` activo en el encabezado `Authorization`.
+      operationId: authorize
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ResponseType'
+        - $ref: '#/components/parameters/ClientId'
+        - $ref: '#/components/parameters/RedirectUri'
+        - $ref: '#/components/parameters/Scope'
+        - $ref: '#/components/parameters/State'
+        - $ref: '#/components/parameters/CodeChallenge'
+        - $ref: '#/components/parameters/CodeChallengeMethod'
+        - $ref: '#/components/parameters/Nonce'
+        - $ref: '#/components/parameters/Prompt'
+        - $ref: '#/components/parameters/LoginHint'
+      responses:
+        '302':
+          description: Redirección al `redirect_uri` con `code` y `state`.
+          headers:
+            Location:
+              description: URL de retorno con parámetros `code` y opcionalmente `state`.
+              schema:
+                type: string
+                format: uri
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /oauth/authorize:
+    $ref: '#/paths/~1authorize'
+  /token:
+    post:
+      tags: [OAuth]
+      summary: Intercambiar código o refresh token por tokens
+      description: |
+        Endpoint de token estándar. Acepta `authorization_code` (PKCE obligatorio salvo
+        clientes públicos legacy) y `refresh_token`. Soporta autenticación `client_secret_basic`
+        y `client_secret_post`; para clientes públicos PKCE se permite `none`.
+      operationId: exchangeToken
+      security:
+        - clientSecretBasic: []
+        - {}
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Tokens emitidos o rotados correctamente.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            Pragma:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenSuccessResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /oauth/token:
+    $ref: '#/paths/~1token'
+  /userinfo:
+    get:
+      tags: [OAuth]
+      summary: Obtener perfil OIDC del usuario autenticado
+      description: Devuelve los atributos básicos de perfil según los scopes concedidos.
+      operationId: getUserInfo
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Información del sujeto autenticado.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            Pragma:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /oauth/userinfo:
+    $ref: '#/paths/~1userinfo'
+  /introspection:
+    post:
+      tags: [OAuth]
+      summary: Introspección de tokens
+      description: |
+        Valida `access_token` o `refresh_token` emitidos por la plataforma y devuelve
+        su estado (`active`) junto a metadatos relevantes.
+      operationId: introspectToken
+      security:
+        - clientSecretBasic: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IntrospectionRequest'
+      responses:
+        '200':
+          description: Resultado de introspección.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            Pragma:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntrospectionResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /oauth/introspection:
+    $ref: '#/paths/~1introspection'
+  /revocation:
+    post:
+      tags: [OAuth]
+      summary: Revocar tokens
+      description: |
+        Revoca `access_token` o `refresh_token` emitidos. Idempotente y compatible con RFC 7009.
+      operationId: revokeToken
+      security:
+        - clientSecretBasic: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RevocationRequest'
+      responses:
+        '200':
+          description: Token marcado como revocado (respuesta vacía por RFC 7009).
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+            Pragma:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                type: object
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /oauth/revocation:
+    $ref: '#/paths/~1revocation'
   /register:
     post:
-      summary: Registrar usuario
+      tags: [Authentication]
+      summary: Registrar usuario local
+      operationId: registerUser
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password]
-              properties:
-                email: { type: string, format: email }
-                password: { type: string, minLength: 8 }
+              $ref: '#/components/schemas/RegisterRequest'
       responses:
-        '201': { description: Usuario registrado }
-        '409': { description: Email duplicado }
+        '201':
+          description: Usuario creado y enrolado con rol base.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /login:
     post:
-      summary: Login con email y password
+      tags: [Authentication]
+      summary: Autenticar usuario con email y contraseña
+      operationId: loginUser
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email, password]
-              properties:
-                email: { type: string, format: email }
-                password: { type: string }
+              $ref: '#/components/schemas/LoginRequest'
       responses:
         '200':
-          description: Tokens emitidos
+          description: Autenticación exitosa con emisión de tokens.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  accessToken: { type: string }
-                  refreshToken: { type: string }
-        '401': { description: Credenciales inválidas }
-        '429': { description: Rate limit / brute force guard }
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+  /logout:
+    post:
+      tags: [Authentication]
+      summary: Revocar sesión activa
+      description: Revoca el `refresh_token` o `access_token` enviado y registra el evento de seguridad.
+      operationId: logoutSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '204':
+          description: Sesión revocada.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /refresh-token:
     post:
-      summary: Rotar refresh token
+      tags: [Authentication]
+      summary: Rotar refresh token propietario
+      operationId: rotateRefreshToken
+      parameters:
+        - in: header
+          name: x-refresh-token
+          required: false
+          schema:
+            type: string
+          description: Alias para clientes legacy que envían el token vía encabezado.
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
-              type: object
-              required: [refreshToken]
-              properties:
-                refreshToken: { type: string }
+              $ref: '#/components/schemas/RefreshRequest'
       responses:
         '200':
-          description: Nuevo par emitido
+          description: Tokens rotados correctamente.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  accessToken: { type: string }
-                  refreshToken: { type: string }
-        '401': { description: Refresh inválido o reutilizado }
+                $ref: '#/components/schemas/RefreshResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
   /forgot-password:
     post:
-      summary: Solicitar recuperación de contraseña
+      tags: [Authentication]
+      summary: Iniciar recuperación de contraseña
+      operationId: forgotPassword
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [email]
-              properties:
-                email: { type: string, format: email }
+              $ref: '#/components/schemas/ForgotPasswordRequest'
       responses:
-        '202': { description: Token generado (respuesta genérica) }
+        '200':
+          description: Token de recuperación emitido y notificación disparada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForgotPasswordResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /reset-password:
     post:
-      summary: Resetear contraseña usando token
+      tags: [Authentication]
+      summary: Confirmar reseteo de contraseña
+      operationId: resetPassword
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [token, newPassword]
-              properties:
-                token: { type: string }
-                newPassword: { type: string, minLength: 8 }
+              $ref: '#/components/schemas/ResetPasswordRequest'
       responses:
-        '200': { description: Password actualizada }
-        '400': { description: Token inválido o expirado }
+        '200':
+          description: Contraseña actualizada correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetPasswordResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /roles:
+    get:
+      tags: [Directory]
+      summary: Listar roles disponibles
+      operationId: listRoles
+      parameters:
+        - $ref: '#/components/parameters/TenantIdQuery'
+      responses:
+        '200':
+          description: Colección de roles publicados para el tenant.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolesResponse'
+  /permissions:
+    get:
+      tags: [Directory]
+      summary: Enumerar permisos disponibles
+      operationId: listPermissions
+      parameters:
+        - $ref: '#/components/parameters/TenantIdQuery'
+        - $ref: '#/components/parameters/RoleQuery'
+      responses:
+        '200':
+          description: Permisos asociados al rol solicitado o universo disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionsResponse'
   /health:
     get:
-      summary: Health check
+      tags: [Operations]
+      summary: Health check del servicio
+      operationId: getHealth
       responses:
-        '200': { description: OK }
+        '200':
+          description: Servicio saludable.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '503':
+          description: Servicio degradado (DB o Redis no disponibles).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
   /metrics:
     get:
+      tags: [Operations]
       summary: Métricas Prometheus
+      operationId: getMetrics
       responses:
-        '200': { description: OK - expositor de métricas }
+        '200':
+          description: Exposición en texto plano de métricas Prometheus.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: |
+                # HELP auth_http_requests_total Total de requests HTTP recibidas
+                # TYPE auth_http_requests_total counter
+                auth_http_requests_total{method="GET",route="/health",status="200"} 42
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /admin/rotate-keys:
+    post:
+      tags: [Administration]
+      summary: Rotar llaves firmantes
+      description: |
+        Endpoint administrativo utilizado por el job de rotación JWKS. Debe protegerse
+        mediante autenticación fuera de entornos locales.
+      operationId: rotateSigningKeys
+      x-internal: true
+      responses:
+        '200':
+          description: Rotación ejecutada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JwksRotationResponse'
+        '500':
+          $ref: '#/components/responses/ServerError'
+components:
+  parameters:
+    ResponseType:
+      in: query
+      name: response_type
+      required: true
+      schema:
+        type: string
+        enum: [code]
+    ClientId:
+      in: query
+      name: client_id
+      required: true
+      schema:
+        type: string
+    RedirectUri:
+      in: query
+      name: redirect_uri
+      required: true
+      schema:
+        type: string
+        format: uri
+    Scope:
+      in: query
+      name: scope
+      schema:
+        type: string
+      description: Lista de scopes separados por espacio (debe incluir `openid`).
+    State:
+      in: query
+      name: state
+      schema:
+        type: string
+    CodeChallenge:
+      in: query
+      name: code_challenge
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 128
+      description: PKCE challenge (`S256` recomendado).
+    CodeChallengeMethod:
+      in: query
+      name: code_challenge_method
+      schema:
+        type: string
+        enum: [S256, plain]
+    Nonce:
+      in: query
+      name: nonce
+      schema:
+        type: string
+    Prompt:
+      in: query
+      name: prompt
+      schema:
+        type: string
+    LoginHint:
+      in: query
+      name: login_hint
+      schema:
+        type: string
+    TenantIdQuery:
+      in: query
+      name: tenantId
+      required: false
+      description: Identificador del tenant. También se acepta `tenant_id`.
+      schema:
+        type: string
+    RoleQuery:
+      in: query
+      name: role
+      required: false
+      schema:
+        type: string
+  responses:
+    InvalidRequest:
+      description: Parámetros inválidos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Autenticación requerida o token inválido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Operación no permitida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Entidad existente o conflicto de estado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Límite de rate alcanzado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ServerError:
+      description: Error interno del servicio.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        error_description:
+          type: string
+        details:
+          description: Campos con validaciones fallidas (si aplica).
+          type: array
+          items:
+            type: object
+      required: [error]
+    RegisterRequest:
+      type: object
+      required: [email, password, name]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+          minLength: 2
+        tenant_id:
+          type: string
+          description: Tenant de pertenencia (por defecto `default`).
+    RegisterResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Usuario registrado
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+            roles:
+              type: array
+              items:
+                type: string
+      required: [message, user]
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        tenant_id:
+          type: string
+          description: Tenant objetivo (opcional, `default` por omisión).
+    TokenEnvelope:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          description: Tiempo de expiración del access token en segundos.
+        scope:
+          type: string
+        id_token:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+      required: [access_token, refresh_token, token_type, expires_in]
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/TokenEnvelope'
+        - type: object
+          properties:
+            message:
+              type: string
+              example: Login exitoso
+    RefreshRequest:
+      type: object
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token emitido previamente.
+      required: [refresh_token]
+    RefreshResponse:
+      $ref: '#/components/schemas/TokenEnvelope'
+    LogoutRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: `refresh_token` o `access_token` a revocar.
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+        tenant_id:
+          type: string
+          description: Tenant de pertenencia (opcional).
+    ForgotPasswordResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Email enviado
+        token:
+          type: string
+          description: Token de recuperación generado (solo visible en entornos de prueba).
+      required: [message]
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+        newPassword:
+          type: string
+          minLength: 8
+    ResetPasswordResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Contraseña actualizada
+      required: [message]
+    RolesResponse:
+      type: object
+      properties:
+        roles:
+          type: array
+          items:
+            type: string
+      required: [roles]
+    PermissionsResponse:
+      type: object
+      properties:
+        role:
+          type: string
+        permissions:
+          type: array
+          items:
+            type: string
+      required: [permissions]
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        db:
+          type: boolean
+        redis:
+          type: boolean
+        uptime_s:
+          type: number
+        latency_ms:
+          type: number
+      required: [status, db, redis, uptime_s, latency_ms]
+    TokenRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: [authorization_code, refresh_token]
+        code:
+          type: string
+        redirect_uri:
+          type: string
+          format: uri
+        code_verifier:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        refresh_token:
+          type: string
+        scope:
+          type: string
+      required: [grant_type]
+    TokenSuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/TokenEnvelope'
+    IntrospectionRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+          enum: [access_token, refresh_token]
+        client_id:
+          type: string
+        client_secret:
+          type: string
+    IntrospectionResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        token_type:
+          type: string
+        client_id:
+          type: string
+        scope:
+          type: string
+        sub:
+          type: string
+        iss:
+          type: string
+          format: uri
+        exp:
+          type: integer
+        iat:
+          type: integer
+        aud:
+          type: string
+        tenant_id:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+      required: [active]
+    RevocationRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+    UserInfoResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+        tenant_id:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        scope:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+      required: [sub, tenant_id, roles]
+    JsonWebKey:
+      type: object
+      properties:
+        kty:
+          type: string
+          enum: [RSA]
+        n:
+          type: string
+        e:
+          type: string
+        alg:
+          type: string
+          enum: [RS256]
+        use:
+          type: string
+          enum: [sig]
+        kid:
+          type: string
+        status:
+          type: string
+          enum: [current, next, retiring]
+      required: [kty, n, e, alg, use, kid, status]
+    JwksDocument:
+      type: object
+      properties:
+        keys:
+          type: array
+          items:
+            $ref: '#/components/schemas/JsonWebKey'
+      required: [keys]
+    JwksRotationResponse:
+      type: object
+      properties:
+        message:
+          type: string
+        current:
+          type: object
+          nullable: true
+          properties:
+            kid:
+              type: string
+        next:
+          type: object
+          nullable: true
+          properties:
+            kid:
+              type: string
+      required: [message]
+    OpenIdProviderConfiguration:
+      type: object
+      properties:
+        issuer:
+          type: string
+          format: uri
+        authorization_endpoint:
+          type: string
+          format: uri
+        token_endpoint:
+          type: string
+          format: uri
+        userinfo_endpoint:
+          type: string
+          format: uri
+        jwks_uri:
+          type: string
+          format: uri
+        introspection_endpoint:
+          type: string
+          format: uri
+        revocation_endpoint:
+          type: string
+          format: uri
+        response_types_supported:
+          type: array
+          items:
+            type: string
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+        scopes_supported:
+          type: array
+          items:
+            type: string
+        code_challenge_methods_supported:
+          type: array
+          items:
+            type: string
+        token_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+        response_modes_supported:
+          type: array
+          items:
+            type: string
+        subject_types_supported:
+          type: array
+          items:
+            type: string
+        id_token_signing_alg_values_supported:
+          type: array
+          items:
+            type: string
+        claims_supported:
+          type: array
+          items:
+            type: string
+        service_documentation:
+          type: string
+          format: uri
+        revocation_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+        introspection_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+      required:
+        - issuer
+        - authorization_endpoint
+        - token_endpoint
+        - userinfo_endpoint
+        - jwks_uri
+        - response_types_supported
+        - grant_types_supported
+        - scopes_supported
+        - token_endpoint_auth_methods_supported
+        - subject_types_supported
+        - id_token_signing_alg_values_supported
+        - claims_supported
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access tokens emitidos por el Auth Service.
+    clientSecretBasic:
+      type: http
+      scheme: basic
+      description: Autenticación de cliente confidencial (`client_id` / `client_secret`).

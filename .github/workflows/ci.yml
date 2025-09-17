@@ -15,7 +15,15 @@ permissions:
   actions: read
 
 jobs:
+  openapi:
+    name: OpenAPI Lint (Spectral)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Lint OpenAPI contracts
+        run: npm run lint:openapi
   lint:
+    needs: openapi
     name: Lint (${{ matrix.service }} · Node ${{ matrix.node }} · ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
