@@ -8,12 +8,12 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 - Seguridad: Argon2id (costos diferenciados por entorno), JWT de acceso y refresh con rotación básica, rate limiting con guard por combinación email + IP.
 - Recuperación de contraseña: tokens namespaced en Redis con fallback in-memory para pruebas.
 - Observabilidad: logging estructurado (`pino`), métricas técnicas HTTP (Prometheus) y health check que valida Postgres y Redis.
-- Pruebas: suite de integración estable (10 casos) que cubre el núcleo de registro/login/rotación con mocks controlados.
+- Flujos OIDC core expuestos: `/authorize`, `/token`, `/userinfo`, `/introspection`, `/revocation`, `/.well-known/openid-configuration` y `/.well-known/jwks.json`. `tests/integration/authorize.integration.test.ts` ejecuta Authorization Code + PKCE end-to-end, validando scopes, introspección y revocación, mientras `tests/security/keys.test.ts` comprueba la rotación y publicación del JWKS.
+- Pruebas: suite de integración estable (10 casos) que cubre el núcleo de registro/login/rotación con mocks controlados, más los snapshots contractuales de `tests/contract/auth.contract.test.ts` sobre las respuestas de login/refresh.
 - Logout revoca tokens refresh y añade la entrada correspondiente en la deny-list corta de tokens, dejando rastro en auditoría y métricas.
 - Registro asigna automáticamente el rol base (`user`) y expone los roles efectivos en respuestas y JWT.
 
 ### Backlog clave (pendiente)
-- Flujos OIDC completos: `authorize`, `token`, `userinfo`, `jwks`, `introspection`, `revocation`, discovery.
 - Detección avanzada de reuse de refresh tokens y revocación por cadena.
 - MFA (TOTP/WebAuthn) con step-up y claim `amr`.
 - Outbox de eventos (`user.registered`, `password.changed`) y métricas de negocio.
@@ -96,11 +96,11 @@ HandlerRefresh --> CtxAPI
 | Métricas | HTTP genéricas + contadores negocio iniciales | Visibilidad rápida del MVP | Sin métricas avanzadas de seguridad | Instrumentar métricas específicas en backlog |
 
 ## Flujos implementados
-- Authorization Code + PKCE con validación de `client_id`, `redirect_uri`, `scope` y `grant_type` según RFC 6749/7636.
-- Registro de usuario con validación y hash Argon2id.
-- Login con emisión de access/refresh tokens, rate limiting y lookup opcional de contexto Tenant.
-- Refresh token con rotación básica y fallback de compatibilidad simétrica.
-- Recuperación de contraseña: emisión de token namespaced y consumo único en reset.
+- Authorization Code + PKCE con validación de `client_id`, `redirect_uri`, `scope` y `grant_type` según RFC 6749/7636; cubierto end-to-end por `tests/integration/authorize.integration.test.ts`.
+- Registro de usuario con validación y hash Argon2id, comprobado en `tests/integration/auth-flow.test.ts` y en los snapshots de `tests/contract/auth.contract.test.ts`.
+- Login con emisión de access/refresh tokens, rate limiting y lookup opcional de contexto Tenant, validado en `tests/integration/auth-flow.test.ts`.
+- Refresh token con rotación básica y fallback de compatibilidad simétrica, cubierto por `tests/integration/refresh-chain.integration.test.ts` y los contratos de `tests/contract/auth.contract.test.ts`.
+- Recuperación de contraseña: emisión de token namespaced y consumo único en reset, validado en `tests/integration/forgot-reset.integration.test.ts`.
 
 ### Validación cruzada con User Service
 - Cliente HTTP con `fetch` nativo, timeouts configurables y reintentos exponenciales cortos.
@@ -237,6 +237,7 @@ curl -XPOST http://localhost:8080/admin/rotate-keys -H "X-Admin-Api-Key: $AUTH_A
 - Rotación básica de refresh token.
 - Recuperación de contraseña end-to-end.
 - Logout con revocación de refresh token y deny-list.
+- Authorization Code + PKCE con introspección y revocación (`tests/integration/authorize.integration.test.ts`).
 
 ### Flujos pendientes
 - Detección de reuse de refresh tokens.
