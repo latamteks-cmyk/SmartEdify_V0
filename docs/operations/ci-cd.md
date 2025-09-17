@@ -53,6 +53,8 @@
   jq '.payload | @base64d | fromjson | {predicateType, subject}' \
     artifacts/supply-chain/attestations/auth-service/cyclonedx.verified.intoto.jsonl
   ```
+- La verificación (`cosign verify` + `cosign verify-attestation`) es bloqueante en la CI antes de publicar/push de imágenes; si
+  cualquiera de las firmas o attestations falla la tubería se detiene y se notifica a `#oncall-plataforma`.
 - Ante discrepancias entre Syft/Trivy o firma inválida, bloquear el release y notificar a `#oncall-plataforma`.
 
 ## Estrategia de despliegue
@@ -66,6 +68,47 @@
      ```
   3. Verifica que los pods y endpoints estén saludables (`kubectl`, `/healthz`).
   4. Notifica en `#oncall-plataforma` y documenta el incidente.
+
+### Promoción Auth Service (staging → producción)
+1. **Prerequisitos:**
+   - Pipeline `ci.yml` en verde, incluyendo gates de supply-chain (firmas/attestations verificadas) y escaneos Trivy.
+   - Snapshot SBOM (`supply-chain-artifacts`) adjunto al run y validado en equipo de seguridad.
+   - Ticket de cambio aprobado con ventana y responsables (`CAB` o equivalente).
+2. **Promoción a staging:**
+   ```bash
+   ./scripts/deploy.sh --service auth-service --environment staging --ref <sha>
+   ./scripts/smoke-test.sh --service auth-service --environment staging
+   ```
+   - Confirmar métricas claves (`auth_login_success_total`, `error_rate`, `latency_p95`).
+   - Revisar dashboards Grafana `Auth · SLO` y alertas pendientes.
+3. **Go/No-Go:**
+   - Checklist de verificación firmado por dueños de producto y on-call plataforma.
+   - Confirmar que `cosign verify` y `verify-attestation` en staging apuntan al mismo digest publicado.
+4. **Promoción a producción:**
+   ```bash
+   ./scripts/deploy.sh --service auth-service --environment production --ref <sha>
+   ./scripts/smoke-test.sh --service auth-service --environment production
+   ```
+   - Ejecutar post-deploy `kubectl rollout status deploy/auth-service -n auth`.
+   - En los primeros 15 minutos monitorizar alertas `AuthLoginErrorRate` y `AuthJWKSRotationMissingNext`.
+5. **Cierre:**
+   - Registrar digest desplegado, hora y responsables en el ticket.
+   - Adjuntar evidencias de dashboards y `kubectl get pods`.
+
+### Rollback Auth Service
+1. **Criterios de activación:** alertas críticas sostenidas, p95 > objetivo, tasa de errores > 5 %, falla en verificación de fir
+   mas/attestations en ambiente destino o incidentes de seguridad.
+2. **Ejecución rápida:**
+   ```bash
+   ./scripts/deploy.sh --service auth-service --environment <staging|production> --ref <sha_anterior>
+   ./scripts/smoke-test.sh --service auth-service --environment <staging|production>
+   ```
+   - Confirmar que la imagen revertida mantiene firmas/attestations válidas (`cosign verify --offline <digest_anterior>`).
+3. **Rotación JWKS / tokens:** si la causa es relacionada a claves, seguir `docs/operations/incident-auth-key-rotation.md`.
+4. **Comunicación:** notificar a `#oncall-plataforma`, `#auth-service` y registrar postmortem.
+5. **Post-rollback:**
+   - Ejecutar validación extendida (`/metrics`, dashboards, logs).
+   - Actualizar `docs/status.md` y `task.md` con la lección aprendida y estado del release.
 
 ## Validación post-despliegue
 - SLI/SLO por servicio. Alertas: error rate, p95, 5xx, *consumer lag*, DLQ > umbral.

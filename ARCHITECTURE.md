@@ -41,7 +41,7 @@ SmartEdify es una plataforma SaaS modular para educación, compuesta por tres do
 - Idempotencia: `409` + `idempotency-key` y `event_id`.
 
 ## 5. Seguridad
-- JWT con `aud`, `iss`, `kid`. Rotación 3 estados (`current`, `next`, `retiring`).
+- JWT con `aud`, `iss`, `kid`. Rotación 3 estados (`current`, `next`, `retiring`) definida en ADR-0007 (Aceptado).
 - mTLS entre servicios (futuro), TLS extremo a extremo, HSTS.
 - Gestión de secretos: GitHub Secrets y AWS Secrets Manager.
 - Hardening: contenedores no root, FS inmutable, límites de recursos, CORS estricto.
@@ -55,7 +55,7 @@ SmartEdify es una plataforma SaaS modular para educación, compuesta por tres do
 - Retenciones: outbox 7 días, DLQ 30 días, documentos WORM.
 
 ## 8. DevOps y Operación
-- CI monorepo, SBOM, escaneo de contenedores, gates de calidad (lint, pruebas, cobertura ≥80 %, SAST).
+- CI monorepo, SBOM, escaneo de contenedores, gates de calidad (lint, pruebas, cobertura ≥80 %, SAST) y verificación Cosign (firmas y attestations) bloqueante antes de liberar imágenes.
 - Despliegue canario con rollback.
 - Protocolos y guías en `docs/operations/ci-cd.md` y `docs/docker.md`.
 

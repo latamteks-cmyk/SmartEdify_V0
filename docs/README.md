@@ -11,6 +11,7 @@ Este documento sirve como índice vivo para la operación, referencia y seguimie
 ## 2. Guías y lineamientos clave
 - [Lineamientos de arquitectura](architecture/guidelines.md)
 - [Guía de CI/CD y operaciones](operations/ci-cd.md)
+- Pipeline CI/CD obliga verificación de firmas y attestations (Cosign) antes de publicar imágenes y documenta la promoción/rollback de Auth Service.
 - [Guía de eventos y contratos](eventing-guidelines.md)
 - [Guía de seguridad y hardening](security-hardening.md)
 - Lint OpenAPI automatizado: `npm run lint:openapi` (Spectral con `.spectral.yaml`) y job `ci.yml` → `OpenAPI Lint`.
@@ -118,10 +119,10 @@ Protocolos detallados en [Política operativa y de CI/CD](operations/ci-cd.md).
 - `ADR-0004` — Publisher & Envelope en outbox para eventos confiables.
 - `ADR-0005` — Consumer processing con métricas y retries controlados.
 - `ADR-0006` — Estrategia de tracing distribuido (en implementación progresiva).
-- `ADR-0007` — Plan de rotación JWKS y gestión de claves.
+- `ADR-0007` — Plan de rotación JWKS y gestión de claves (**Aceptado**).
 
 ### Referencias y apéndices
-- Snapshot estratégico actualizado: `docs/status.md` (2025-09-15).
+- Snapshot estratégico actualizado: `docs/status.md` (2025-09-23).
 - Especificación técnica consolidada: `docs/spec.md`.
 - Auditorías periódicas: `docs/audits/2025-09-16-structure.md`.
 - Glosario y runbooks ampliados permanecen en elaboración: seguimiento en `docs/tareas.md` (sección Documentación).
@@ -159,7 +160,7 @@ Protocolos detallados en [Política operativa y de CI/CD](operations/ci-cd.md).
 
 Estructura monorepo y premisas. Objetivo: entrega rápida, calidad constante, auditoría simple.
 
-> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-15). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
+> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-23). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
 
 ### 1) Estructura de carpetas (estado actual — 2025-09-22)
 
