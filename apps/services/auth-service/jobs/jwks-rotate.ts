@@ -90,6 +90,20 @@ function printMetrics(metrics: AgeMetric[]): void {
   });
 }
 
+function validateAgeMetrics(metrics: AgeMetric[]): void {
+  if (!metrics.length) {
+    throw new Error('No se recuperaron métricas de edad para las claves activas');
+  }
+  const statuses = new Set(metrics.map(metric => metric.status));
+  if (!statuses.has('current')) {
+    throw new Error('La métrica de edad no incluye la clave current tras la rotación');
+  }
+  const invalid = metrics.filter(metric => Number.isNaN(metric.ageHours));
+  if (invalid.length) {
+    throw new Error(`Se detectaron métricas inválidas: ${invalid.map(m => m.kid).join(', ')}`);
+  }
+}
+
 async function main() {
   const before = (await getPublicJwks()) as PublishedJwks;
   console.log('[jwks-rotate] claves antes de rotar:', JSON.stringify(before, null, 2));
@@ -105,6 +119,7 @@ async function main() {
   console.log('[jwks-rotate] JWKS publicado tras rotación:', JSON.stringify(after, null, 2));
 
   const metrics = await fetchAgeMetrics();
+  validateAgeMetrics(metrics);
   console.log('[jwks-rotate] métricas de edad:', JSON.stringify(metrics, null, 2));
   printMetrics(metrics);
 }

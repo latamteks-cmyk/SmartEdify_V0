@@ -1,0 +1,47 @@
+extends:
+  - "spectral:oas"
+
+rules:
+  info-license:
+    description: "Todos los contratos deben declarar la licencia"
+    given: $.info
+    severity: error
+    then:
+      field: license
+      function: truthy
+  info-contact:
+    description: "Debe existir información de contacto en la sección info"
+    given: $.info
+    severity: error
+    then:
+      field: contact
+      function: truthy
+  smartedify-operation-tags:
+    description: "Cada operación debe pertenecer al menos a un tag"
+    given: $.paths[*][*]
+    severity: warn
+    then:
+      field: tags
+      function: truthy
+  smartedify-operation-ids:
+    description: "Cada operación debe definir operationId único"
+    given: $.paths[*][*]
+    severity: error
+    then:
+      field: operationId
+      function: truthy
+  smartedify-error-responses:
+    description: "Las respuestas de error deben describir el contenido JSON"
+    message: "Las respuestas 4xx/5xx deben documentar payload JSON reutilizable"
+    given: $.paths[*][*].responses[?(@property.match(/^(4|5)\d{2}$/))]
+    severity: warn
+    then:
+      field: content
+      function: defined
+  smartedify-schema-description:
+    description: "Los esquemas expuestos deben incluir description para claridad"
+    given: $.components.schemas.*
+    severity: warn
+    then:
+      field: description
+      function: truthy

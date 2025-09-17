@@ -1,29 +1,56 @@
 openapi: 3.1.0
 info:
   title: Assembly Service API
-  version: 1.0.0
+  version: 1.1.0
   summary: Contrato extraído de docs/Assembly/Flujos.md (mantener fuente única aquí a partir de ahora).
   description: >
     Gestión end-to-end de asambleas mixtas: convocatoria, acreditación, quórum,
     votación (electrónica y manual), acta y archivo WORM. Este archivo consolida
-    el YAML previamente incrustado en `docs/Assembly/Flujos.md`.
+    el YAML previamente incrustado en `docs/Assembly/Flujos.md` y se considera la
+    especificación de referencia para integraciones externas.
+  termsOfService: https://www.smartedify.com/terms
+  contact:
+    name: Plataforma SmartEdify — Equipo Assembly
+    email: developers@smartedify.com
+    url: https://www.smartedify.com/docs/assembly
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+externalDocs:
+  description: Documentación operativa y diagramas actualizados del dominio Assembly
+  url: https://github.com/smartedify/SmartEdify_V0/tree/main/docs
 servers:
+  - url: https://assembly.smartedify.com
+    description: Producción
+  - url: https://staging-assembly.smartedify.com
+    description: Preproducción
   - url: https://api.smartedify.com/api/assembly/v1
+    description: Gateway HTTP (alias legado)
 tags:
   - name: Assemblies
+    description: Creación, consulta y gestión general de asambleas.
   - name: Agenda
+    description: Validaciones y gestión de los ítems de agenda previos a la sesión.
   - name: Call
+    description: Publicación y notificación de la convocatoria oficial.
   - name: Meet
+    description: Configuración y coordinación de salas híbridas / virtuales.
   - name: Attendees
+    description: Gestión de acreditación, check-in y quórum de participantes.
   - name: Voting
+    description: Apertura de ventanas de voto, registro y resultados.
   - name: Manual
+    description: Flujos de contingencia manuales respaldados por la secretaría.
   - name: Minutes
+    description: Elaboración, revisión y publicación de actas.
   - name: Session
+    description: Operaciones transversales sobre la sesión en curso.
 paths:
   /assemblies:
     post:
       tags: [Assemblies]
       summary: Crear asamblea
+      operationId: createAssembly
       requestBody:
         required: true
         content:
@@ -37,9 +64,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Assembly'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
     get:
       tags: [Assemblies]
       summary: Listar asambleas
+      operationId: listAssemblies
       parameters:
         - in: query
           name: status
@@ -59,12 +91,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PageAssemblies'
+        '400':
+          $ref: '#/components/responses/ValidationError'
   /assemblies/{assemblyId}:
     get:
       tags: [Assemblies]
       summary: Obtener asamblea
       parameters:
         - $ref: '#/components/parameters/assemblyId'
+      operationId: getAssembly
       responses:
         '200':
           description: OK
@@ -72,13 +107,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Assembly'
-        '404': { description: No encontrado }
+        '404':
+          $ref: '#/components/responses/NotFound'
   /assemblies/{assemblyId}/agenda/validate:
     post:
       tags: [Agenda]
       summary: Validar agenda/convocatoria con Compliance
       parameters:
         - $ref: '#/components/parameters/assemblyId'
+      operationId: validateAgenda
       responses:
         '200':
           description: Dictamen aprobado
@@ -92,12 +129,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ComplianceReport'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /assemblies/{assemblyId}/call/publish:
     post:
       tags: [Call]
       summary: Publicar convocatoria
       parameters:
         - $ref: '#/components/parameters/assemblyId'
+      operationId: publishCall
       requestBody:
         content:
           application/json:
@@ -109,27 +149,42 @@ paths:
                   items: { type: string, enum: [email, sms, whatsapp, push] }
                 meetInstructions: { type: string }
       responses:
-        '202': { description: Enviado }
+        '202':
+          description: Enviado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallDispatchResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /assemblies/{assemblyId}/attendees/checkin:
     post:
       tags: [Attendees]
       summary: Registrar check-in
       parameters:
         - $ref: '#/components/parameters/assemblyId'
+      operationId: registerCheckIn
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/CheckInRequest' }
       responses:
-        '201': { description: Registrado }
-        '409': { description: Duplicado }
+        '201':
+          description: Registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckInResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /items/{itemId}/vote/open:
     post:
       tags: [Voting]
       summary: Abrir ventana de voto
       parameters:
         - $ref: '#/components/parameters/itemId'
+      operationId: openVotingWindow
       requestBody:
         content:
           application/json:
@@ -140,56 +195,105 @@ paths:
                 mode: { type: string, enum: [nominal, secreto, coeficiente, bloques, delegados] }
                 stepUpRequired: { type: boolean, default: false }
       responses:
-        '200': { description: OK }
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteWindowResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /items/{itemId}/vote:
     post:
       tags: [Voting]
       summary: Emitir voto electrónico
       parameters:
         - $ref: '#/components/parameters/itemId'
+      operationId: castVote
       requestBody:
         required: true
         content:
           application/json:
             schema: { $ref: '#/components/schemas/VoteRequest' }
       responses:
-        '201': { description: Voto registrado }
-        '409': { description: Doble voto o token usado }
+        '201':
+          description: Voto registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoteRegisteredResponse'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /items/{itemId}/results:
     get:
       tags: [Voting]
       summary: Resultados ítem
       parameters:
         - $ref: '#/components/parameters/itemId'
+      operationId: getVoteResults
       responses:
         '200':
           description: OK
           content:
             application/json:
               schema: { $ref: '#/components/schemas/VoteResult' }
+        '404':
+          $ref: '#/components/responses/NotFound'
   /assemblies/{assemblyId}/minutes/draft:
     post:
       tags: [Minutes]
       summary: Generar borrador de acta
       parameters:
         - $ref: '#/components/parameters/assemblyId'
+      operationId: generateMinutesDraft
       responses:
-        '201': { description: Generado }
+        '201':
+          description: Generado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MinutesDraft'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   parameters:
     assemblyId:
       in: path
       name: assemblyId
       required: true
+      description: Identificador único de la asamblea.
       schema: { type: string }
     itemId:
       in: path
       name: itemId
       required: true
+      description: Identificador del ítem de agenda asociado.
       schema: { type: string }
+  responses:
+    ValidationError:
+      description: Petición inválida por errores de validación o reglas de negocio.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Operación incompatible con el estado actual del recurso.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: El recurso solicitado no existe o fue archivado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
   schemas:
     AssemblyCreate:
       type: object
+      description: Datos necesarios para registrar una nueva asamblea.
       required: [tipo, modalidad, fechaInicio, jurisdiccion, agenda]
       properties:
         tipo: { type: string, enum: [ordinaria, extraordinaria] }
@@ -202,6 +306,7 @@ components:
           items: { $ref: '#/components/schemas/AgendaItem' }
     AgendaItem:
       type: object
+      description: Ítem de agenda que será tratado durante la sesión.
       required: [titulo, tipoDecision, mayoria, orden]
       properties:
         id: { type: string }
@@ -211,6 +316,7 @@ components:
         orden: { type: integer }
     Assembly:
       type: object
+      description: Representación completa de una asamblea registrada.
       properties:
         id: { type: string }
         estado: { type: string }
@@ -220,6 +326,7 @@ components:
         createdAt: { type: string, format: date-time }
     PageAssemblies:
       type: object
+      description: Resultado paginado de asambleas.
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/Assembly' } }
         page: { type: integer }
@@ -227,19 +334,29 @@ components:
         total: { type: integer }
     ComplianceReport:
       type: object
+      description: Resultado de la revisión de cumplimiento de la agenda.
       properties:
         status: { type: string, enum: [approved, observed] }
         issues: { type: array, items: { type: string } }
         timestamp: { type: string, format: date-time }
     CheckInRequest:
       type: object
+      description: Payload para registrar la acreditación de un asistente.
       required: [personaId, canal]
       properties:
         personaId: { type: string }
         canal: { type: string, enum: [presencial, virtual] }
         deviceId: { type: string }
+    CheckInResponse:
+      type: object
+      description: Resultado de la acreditación de un asistente.
+      properties:
+        attendeeId: { type: string }
+        assemblyId: { type: string }
+        status: { type: string }
     VoteRequest:
       type: object
+      description: Voto emitido por un participante habilitado.
       required: [voterId, tokenJti, value]
       properties:
         voterId: { type: string }
@@ -247,8 +364,52 @@ components:
         value: { type: string, enum: [favor, contra, abstencion] }
     VoteResult:
       type: object
+      description: Acumulado de votos registrados para un ítem.
       properties:
         itemId: { type: string }
         favor: { type: integer }
         contra: { type: integer }
         abstencion: { type: integer }
+    VoteWindowResponse:
+      type: object
+      description: Confirmación de apertura de la ventana de voto.
+      properties:
+        itemId: { type: string }
+        mode: { type: string }
+        stepUpRequired: { type: boolean }
+        openedAt: { type: string, format: date-time }
+    VoteRegisteredResponse:
+      type: object
+      description: Confirmación del voto registrado.
+      properties:
+        voteId: { type: string }
+        itemId: { type: string }
+        receivedAt: { type: string, format: date-time }
+    MinutesDraft:
+      type: object
+      description: Borrador de acta generado automáticamente.
+      properties:
+        assemblyId: { type: string }
+        version: { type: string }
+        content: { type: string }
+        generatedAt: { type: string, format: date-time }
+    CallDispatchResponse:
+      type: object
+      description: Resultado del envío de la convocatoria.
+      properties:
+        assemblyId: { type: string }
+        channels:
+          type: array
+          items: { type: string }
+        scheduledAt: { type: string, format: date-time }
+    ErrorResponse:
+      type: object
+      description: Formato estándar de error para el dominio Assembly.
+      properties:
+        error: { type: string }
+        message: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            additionalProperties: true

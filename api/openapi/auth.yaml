@@ -610,6 +610,7 @@ components:
   schemas:
     ErrorResponse:
       type: object
+      description: Formato genérico de error utilizado por el Auth Service.
       properties:
         error:
           type: string
@@ -623,6 +624,7 @@ components:
       required: [error]
     RegisterRequest:
       type: object
+      description: Datos requeridos para registrar un nuevo usuario local.
       required: [email, password, name]
       properties:
         email:
@@ -639,6 +641,7 @@ components:
           description: Tenant de pertenencia (por defecto `default`).
     RegisterResponse:
       type: object
+      description: Respuesta emitida tras registrar al usuario.
       properties:
         message:
           type: string
@@ -660,6 +663,7 @@ components:
       required: [message, user]
     LoginRequest:
       type: object
+      description: Credenciales enviadas durante el login tradicional.
       required: [email, password]
       properties:
         email:
@@ -673,6 +677,7 @@ components:
           description: Tenant objetivo (opcional, `default` por omisión).
     TokenEnvelope:
       type: object
+      description: Contenedor estándar de tokens emitidos por el servicio.
       properties:
         access_token:
           type: string
@@ -697,21 +702,26 @@ components:
       allOf:
         - $ref: '#/components/schemas/TokenEnvelope'
         - type: object
+          description: Contenedor de tokens emitidos tras un login exitoso.
           properties:
             message:
               type: string
               example: Login exitoso
     RefreshRequest:
       type: object
+      description: Payload para rotar un refresh token.
       properties:
         refresh_token:
           type: string
           description: Refresh token emitido previamente.
       required: [refresh_token]
     RefreshResponse:
-      $ref: '#/components/schemas/TokenEnvelope'
+      allOf:
+        - $ref: '#/components/schemas/TokenEnvelope'
+      description: Resultado de una rotación de tokens.
     LogoutRequest:
       type: object
+      description: Datos necesarios para revocar una sesión activa.
       required: [token]
       properties:
         token:
@@ -719,6 +729,7 @@ components:
           description: `refresh_token` o `access_token` a revocar.
     ForgotPasswordRequest:
       type: object
+      description: Solicitud para generar un token de recuperación.
       required: [email]
       properties:
         email:
@@ -729,6 +740,7 @@ components:
           description: Tenant de pertenencia (opcional).
     ForgotPasswordResponse:
       type: object
+      description: Confirmación de que el flujo de recuperación fue iniciado.
       properties:
         message:
           type: string
@@ -739,6 +751,7 @@ components:
       required: [message]
     ResetPasswordRequest:
       type: object
+      description: Datos para confirmar el cambio de contraseña.
       required: [token, newPassword]
       properties:
         token:
@@ -748,6 +761,7 @@ components:
           minLength: 8
     ResetPasswordResponse:
       type: object
+      description: Confirmación del restablecimiento de la contraseña.
       properties:
         message:
           type: string
@@ -755,6 +769,7 @@ components:
       required: [message]
     RolesResponse:
       type: object
+      description: Lista de roles publicados para el tenant solicitante.
       properties:
         roles:
           type: array
@@ -763,6 +778,7 @@ components:
       required: [roles]
     PermissionsResponse:
       type: object
+      description: Permisos asociados a un rol o al universo de permisos disponible.
       properties:
         role:
           type: string
@@ -773,6 +789,7 @@ components:
       required: [permissions]
     HealthResponse:
       type: object
+      description: Estado de salud del servicio y dependencias críticas.
       properties:
         status:
           type: string
@@ -788,6 +805,7 @@ components:
       required: [status, db, redis, uptime_s, latency_ms]
     TokenRequest:
       type: object
+      description: Parámetros soportados por el endpoint `/token`.
       properties:
         grant_type:
           type: string
@@ -811,8 +829,10 @@ components:
     TokenSuccessResponse:
       allOf:
         - $ref: '#/components/schemas/TokenEnvelope'
+      description: Estructura devuelta cuando el intercambio de tokens es exitoso.
     IntrospectionRequest:
       type: object
+      description: Datos enviados para validar un token emitido por la plataforma.
       required: [token]
       properties:
         token:
@@ -826,6 +846,7 @@ components:
           type: string
     IntrospectionResponse:
       type: object
+      description: Información enriquecida sobre el token introspectado.
       properties:
         active:
           type: boolean
@@ -855,6 +876,7 @@ components:
       required: [active]
     RevocationRequest:
       type: object
+      description: Solicitud de revocación de tokens.
       required: [token]
       properties:
         token:
@@ -867,6 +889,7 @@ components:
           type: string
     UserInfoResponse:
       type: object
+      description: Claims disponibles para el usuario autenticado vía `/userinfo`.
       properties:
         sub:
           type: string
@@ -888,6 +911,7 @@ components:
       required: [sub, tenant_id, roles]
     JsonWebKey:
       type: object
+      description: Clave pública expuesta en el JWKS.
       properties:
         kty:
           type: string
@@ -910,6 +934,7 @@ components:
       required: [kty, n, e, alg, use, kid, status]
     JwksDocument:
       type: object
+      description: Documento JWKS con la colección de claves activas.
       properties:
         keys:
           type: array
@@ -918,6 +943,7 @@ components:
       required: [keys]
     JwksRotationResponse:
       type: object
+      description: Resultado de una rotación de claves iniciada vía `/admin/rotate-keys`.
       properties:
         message:
           type: string
@@ -936,6 +962,7 @@ components:
       required: [message]
     OpenIdProviderConfiguration:
       type: object
+      description: Metadatos publicados en el documento de discovery OIDC.
       properties:
         issuer:
           type: string
