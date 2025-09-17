@@ -10,6 +10,8 @@ describe('POST /register', () => {
       .send({ email, password: '12345678', name: 'Demo' });
     expect(res.status).toBe(201);
     expect(res.body.message).toBe('Usuario registrado');
+    expect(res.body.user.status).toBe('active');
+    expect(Array.isArray(res.body.user.permissions)).toBe(true);
   });
 
   it('debe rechazar datos inválidos', async () => {
@@ -18,5 +20,14 @@ describe('POST /register', () => {
       .send({ email: 'bademail', password: '123', name: '' });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Datos inválidos');
+  });
+
+  it('debe impedir registros bloqueados por User Service', async () => {
+    const res = await request(app)
+      .post('/register')
+      .send({ email: `blocked_${Date.now()}@forbidden.com`, password: '12345678', name: 'Demo' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('Usuario no permitido por User Service');
+    expect(res.body.status).toBeDefined();
   });
 });

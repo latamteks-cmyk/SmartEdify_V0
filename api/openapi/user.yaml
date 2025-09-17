@@ -1,47 +1,96 @@
 openapi: 3.1.0
 info:
-  title: User Service API (MVP)
-  version: 0.1.0
-  description: CRUD básico de usuarios en memoria (fase inicial). Se migrará a Postgres y multi-tenant.
+  title: User Service API
+  version: 1.0.0
+  summary: CRUD y gestión de perfiles de usuario expuestos a servicios internos.
+  description: |
+    Servicio responsable de administrar usuarios finales de SmartEdify. Ofrece
+    operaciones básicas de creación, consulta, actualización y eliminación. El
+    contrato documenta las respuestas estándar, códigos de error y ejemplos
+    utilizados por los consumidores internos (Auth Service, Tenant Service y
+    portales en backlog).
+  termsOfService: https://www.smartedify.com/terms
+  contact:
+    name: Plataforma SmartEdify — Equipo User
+    email: developers@smartedify.com
+    url: https://www.smartedify.com/docs/user
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+externalDocs:
+  description: Documentación operativa y lineamientos de API para User Service
+  url: https://github.com/smartedify/SmartEdify_V0/tree/main/docs
 servers:
+  - url: https://user.smartedify.com
+    description: Producción
+  - url: https://staging-user.smartedify.com
+    description: Preproducción
   - url: https://api.smartedify.com/api/user/v1
+    description: Gateway HTTP (alias legado)
+tags:
+  - name: Users
+    description: Operaciones CRUD y de gestión de perfiles.
 paths:
   /users:
     post:
+      tags: [Users]
       summary: Crear usuario
+      operationId: createUser
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/UserCreate'
+            examples:
+              default:
+                value:
+                  email: ana@example.com
+                  name: Ana Pérez
+                  password: S3gura!1
       responses:
-        '201': { description: Creado }
-        '400': { description: Datos inválidos }
-        '409': { description: Email duplicado }
-    get:
-      summary: Listar usuarios (MVP sin filtros)
-      responses:
-        '200':
-          description: OK
+        '201':
+          description: Usuario creado satisfactoriamente.
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: '#/components/schemas/User' }
+                $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    get:
+      tags: [Users]
+      summary: Listar usuarios (sin filtros en MVP)
+      operationId: listUsers
+      responses:
+        '200':
+          description: Colección de usuarios.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+    
   /users/{id}:
     get:
+      tags: [Users]
       summary: Obtener usuario por id
+      operationId: getUser
       parameters:
         - $ref: '#/components/parameters/userId'
       responses:
-        '200': { description: OK, content: { application/json: { schema: { $ref: '#/components/schemas/UserResponse' } } } }
-        '404': { description: No encontrado }
+        '200':
+          description: Usuario localizado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
     put:
+      tags: [Users]
       summary: Actualizar usuario
+      operationId: updateUser
       parameters:
         - $ref: '#/components/parameters/userId'
       requestBody:
@@ -49,43 +98,104 @@ paths:
         content:
           application/json:
             schema: { $ref: '#/components/schemas/UserUpdate' }
+            examples:
+              default:
+                value:
+                  name: Ana P. Actualizada
       responses:
-        '200': { description: Actualizado }
-        '404': { description: No encontrado }
+        '200':
+          description: Usuario actualizado correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
     delete:
+      tags: [Users]
       summary: Eliminar usuario
+      operationId: deleteUser
       parameters:
         - $ref: '#/components/parameters/userId'
       responses:
-        '200': { description: Eliminado }
-        '404': { description: No encontrado }
+        '204':
+          description: Eliminado sin contenido.
+        '404':
+          $ref: '#/components/responses/NotFound'
 components:
   parameters:
     userId:
       in: path
       name: id
       required: true
+      description: Identificador único del usuario.
       schema: { type: string }
+  responses:
+    ValidationError:
+      description: Petición inválida por errores de validación.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Conflicto por entidad duplicada u operación incompatible.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: El recurso solicitado no existe.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
   schemas:
     UserCreate:
       type: object
+      description: Datos mínimos necesarios para crear un usuario.
       required: [email, name, password]
       properties:
         email: { type: string, format: email }
         name: { type: string }
-        password: { type: string, minLength: 6 }
+        password: { type: string, minLength: 8 }
     UserUpdate:
       type: object
+      description: Campos permitidos para actualizar un usuario existente.
       properties:
         email: { type: string, format: email }
         name: { type: string }
+        password: { type: string, minLength: 8 }
     User:
       type: object
+      description: Representación pública de un usuario.
       properties:
         id: { type: string }
-        email: { type: string }
+        email: { type: string, format: email }
         name: { type: string }
+        tenantId: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     UserResponse:
       type: object
+      description: Wrapper estándar de respuesta para operaciones unitarias.
       properties:
         user: { $ref: '#/components/schemas/User' }
+    UserList:
+      type: object
+      description: Colección paginada de usuarios.
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        total: { type: integer }
+    ErrorResponse:
+      type: object
+      description: Formato estándar de error del servicio de usuarios.
+      properties:
+        error: { type: string }
+        message: { type: string }
+        details:
+          type: array
+          items:
+            type: object
+            additionalProperties: true

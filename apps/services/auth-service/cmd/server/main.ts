@@ -1,3 +1,8 @@
+/*
+ * Copyright (c) 2024 SmartEdify contributors
+ * Licensed under the MIT License. See the LICENSE file in the project root for details.
+ */
+
 import 'dotenv/config';
 import { startTracing, shutdownTracing } from '../../internal/observability/tracing';
 
@@ -23,9 +28,17 @@ import { refreshHandler } from '../../internal/adapters/http/refresh.handler';
 import { registerHandler } from '../../internal/adapters/http/register.handler';
 import { resetPasswordHandler } from '../../internal/adapters/http/reset-password.handler';
 import { rolesHandler, permissionsHandler } from '../../internal/adapters/http/roles-permissions.handler';
+import { authorizeHandler } from '../../internal/adapters/http/authorize.handler';
+import { tokenHandler } from '../../internal/adapters/http/token.handler';
+import { userinfoHandler } from '../../internal/adapters/http/userinfo.handler';
+import { introspectionHandler } from '../../internal/adapters/http/introspection.handler';
+import { revocationHandler } from '../../internal/adapters/http/revocation.handler';
+import { openIdConfigurationHandler } from '../../internal/adapters/http/openid-configuration.handler';
 import { redisPing } from '../../internal/adapters/redis/redis.adapter';
 import { loginRateLimiter, bruteForceGuard } from '../../internal/middleware/rate-limit';
+import { adminAuthMiddleware } from '../../internal/middleware/admin-auth';
 import { getPublicJwks, rotateKeys, getCurrentKey } from '../../internal/security/keys';
+import { revokeSessionsByKid } from '../../internal/security/jwt';
 
 const rootLogger = pino({
   level: process.env.AUTH_LOG_LEVEL || 'info',
@@ -133,6 +146,7 @@ export const app = express();
 // Export util para tests que permita limpiar intervalo si en algún momento se inicializa
 export async function _cleanupMetrics() { /* noop actual (mantener API por si cambiamos) */ }
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
 // Middleware request-id
 app.use((req, res, next) => {
@@ -227,8 +241,10 @@ app.get('/.well-known/jwks.json', async (_req, res) => {
   }
 });
 
+app.get('/.well-known/openid-configuration', openIdConfigurationHandler);
+
 // Rotación manual (MVP) - proteger en producción
-app.post('/admin/rotate-keys', async (_req, res) => {
+app.post('/admin/rotate-keys', adminAuthMiddleware, async (_req, res) => {
   try {
     const result = await rotateKeys();
     jwksRotationCounter.inc();
@@ -236,6 +252,20 @@ app.post('/admin/rotate-keys', async (_req, res) => {
   } catch (e: any) {
     logger.error({ err: e }, 'Error en rotación manual');
     res.status(500).json({ error: 'rotation_failed' });
+  }
+});
+
+app.post('/admin/revoke-kid', adminAuthMiddleware, async (req, res) => {
+  const kid = typeof req.body?.kid === 'string' ? req.body.kid.trim() : '';
+  if (!kid) {
+    return res.status(400).json({ error: 'kid_required' });
+  }
+  try {
+    const result = await revokeSessionsByKid(kid);
+    res.json({ message: 'revoked', ...result });
+  } catch (e: any) {
+    logger.error({ err: e, kid }, 'Error revocando sesiones por kid');
+    res.status(500).json({ error: 'revoke_failed' });
   }
 });
 
@@ -247,6 +277,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 // Endpoints principales
+app.get('/authorize', authorizeHandler);
+app.post('/token', tokenHandler);
+app.get('/userinfo', userinfoHandler);
+app.post('/introspection', introspectionHandler);
+app.post('/revocation', revocationHandler);
 app.post('/register', registerHandler);
 app.post('/login', loginRateLimiter, bruteForceGuard, loginHandler);
 app.post('/logout', logoutHandler);

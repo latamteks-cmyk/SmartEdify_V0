@@ -53,7 +53,9 @@ export class KafkaPublisher implements Publisher {
       'messaging.system': 'kafka',
       'messaging.destination': this.topicFor(ev),
       'event.type': ev.type,
-      'tenant.id': ev.tenantId || 'unknown'
+      'tenant.id': ev.tenantId || 'unknown',
+      'event.trace_id': ev.traceId || undefined,
+      'event.span_id': ev.spanId || undefined
     } }, async (span) => {
       const start = process.hrtime.bigint();
       try {
@@ -82,7 +84,8 @@ export class KafkaPublisher implements Publisher {
           correlationId: ev.correlationId,
           partitionKey: ev.partitionKey,
           headers: ev.headers,
-          traceId: ev.traceId
+          traceId: ev.traceId,
+          spanId: ev.spanId
         });
         const topic = this.topicFor(ev);
         span.setAttribute('messaging.destination', topic);

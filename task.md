@@ -11,7 +11,7 @@ This high-level tracker summarizes priorities from the detailed backlog in [`doc
 - [ ] Finalize API documentation, validation, and cross-service integration. ([details](docs/tareas.md#auth-service))
 - [ ] Close remaining security, migration, and testing checklists. ([details](docs/tareas.md#auth-service))
 - [ ] Deliver observability metrics, business instrumentation, and SRE alerts. ([details](docs/tareas.md#auth-service))
-- [ ] Harden CI/CD pipeline, supply-chain safeguards, and runtime resiliency. ([details](docs/tareas.md#auth-service))
+- [x] Harden CI/CD pipeline, supply-chain safeguards, and runtime resiliency. _(2025-09-23: Gate Cosign bloqueante, fallback KMS/Secrets y plan on-call documentados)._ ([details](docs/tareas.md#auth-service))
 
 ## User Service
 - [x] Complete service scaffolding and baseline documentation. ([details](docs/tareas.md#user-service))
@@ -23,9 +23,10 @@ This high-level tracker summarizes priorities from the detailed backlog in [`doc
 
 ## Cross-Cutting Initiatives
 - [ ] Standardize linting, commit conventions, and coverage reporting. ([details](docs/tareas.md#tareas-transversales-calidad-cicd-seguridad-observabilidad-documentación))
-- [ ] Audit CI/CD promotion steps, changelog generation, and supply-chain controls. ([details](docs/tareas.md#tareas-transversales-calidad-cicd-seguridad-observabilidad-documentación))
+- [ ] Audit CI/CD promotion steps, changelog generation, and supply-chain controls. _(2025-09-23: Proceso Auth documentado; pendiente automatizar changelog global)._ ([details](docs/tareas.md#tareas-transversales-calidad-cicd-seguridad-observabilidad-documentación))
 - [x] Enforce structured JSON logging across services. ([details](docs/tareas.md#tareas-transversales-calidad-cicd-seguridad-observabilidad-documentación))
 - [ ] Define business metrics and lifecycle for API contracts. ([details](docs/tareas.md#tareas-transversales-calidad-cicd-seguridad-observabilidad-documentación))
+- [ ] Implementar políticas de admisión/OPA que consuman verificaciones Cosign/SBOM en runtime. ([details](docs/tareas.md#tareas-transversales-calidad-cicd-seguridad-observabilidad-documentación))
 
 ## Tenant Service Roadmap
 - [x] Deliver foundation scope (OpenAPI v0.1, migrations, initial metrics). ([details](docs/tareas.md#fase-0-fundaciones))

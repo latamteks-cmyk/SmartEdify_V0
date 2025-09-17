@@ -46,7 +46,14 @@ export async function loginHandler(req: Request, res: Response) {
     if (process.env.AUTH_TEST_LOGS) console.warn('[login] verifyRefresh for session failed', (e as any)?.message);
   }
   const sessionKey = sessionId || pair.accessToken.substring(0, 24);
-  await saveSession(sessionKey, { userId: user.id, tenant_id }, pair.expiresIn);
+  await saveSession(sessionKey, {
+    userId: user.id,
+    tenant_id,
+    access_kid: pair.accessKid,
+    refresh_kid: pair.refreshKid,
+    access_jti: pair.accessJti,
+    refresh_jti: pair.refreshJti
+  }, pair.expiresIn);
   loginSuccessCounter.inc();
   return res.status(200).json({
     message: 'Login exitoso',

@@ -1,0 +1,37 @@
+{
+  "keys": [
+    {
+      "kty": "RSA",
+      "kid": "2c1e5df1-issuer-current",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "oahUIo76c9E5A8e8X8vbdvBKu5d3n0Y0bDFeZxS3xJYl5mUSi1W2CnbA9f2FzC7O12iZzqopO1RtZzyoOVgQH_3czua2L6YHjQZYU31v4GeuYpYfH3vHn4R4C8n4n_G8M4m8bGPJEVJMStnE7u4XbX9myPy5JrGj8bQ9YzH4rpvXlV1e5tWJ42sU6iK0GkFmifV3c4rS2B7NfKq2v8zvF9h9V7WQ",
+      "e": "AQAB",
+      "status": "current",
+      "created_at": "2025-08-25T12:00:00Z",
+      "promoted_at": "2025-09-01T00:00:00Z"
+    },
+    {
+      "kty": "RSA",
+      "kid": "6a7f23c1-issuer-next",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "s0mEdIfYt8bP2c3Y5sHn1Fv9Lk3Gd2Qw9c6zV4mN5pQs7tUv8yXz9kLm7hJg6fD5eC4bA3nM2pO5lQ7sTu9vWxYz1kL2mN3bV4cX5zT6rY7uI8oP9qR0sT1uV2wX3yZ4aB5cD6eF7gH8",
+      "e": "AQAB",
+      "status": "next",
+      "created_at": "2025-09-10T08:00:00Z",
+      "promoted_at": null
+    },
+    {
+      "kty": "RSA",
+      "kid": "1a9d44bb-issuer-retiring",
+      "use": "sig",
+      "alg": "RS256",
+      "n": "v4WmYpLkJd9hF3gT5rY8uI0oP9qRsT1uV2wX3yZ4aB5cD6eF7gH8jK9lM0nP2qR4sT6uV8wX0yZ2aB4cD6eF8gH0jK2mN4pQ6rS8tV0wY2",
+      "e": "AQAB",
+      "status": "retiring",
+      "created_at": "2025-07-15T08:00:00Z",
+      "promoted_at": "2025-08-20T00:00:00Z"
+    }
+  ]
+}

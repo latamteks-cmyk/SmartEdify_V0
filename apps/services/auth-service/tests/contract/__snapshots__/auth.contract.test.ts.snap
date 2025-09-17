@@ -1,0 +1,75 @@
+exports[`Auth contract snapshots POST /register devuelve contrato estable POST /register 201 1`] = `
+{
+  "status": 201,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "x-request-id": "<x-request-id>"
+  },
+  "body": {
+    "message": "Usuario registrado",
+    "user": {
+      "id": "<id>",
+      "email": "contract.register@demo.com",
+      "name": "Register User",
+      "status": "active",
+      "roles": [
+        "user"
+      ],
+      "permissions": []
+    }
+  }
+}
+`;
+
+exports[`Auth contract snapshots POST /login devuelve tokens en formato esperado POST /login 200 1`] = `
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "x-request-id": "<x-request-id>"
+  },
+  "body": {
+    "message": "Login exitoso",
+    "access_token": "<access_token>",
+    "refresh_token": "<refresh_token>",
+    "token_type": "Bearer",
+    "expires_in": "<expires_in>",
+    "roles": [
+      "user"
+    ]
+  }
+}
+`;
+
+exports[`Auth contract snapshots POST /refresh-token rota el refresh token sin romper contrato POST /refresh-token 200 1`] = `
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "x-request-id": "<x-request-id>"
+  },
+  "body": {
+    "access_token": "<access_token>",
+    "refresh_token": "<refresh_token>",
+    "token_type": "Bearer",
+    "expires_in": "<expires_in>"
+  }
+}
+`;
+
+exports[`Auth contract snapshots GET /health reporta dependencias principales GET /health 200 1`] = `
+{
+  "status": 200,
+  "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "x-request-id": "<x-request-id>"
+  },
+  "body": {
+    "status": "ok",
+    "db": true,
+    "redis": true,
+    "uptime_s": "<uptime_s>",
+    "latency_ms": "<latency_ms>"
+  }
+}
+`;

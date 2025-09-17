@@ -6,6 +6,11 @@ const redis = new Redis({
   port: Number(process.env.REDIS_PORT) || 6379,
 });
 
+const isTestEnv = process.env.NODE_ENV === 'test';
+
+const inMemoryAccessDeny: Map<string, { reason: string; expiresAt: number | null }> = (global as any).__ACCESS_DENY__ || new Map();
+(global as any).__ACCESS_DENY__ = inMemoryAccessDeny;
+
 // Tip: el mock en __mocks__/ioredis.ts ya implementa incr/expire/ttl.
 // Para robustez tipada (aunque no usamos types estricto aquí) agregamos wrappers opcionales
 // que delegan a la instancia real/mocked.
@@ -35,12 +40,50 @@ export async function deleteSession(sessionId: string) {
 const inMemoryRefreshStore: Map<string, { value: any; expiresAt: number }> = (global as any).__REFRESH_STORE__ || new Map();
 (global as any).__REFRESH_STORE__ = inMemoryRefreshStore;
 
+const inMemoryKidIndex: Map<string, { tokens: Set<string>; expiresAt: number | null }> = (global as any).__REFRESH_KID_INDEX__ || new Map();
+(global as any).__REFRESH_KID_INDEX__ = inMemoryKidIndex;
+
+const inMemoryRevokedKids: Map<string, number | null> = (global as any).__REVOKED_KIDS__ || new Map();
+(global as any).__REVOKED_KIDS__ = inMemoryRevokedKids;
+
+function cleanupKidIndex(targetKid?: string) {
+  const now = Date.now();
+  const keys = typeof targetKid === 'string' ? [targetKid] : Array.from(inMemoryKidIndex.keys());
+  for (const kid of keys) {
+    const entry = inMemoryKidIndex.get(kid);
+    if (!entry) continue;
+    if (entry.expiresAt && entry.expiresAt < now) {
+      inMemoryKidIndex.delete(kid);
+      continue;
+    }
+    for (const tokenId of Array.from(entry.tokens)) {
+      const stored = inMemoryRefreshStore.get(tokenId);
+      if (!stored || stored.expiresAt < now) {
+        entry.tokens.delete(tokenId);
+      }
+    }
+    if (entry.tokens.size === 0) {
+      inMemoryKidIndex.delete(kid);
+    }
+  }
+}
+
 export async function saveRefreshToken(tokenId: string, data: any, ttl: number = 2592000) {
   if (isTestEnv) {
     inMemoryRefreshStore.set(tokenId, { value: data, expiresAt: Date.now() + ttl * 1000 });
+    if (typeof data?.kid === 'string') {
+      const entry = inMemoryKidIndex.get(data.kid) || { tokens: new Set<string>(), expiresAt: null };
+      entry.tokens.add(tokenId);
+      entry.expiresAt = ttl > 0 ? Date.now() + ttl * 1000 : null;
+      inMemoryKidIndex.set(data.kid, entry);
+    }
     return;
   }
   await redis.set(`refresh:${tokenId}`, JSON.stringify(data), 'EX', ttl);
+  if (typeof data?.kid === 'string') {
+    await (redis as any).sadd(`kid:${data.kid}`, tokenId);
+    if (ttl > 0) await (redis as any).expire(`kid:${data.kid}`, ttl);
+  }
 }
 export async function getRefreshToken(tokenId: string) {
   if (isTestEnv) {
@@ -54,10 +97,28 @@ export async function getRefreshToken(tokenId: string) {
 }
 export async function revokeRefreshToken(tokenId: string) {
   if (isTestEnv) {
+    const entry = inMemoryRefreshStore.get(tokenId);
     inMemoryRefreshStore.delete(tokenId);
+    const kid = entry?.value?.kid;
+    if (typeof kid === 'string') {
+      cleanupKidIndex(kid);
+      const kidEntry = inMemoryKidIndex.get(kid);
+      if (kidEntry) {
+        kidEntry.tokens.delete(tokenId);
+        if (kidEntry.tokens.size === 0) inMemoryKidIndex.delete(kid);
+      }
+    }
     return;
   }
+  let stored: any = null;
+  try {
+    const raw = await redis.get(`refresh:${tokenId}`);
+    stored = raw ? JSON.parse(raw) : null;
+  } catch {}
   await redis.del(`refresh:${tokenId}`);
+  if (stored?.kid) {
+    await (redis as any).srem(`kid:${stored.kid}`, tokenId);
+  }
 }
 
 // Rotated refresh detection distribuida (solo activa fuera de test)
@@ -78,9 +139,141 @@ export async function isRevoked(jti: string) {
   return !!(await redis.get(`revoked:${jti}`));
 }
 
+export async function addAccessTokenToDenyList(jti: string, reason: string, expires: number) {
+  if (!jti) return;
+  if (isTestEnv) {
+    inMemoryAccessDeny.set(jti, { reason, expiresAt: expires > 0 ? Date.now() + expires * 1000 : null });
+    return;
+  }
+  await redis.set(`deny:access:${jti}`, JSON.stringify({ reason }), 'EX', expires);
+}
+
+export async function isAccessTokenDenied(jti: string) {
+  if (!jti) return false;
+  if (isTestEnv) {
+    const entry = inMemoryAccessDeny.get(jti);
+    if (!entry) return false;
+    if (entry.expiresAt && entry.expiresAt < Date.now()) {
+      inMemoryAccessDeny.delete(jti);
+      return false;
+    }
+    return true;
+  }
+  return !!(await redis.get(`deny:access:${jti}`));
+}
+
+export async function markKidRevoked(kid: string, expires: number) {
+  if (!kid) return;
+  if (isTestEnv) {
+    inMemoryRevokedKids.set(kid, expires > 0 ? Date.now() + expires * 1000 : null);
+    return;
+  }
+  await redis.set(`revokedkid:${kid}`, '1', 'EX', expires);
+}
+
+export async function isKidRevoked(kid: string) {
+  if (!kid) return false;
+  if (isTestEnv) {
+    const entry = inMemoryRevokedKids.get(kid);
+    if (!entry) return false;
+    if (entry && entry > 0 && entry < Date.now()) {
+      inMemoryRevokedKids.delete(kid);
+      return false;
+    }
+    return true;
+  }
+  return !!(await redis.get(`revokedkid:${kid}`));
+}
+
+export async function trackRefreshKid(kid: string | null | undefined, tokenId: string, ttlSeconds: number) {
+  if (!kid || !tokenId) return;
+  if (isTestEnv) {
+    cleanupKidIndex();
+    const entry = inMemoryKidIndex.get(kid) || { tokens: new Set<string>(), expiresAt: null };
+    entry.tokens.add(tokenId);
+    entry.expiresAt = ttlSeconds > 0 ? Date.now() + ttlSeconds * 1000 : null;
+    inMemoryKidIndex.set(kid, entry);
+    return;
+  }
+  await (redis as any).sadd(`kid:${kid}`, tokenId);
+  if (ttlSeconds > 0) await (redis as any).expire(`kid:${kid}`, ttlSeconds);
+}
+
+export async function untrackRefreshKid(kid: string | null | undefined, tokenId: string) {
+  if (!kid || !tokenId) return;
+  if (isTestEnv) {
+    cleanupKidIndex(kid);
+    const entry = inMemoryKidIndex.get(kid);
+    if (!entry) return;
+    entry.tokens.delete(tokenId);
+    if (entry.tokens.size === 0) inMemoryKidIndex.delete(kid);
+    return;
+  }
+  await (redis as any).srem(`kid:${kid}`, tokenId);
+}
+
+export async function getRefreshTokensByKid(kid: string | null | undefined): Promise<string[]> {
+  if (!kid) return [];
+  if (isTestEnv) {
+    cleanupKidIndex(kid);
+    const entry = inMemoryKidIndex.get(kid);
+    return entry ? Array.from(entry.tokens) : [];
+  }
+  const members = await (redis as any).smembers(`kid:${kid}`);
+  if (!Array.isArray(members)) return [];
+  return members;
+}
+
+export async function getRefreshTokenTtl(tokenId: string): Promise<number> {
+  if (isTestEnv) {
+    const entry = inMemoryRefreshStore.get(tokenId);
+    if (!entry) return -2;
+    const remainingMs = entry.expiresAt - Date.now();
+    if (remainingMs <= 0) return -2;
+    return Math.ceil(remainingMs / 1000);
+  }
+  return (redis as any).ttl(`refresh:${tokenId}`);
+}
+
+// Authorization codes (PKCE)
+const inMemoryAuthCodeStore: Map<string, { value: any; expiresAt: number }> = (global as any).__AUTH_CODE_STORE__ || new Map();
+(global as any).__AUTH_CODE_STORE__ = inMemoryAuthCodeStore;
+
+export async function saveAuthorizationCode(code: string, data: any, ttl: number = 600) {
+  if (isTestEnv) {
+    inMemoryAuthCodeStore.set(code, { value: data, expiresAt: Date.now() + ttl * 1000 });
+    return;
+  }
+  await redis.set(`authcode:${code}`, JSON.stringify(data), 'EX', ttl);
+}
+
+export async function getAuthorizationCode(code: string) {
+  if (isTestEnv) {
+    const entry = inMemoryAuthCodeStore.get(code);
+    if (!entry) return null;
+    if (entry.expiresAt < Date.now()) {
+      inMemoryAuthCodeStore.delete(code);
+      return null;
+    }
+    return entry.value;
+  }
+  const data = await redis.get(`authcode:${code}`);
+  return data ? JSON.parse(data) : null;
+}
+
+export async function consumeAuthorizationCode(code: string) {
+  if (isTestEnv) {
+    const entry = await getAuthorizationCode(code);
+    inMemoryAuthCodeStore.delete(code);
+    return entry;
+  }
+  const data = await getAuthorizationCode(code);
+  await redis.del(`authcode:${code}`);
+  return data;
+}
+
 // Password reset tokens (namespace separado)
 // In-memory fallback para tests (evita problemas de mocking multi-instancia)
-const isTestEnv = process.env.NODE_ENV === 'test';
 const inMemoryResetStore: Map<string, { value: any; expiresAt: number }> = (global as any).__PWDRESET_STORE__ || new Map();
 (global as any).__PWDRESET_STORE__ = inMemoryResetStore;
 

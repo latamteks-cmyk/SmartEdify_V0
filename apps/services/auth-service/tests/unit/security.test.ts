@@ -3,19 +3,47 @@ import { issueTokenPair, verifyAccess, verifyRefresh, rotateRefresh } from '../.
 
 // Mock liviano de Redis adapter para tokens de refresh
 jest.mock('../../internal/adapters/redis/redis.adapter', () => {
-  const refresh = new Map<string,string>();
-  const revoked = new Set<string>();
-  const rotated = new Set<string>();
+  const refresh = new Map<string, { data: any; expiresAt: number }>();
+  const revocations = new Set<string>();
+  const deny = new Set<string>();
+  const kidIndex = new Map<string, Set<string>>();
+  const revokedKids = new Set<string>();
   return {
     __esModule: true,
     default: {},
-    saveRefreshToken: async (k: string, v: any) => { refresh.set('refresh:'+k, JSON.stringify(v)); },
-    getRefreshToken: async (k: string) => { const v = refresh.get('refresh:'+k); return v? JSON.parse(v): null; },
-    revokeRefreshToken: async (k: string) => { refresh.delete('refresh:'+k); revoked.add(k); },
-    addToRevocationList: async (jti: string) => { revoked.add(jti); },
-    isRevoked: async (jti: string) => revoked.has(jti),
-    markRefreshRotated: async (jti: string) => { rotated.add(jti); },
-    isRefreshRotated: async (jti: string) => rotated.has(jti),
+    saveRefreshToken: async (k: string, v: any, ttl: number) => {
+      refresh.set(k, { data: v, expiresAt: Date.now() + ttl * 1000 });
+      if (v?.kid) {
+        const set = kidIndex.get(v.kid) || new Set<string>();
+        set.add(k);
+        kidIndex.set(v.kid, set);
+      }
+    },
+    getRefreshToken: async (k: string) => {
+      const entry = refresh.get(k);
+      return entry ? entry.data : null;
+    },
+    revokeRefreshToken: async (k: string) => {
+      const entry = refresh.get(k);
+      refresh.delete(k);
+      const kid = entry?.data?.kid;
+      if (kid && kidIndex.has(kid)) {
+        const set = kidIndex.get(kid)!;
+        set.delete(k);
+        if (set.size === 0) kidIndex.delete(kid);
+      }
+    },
+    addToRevocationList: async (jti: string) => { revocations.add(jti); },
+    isRevoked: async (jti: string) => revocations.has(jti),
+    markRefreshRotated: async () => {},
+    isRefreshRotated: async () => false,
+    addAccessTokenToDenyList: async (jti: string) => { deny.add(jti); },
+    isAccessTokenDenied: async (jti: string) => deny.has(jti),
+    markKidRevoked: async (kid: string) => { revokedKids.add(kid); },
+    isKidRevoked: async (kid: string) => revokedKids.has(kid),
+    getRefreshTokensByKid: async (kid: string) => Array.from(kidIndex.get(kid) || []),
+    getRefreshTokenTtl: async () => 60,
+    deleteSession: async () => {},
   };
 });
 

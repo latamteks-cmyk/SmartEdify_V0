@@ -176,3 +176,11 @@ export async function getKeyByKid(kid: string): Promise<SigningKey | null> {
   byKid.set(row.kid, row);
   return row;
 }
+
+export function __resetKeyCacheForTests() {
+  if (process.env.NODE_ENV !== 'test') return;
+  cachedCurrent = null;
+  cachedNext = null;
+  byKid = new Map();
+  lastLoad = 0;
+}

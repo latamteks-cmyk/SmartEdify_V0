@@ -1,8 +1,152 @@
 openapi: 3.0.3
 info:
   title: Auth Service API
-  version: 1.1.0
+  version: 1.2.0
 paths:
+  /authorize:
+    get:
+      summary: Inicio del flujo Authorization Code con PKCE
+      description: |
+        Endpoint OIDC/OAuth2 que valida la sesión del usuario (Bearer access token) y
+        redirige al `redirect_uri` registrado con un `code` de autorización de un solo uso.
+      parameters:
+        - in: query
+          name: response_type
+          schema:
+            type: string
+            enum: [code]
+          required: true
+        - in: query
+          name: client_id
+          schema:
+            type: string
+          required: true
+        - in: query
+          name: redirect_uri
+          schema:
+            type: string
+            format: uri
+          required: true
+        - in: query
+          name: scope
+          schema:
+            type: string
+            description: Scopes separados por espacio. Debe incluir `openid`.
+        - in: query
+          name: state
+          schema:
+            type: string
+          description: Valor opaco devuelto sin cambios al cliente.
+        - in: query
+          name: code_challenge
+          schema:
+            type: string
+          description: PKCE code challenge (43-128 chars Base64URL).
+        - in: query
+          name: code_challenge_method
+          schema:
+            type: string
+            enum: [S256, plain]
+          description: Método PKCE utilizado. Por defecto `plain`.
+        - in: query
+          name: nonce
+          schema:
+            type: string
+          description: Nonce opcional propagado al `id_token`.
+      responses:
+        '302':
+          description: Redirección al `redirect_uri` con el código de autorización.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URI con parámetros `code` y, si aplica, `state`.
+        '400':
+          description: Solicitud inválida.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Sesión inválida o ausente.
+  /token:
+    post:
+      summary: Emite tokens de acceso/refresh a partir de un Authorization Code o Refresh Token
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRequest'
+      responses:
+        '200':
+          description: Tokens emitidos correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '400':
+          description: Grant inválido o parámetros incompletos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Cliente inválido.
+  /userinfo:
+    get:
+      summary: Recupera claims del usuario autenticado
+      responses:
+        '200':
+          description: Información básica del usuario según scopes concedidos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfoResponse'
+        '401':
+          description: Access token inválido o expirado.
+  /introspection:
+    post:
+      summary: Introspección de tokens (RFC 7662)
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/IntrospectionRequest'
+      responses:
+        '200':
+          description: Resultado de introspección.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IntrospectionResponse'
+        '401':
+          description: Cliente inválido.
+  /revocation:
+    post:
+      summary: Revocación de tokens (RFC 7009)
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RevocationRequest'
+      responses:
+        '200':
+          description: Token revocado (o token inexistente).
+        '401':
+          description: Cliente inválido.
+  /.well-known/openid-configuration:
+    get:
+      summary: Documento de discovery OIDC
+      responses:
+        '200':
+          description: Metadata publicada para clientes OIDC.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OpenIdConfiguration'
   /register:
     post:
       summary: Registro de usuario
@@ -114,6 +258,15 @@ paths:
                   - $ref: '#/components/schemas/PermissionsByRoleResponse'
 components:
   schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        error_description:
+          type: string
+      required:
+        - error
     RegisterRequest:
       type: object
       properties:
@@ -149,7 +302,13 @@ components:
               format: email
             name:
               type: string
+            status:
+              type: string
             roles:
+              type: array
+              items:
+                type: string
+            permissions:
               type: array
               items:
                 type: string
@@ -157,7 +316,9 @@ components:
             - id
             - email
             - name
+            - status
             - roles
+            - permissions
       required:
         - message
         - user
@@ -198,7 +359,6 @@ components:
         - refresh_token
         - token_type
         - expires_in
-        - roles
     LogoutRequest:
       type: object
       properties:
@@ -258,3 +418,199 @@ components:
       required:
         - role
         - permissions
+    TokenRequest:
+      type: object
+      properties:
+        grant_type:
+          type: string
+          enum: [authorization_code, refresh_token]
+        code:
+          type: string
+          description: Authorization code recibido en `/authorize`.
+        redirect_uri:
+          type: string
+          format: uri
+        code_verifier:
+          type: string
+          description: Verificador PKCE usado cuando el grant es `authorization_code`.
+        client_id:
+          type: string
+        client_secret:
+          type: string
+        refresh_token:
+          type: string
+          description: Token de refresh a rotar cuando `grant_type=refresh_token`.
+        scope:
+          type: string
+          description: Subconjunto opcional de scopes al refrescar.
+      required:
+        - grant_type
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          enum: [Bearer]
+        expires_in:
+          type: integer
+        scope:
+          type: string
+        id_token:
+          type: string
+          description: Presente cuando el scope incluye `openid`.
+      required:
+        - access_token
+        - refresh_token
+        - token_type
+        - expires_in
+    UserInfoResponse:
+      type: object
+      properties:
+        sub:
+          type: string
+        tenant_id:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        scope:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+      required:
+        - sub
+        - tenant_id
+        - roles
+    IntrospectionRequest:
+      type: object
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+      required:
+        - token
+    IntrospectionResponse:
+      type: object
+      properties:
+        active:
+          type: boolean
+        token_type:
+          type: string
+        client_id:
+          type: string
+        scope:
+          type: string
+        sub:
+          type: string
+        iss:
+          type: string
+        exp:
+          type: integer
+        iat:
+          type: integer
+        aud:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+        tenant_id:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+      required:
+        - active
+    RevocationRequest:
+      type: object
+      properties:
+        token:
+          type: string
+        token_type_hint:
+          type: string
+        client_id:
+          type: string
+        client_secret:
+          type: string
+      required:
+        - token
+    OpenIdConfiguration:
+      type: object
+      properties:
+        issuer:
+          type: string
+        authorization_endpoint:
+          type: string
+        token_endpoint:
+          type: string
+        userinfo_endpoint:
+          type: string
+        jwks_uri:
+          type: string
+        introspection_endpoint:
+          type: string
+        revocation_endpoint:
+          type: string
+        response_types_supported:
+          type: array
+          items:
+            type: string
+        grant_types_supported:
+          type: array
+          items:
+            type: string
+        scopes_supported:
+          type: array
+          items:
+            type: string
+        code_challenge_methods_supported:
+          type: array
+          items:
+            type: string
+        token_endpoint_auth_methods_supported:
+          type: array
+          items:
+            type: string
+        response_modes_supported:
+          type: array
+          items:
+            type: string
+        subject_types_supported:
+          type: array
+          items:
+            type: string
+        id_token_signing_alg_values_supported:
+          type: array
+          items:
+            type: string
+        claims_supported:
+          type: array
+          items:
+            type: string
+      required:
+        - issuer
+        - authorization_endpoint
+        - token_endpoint
+        - jwks_uri
+        - response_types_supported
+        - grant_types_supported
+        - scopes_supported
+        - code_challenge_methods_supported
+        - token_endpoint_auth_methods_supported
+        - id_token_signing_alg_values_supported

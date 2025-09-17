@@ -19,7 +19,12 @@
     "test:proj:security": "jest --selectProjects security --runInBand",
     "test:proj:integration": "jest --selectProjects integration --runInBand",
     "test:proj:unit": "jest --selectProjects unit --runInBand",
-  "lint": "eslint . --ext .ts --max-warnings=50",
+    "test:proj:contract": "jest --selectProjects contract --runInBand",
+    "test:rbac:integration": "jest --selectProjects integration --runInBand --testPathPattern=authorize.integration.test.ts",
+    "test:rbac:contract": "jest --selectProjects contract --runInBand",
+    "test:rbac": "npm run test:rbac:integration && npm run test:rbac:contract",
+    "lint": "eslint . --ext .ts --max-warnings=0",
+    "jwks:rotate": "ts-node jobs/jwks-rotate.ts",
     "format": "prettier . --write"
   },
   "dependencies": {

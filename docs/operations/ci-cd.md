@@ -9,7 +9,53 @@
 > - Dashboards: [Grafana CI/CD](https://grafana.smartedify.internal/d/cicd)
 
 ## Gates obligatorios
-- `lint`, `typecheck`, `test:unit`, `test:int`, `openapi:lint`, `sbom`, `sast`, `container:scan`.
+- `lint`, `typecheck`, `test:unit`, `test:int`, `openapi:lint`, `sbom`, `sast`, `container:scan`, `secret-scan`.
+
+### `secret-scan`
+- Detecta *leaks* y credenciales accidentales utilizando [Gitleaks](https://github.com/gitleaks/gitleaks).
+- El pipeline sube los resultados en formato SARIF a Code Scanning y bloquea el merge si el job falla.
+- Para reproducirlo localmente desde la raíz del repo:
+  ```bash
+  docker run --rm -v "$(pwd)":/repo -w /repo zricethezav/gitleaks:latest \
+    detect --report-format sarif --report-path gitleaks.sarif
+  ```
+  El archivo `gitleaks.sarif` puede abrirse con VS Code o subirse manualmente a GitHub Code Scanning para revisión.
+
+### `sbom` / `supply-chain`
+- Tras construir las imágenes `smartedify/<service>:ci`, la CI genera SBOM en formatos CycloneDX y SPDX utilizando **Syft** y **Trivy**. Todo queda publicado como artefacto `supply-chain-artifacts` junto con los *digests*, firmas y attestations de **Cosign**.
+- Descarga de artefactos para una `run` concreta:
+  ```bash
+  gh run download <run-id> --name supply-chain-artifacts --dir artifacts/supply-chain
+  tree artifacts/supply-chain
+  ```
+- Validación rápida de SBOM (ejemplo con Auth Service y Syft/CycloneDX):
+  ```bash
+  jq '.metadata.component | {name, version}' \
+    artifacts/supply-chain/sboms/syft/auth-service/syft-auth-service-cyclonedx.json
+  jq '.packages | map({name, version})[:5]' \
+    artifacts/supply-chain/sboms/trivy/auth-service/trivy-auth-service-spdx.json
+  ```
+- Verificación de firma de imagen (requiere reconstruir la misma imagen o cargarla con `docker load` y Cosign ≥ 2.1):
+  ```bash
+  export COSIGN_EXPERIMENTAL=1 COSIGN_YES=true
+  DIGEST=$(cat artifacts/supply-chain/digests/auth-service.txt)
+  cosign verify --offline \
+    --certificate artifacts/supply-chain/signatures/auth-service/image.pem \
+    --signature artifacts/supply-chain/signatures/auth-service/image.sig \
+    "${DIGEST}"
+  ```
+- Validación de la attestation CycloneDX asociada al SBOM (devuelve el DSSE para inspección):
+  ```bash
+  cosign verify-attestation --offline --type cyclonedx \
+    --certificate artifacts/supply-chain/attestations/auth-service/cyclonedx.pem \
+    --signature artifacts/supply-chain/attestations/auth-service/cyclonedx.sig \
+    "${DIGEST}" > artifacts/supply-chain/attestations/auth-service/cyclonedx.verified.intoto.jsonl
+  jq '.payload | @base64d | fromjson | {predicateType, subject}' \
+    artifacts/supply-chain/attestations/auth-service/cyclonedx.verified.intoto.jsonl
+  ```
+- La verificación (`cosign verify` + `cosign verify-attestation`) es bloqueante en la CI antes de publicar/push de imágenes; si
+  cualquiera de las firmas o attestations falla la tubería se detiene y se notifica a `#oncall-plataforma`.
+- Ante discrepancias entre Syft/Trivy o firma inválida, bloquear el release y notificar a `#oncall-plataforma`.
 
 ## Estrategia de despliegue
 - *Canary* por servicio con *feature flags*.
@@ -22,6 +68,47 @@
      ```
   3. Verifica que los pods y endpoints estén saludables (`kubectl`, `/healthz`).
   4. Notifica en `#oncall-plataforma` y documenta el incidente.
+
+### Promoción Auth Service (staging → producción)
+1. **Prerequisitos:**
+   - Pipeline `ci.yml` en verde, incluyendo gates de supply-chain (firmas/attestations verificadas) y escaneos Trivy.
+   - Snapshot SBOM (`supply-chain-artifacts`) adjunto al run y validado en equipo de seguridad.
+   - Ticket de cambio aprobado con ventana y responsables (`CAB` o equivalente).
+2. **Promoción a staging:**
+   ```bash
+   ./scripts/deploy.sh --service auth-service --environment staging --ref <sha>
+   ./scripts/smoke-test.sh --service auth-service --environment staging
+   ```
+   - Confirmar métricas claves (`auth_login_success_total`, `error_rate`, `latency_p95`).
+   - Revisar dashboards Grafana `Auth · SLO` y alertas pendientes.
+3. **Go/No-Go:**
+   - Checklist de verificación firmado por dueños de producto y on-call plataforma.
+   - Confirmar que `cosign verify` y `verify-attestation` en staging apuntan al mismo digest publicado.
+4. **Promoción a producción:**
+   ```bash
+   ./scripts/deploy.sh --service auth-service --environment production --ref <sha>
+   ./scripts/smoke-test.sh --service auth-service --environment production
+   ```
+   - Ejecutar post-deploy `kubectl rollout status deploy/auth-service -n auth`.
+   - En los primeros 15 minutos monitorizar alertas `AuthLoginErrorRate` y `AuthJWKSRotationMissingNext`.
+5. **Cierre:**
+   - Registrar digest desplegado, hora y responsables en el ticket.
+   - Adjuntar evidencias de dashboards y `kubectl get pods`.
+
+### Rollback Auth Service
+1. **Criterios de activación:** alertas críticas sostenidas, p95 > objetivo, tasa de errores > 5 %, falla en verificación de fir
+   mas/attestations en ambiente destino o incidentes de seguridad.
+2. **Ejecución rápida:**
+   ```bash
+   ./scripts/deploy.sh --service auth-service --environment <staging|production> --ref <sha_anterior>
+   ./scripts/smoke-test.sh --service auth-service --environment <staging|production>
+   ```
+   - Confirmar que la imagen revertida mantiene firmas/attestations válidas (`cosign verify --offline <digest_anterior>`).
+3. **Rotación JWKS / tokens:** si la causa es relacionada a claves, seguir `docs/operations/incident-auth-key-rotation.md`.
+4. **Comunicación:** notificar a `#oncall-plataforma`, `#auth-service` y registrar postmortem.
+5. **Post-rollback:**
+   - Ejecutar validación extendida (`/metrics`, dashboards, logs).
+   - Actualizar `docs/status.md` y `task.md` con la lección aprendida y estado del release.
 
 ## Validación post-despliegue
 - SLI/SLO por servicio. Alertas: error rate, p95, 5xx, *consumer lag*, DLQ > umbral.

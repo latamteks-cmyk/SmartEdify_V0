@@ -1,4 +1,7 @@
 /// <reference types="../..//types/fastify-di" />
+// Copyright (c) 2024 SmartEdify contributors
+// Licensed under the MIT License. See the LICENSE file in the project root for details.
+
 import Fastify from 'fastify';
 import { config } from '../../internal/config/env.js';
 import { pool } from '../../internal/adapters/repo/db.js';
@@ -21,6 +24,8 @@ import { LoggingPublisher } from '../../internal/adapters/publisher/publisher.js
 import { KafkaPublisher } from '../../internal/adapters/publisher/kafka-publisher.js';
 import { LoggingConsumer } from '../../internal/adapters/consumer/consumer.js';
 import { KafkaLagConsumer } from '../../internal/adapters/consumer/kafka-consumer.js';
+import { RabbitMqPublisher } from '../../internal/adapters/publisher/rabbitmq-publisher.js';
+import { RabbitMqDeadLetterConsumer } from '../../internal/adapters/consumer/rabbitmq-dead-letter-consumer.js';
 import { authJwtPlugin } from '../../internal/adapters/http/plugins/auth-jwt.js';
 import { startTracing, shutdownTracing } from '../../internal/observability/tracing.js';
 import { JwksProvider } from '../../internal/adapters/security/jwks-provider.js';
@@ -58,10 +63,24 @@ async function build() {
       logger: app.log
     });
     app.log.info({ brokers: config.kafkaBrokers }, 'KafkaPublisher enabled');
+  } else if (config.publisherKind === 'rabbitmq') {
+    publisher = new RabbitMqPublisher({
+      url: config.rabbitUrl,
+      exchange: config.rabbitExchange,
+      routingKey: config.rabbitRoutingKey,
+      queue: config.rabbitQueue,
+      deadLetterExchange: config.rabbitDeadLetterExchange,
+      deadLetterQueue: config.rabbitDeadLetterQueue,
+      deadLetterRoutingKey: config.rabbitDeadLetterRoutingKey,
+      logger: app.log
+    });
+    app.log.info({ exchange: config.rabbitExchange, queue: config.rabbitQueue }, 'RabbitMqPublisher enabled');
   } else {
     publisher = new LoggingPublisher(app.log);
     if (config.publisherKind === 'kafka') {
       app.log.warn('Kafka requested but no brokers configured, falling back to LoggingPublisher');
+    } else if (config.publisherKind === 'rabbitmq') {
+      app.log.warn('RabbitMQ requested but no configuration provided, falling back to LoggingPublisher');
     }
   }
   const poller = new OutboxPoller(di.outboxRepo, publisher, { intervalMs: config.outboxPollIntervalMs, batchSize: config.outboxBatchSize, logger: app.log });
@@ -79,7 +98,21 @@ async function build() {
       lagIntervalMs: config.kafkaConsumerLagIntervalMs,
       logger: app.log
     });
-  consumer.start().catch((e: any) => app.log.error(e, 'consumer start failed'));
+    consumer.start().catch((e: any) => app.log.error(e, 'consumer start failed'));
+  } else if (config.consumerKind === 'rabbitmq') {
+    consumer = new RabbitMqDeadLetterConsumer({
+      url: config.rabbitUrl,
+      exchange: config.rabbitExchange,
+      routingKey: config.rabbitRoutingKey,
+      queue: config.rabbitQueue,
+      deadLetterExchange: config.rabbitDeadLetterExchange,
+      deadLetterQueue: config.rabbitDeadLetterQueue,
+      deadLetterRoutingKey: config.rabbitDeadLetterRoutingKey,
+      checkIntervalMs: config.rabbitDeadLetterCheckIntervalMs,
+      alertThreshold: config.rabbitDeadLetterAlertThreshold,
+      logger: app.log
+    });
+    consumer.start().catch((e: any) => app.log.error(e, 'rabbitmq dead-letter consumer failed'));
   } else if (config.consumerKind === 'logging') {
     consumer = new LoggingConsumer();
     await consumer.start();

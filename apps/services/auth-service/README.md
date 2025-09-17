@@ -55,6 +55,12 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 > Nota: En modo test se ignoran credenciales reales de Postgres/Redis porque se usan mocks en memoria; para producción deberán definirse URLs reales.
 
 ## Endpoints principales
+- GET `/authorize`
+- POST `/token`
+- GET `/userinfo`
+- POST `/introspection`
+- POST `/revocation`
+- GET `/.well-known/openid-configuration`
 - POST `/register`
 - POST `/login`
 - POST `/logout`
@@ -126,6 +132,63 @@ Errores típicos (HTTP 400/404/410): token inválido, expirado, ya usado.
 
 Documento ampliado: [Flujo Password Reset — detalle](../../../docs/auth/password-reset.md).
 
+### Validación cruzada con User Service
+- Cliente HTTP con `fetch` nativo, timeouts configurables y reintentos exponenciales cortos.
+- `AUTH_USER_SERVICE_MODE=mock` permite aislar pruebas; `http` ejecuta POST `AUTH_USER_SERVICE_VALIDATE_PATH`.
+- En producción se debe fijar `AUTH_USER_SERVICE_MODE=http` junto a `AUTH_USER_SERVICE_URL`; si falta la URL o se fuerza `mock` el servicio falla en el arranque para evitar mocks accidentales.
+- El cliente propaga `roles`, `permissions` y `status` devueltos por el User Service y los persiste durante el registro.
+- `bypass` fuerza aprobación (útil en entornos de contingencia controlados).
+
+### Ejemplo Authorization Code + PKCE
+1. **Redirección inicial** (requiere un access token válido del usuario):
+   ```bash
+   curl -i -G "http://localhost:8080/authorize" \
+     -H "Authorization: Bearer <ACCESS_TOKEN>" \
+     --data-urlencode "response_type=code" \
+     --data-urlencode "client_id=squarespace" \
+     --data-urlencode "redirect_uri=https://www.smart-edify.com/auth/callback" \
+     --data-urlencode "scope=openid profile email offline_access" \
+     --data-urlencode "code_challenge=<CODE_CHALLENGE>" \
+     --data-urlencode "code_challenge_method=S256"
+   ```
+   La respuesta devuelve `302` con el parámetro `code` en la URL de callback.
+
+2. **Intercambio de código por tokens**:
+   ```bash
+   curl -X POST http://localhost:8080/token \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "grant_type=authorization_code" \
+     -d "code=<CODE_FROM_STEP_1>" \
+     -d "redirect_uri=https://www.smart-edify.com/auth/callback" \
+     -d "client_id=squarespace" \
+     -d "code_verifier=<CODE_VERIFIER>"
+   ```
+   Respuesta: `access_token`, `refresh_token`, `id_token`, `scope` y `expires_in`.
+
+3. **UserInfo con scopes `profile`/`email`**:
+   ```bash
+   curl http://localhost:8080/userinfo \
+     -H "Authorization: Bearer <ACCESS_TOKEN>"
+   ```
+
+4. **Introspección y revocación**:
+   ```bash
+   curl -X POST http://localhost:8080/introspection \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "client_id=squarespace" \
+     -d "token=<ACCESS_OR_REFRESH_TOKEN>"
+
+   curl -X POST http://localhost:8080/revocation \
+     -H "Content-Type: application/x-www-form-urlencoded" \
+     -d "client_id=squarespace" \
+     -d "token=<ACCESS_OR_REFRESH_TOKEN>"
+   ```
+
+5. **Discovery OIDC**:
+   ```bash
+   curl http://localhost:8080/.well-known/openid-configuration | jq
+   ```
+
 ## Observabilidad y seguridad
 ### Observabilidad
 - Métricas HTTP + contadores negocio (`auth_login_success_total`, `auth_login_fail_total`, `auth_password_reset_*`, `auth_refresh_rotated_total`, `auth_refresh_reuse_blocked_total`).
@@ -141,13 +204,14 @@ Documento ampliado: [Flujo Password Reset — detalle](../../../docs/auth/passwo
 - Revocación de refresh tokens vía logout y deny-list corta para access/refresh tokens comprometidos.
 
 ## Rotación de Claves JWT (JWKS)
-> Procedimiento operacional detallado: [Runbook — Rotación de claves (Auth)](../../../docs/runbooks/incident-auth-key-rotation.md).
+> Procedimiento operacional detallado: [Runbook — Rotación de claves (Auth)](../../../docs/operations/incident-auth-key-rotation.md).
 
 Se implementó un almacén de claves rotativas en la tabla `auth_signing_keys` con estados `current`, `next`, `retiring`, `expired`.
 
 Endpoints:
 - `GET /.well-known/jwks.json` devuelve claves públicas activas (`current`, `next`, `retiring`).
-- `POST /admin/rotate-keys` fuerza rotación manual (MVP sin auth; proteger en producción).
+- `POST /admin/rotate-keys` fuerza rotación manual (requiere credencial administrativa).
+- `POST /admin/revoke-kid` invalida sesiones activas firmadas con un `kid` comprometido y marca la clave como revocada (requiere credencial administrativa).
 
 Emisión y verificación de tokens:
 - Los access y refresh tokens se firman con `RS256` usando la clave `current` e incluyen `kid`.
@@ -168,13 +232,23 @@ Formato JWKS:
 
 Limitaciones pendientes:
 - No hay job que marque `retiring -> expired` tras periodo de gracia.
-- Endpoint de rotación sin control de acceso.
+- Pendiente migrar a mecanismo de autenticación mutua (mTLS / IAM) para el endpoint administrativo.
 - Faltan alertas sobre ausencia de `next` o edad excesiva de `current`.
+
+### Validación automatizada
+- `tests/security/keys.test.ts` fuerza `rotateKeys()` y comprueba que la clave anterior queda marcada como `retiring` (incluyendo la marca `retiring_at`) y que el JWKS expone entradas para `current`, `next` y `retiring` con los `kid` esperados.
+- `tests/security/jwt.test.ts` redefine temporalmente `AUTH_JWT_ACCESS_TTL=5s` y `AUTH_JWT_REFRESH_TTL=10s`, mockea el reloj para provocar `TokenExpiredError` y verifica que existe tolerancia al clock-skew mientras el desfase permanezca dentro del TTL.
+
+### Operaciones administrativas protegidas
+
+- Establece `AUTH_ADMIN_API_KEY` con una credencial segura (idealmente inyectada vía secret manager).
+- Opcionalmente redefine el header esperado mediante `AUTH_ADMIN_API_HEADER` (por defecto `x-admin-api-key`).
+- Solicitudes sin credencial retornan `401`, credenciales inválidas `403` y una credencial válida permite el flujo (`200`).
 
 Pruebas locales rápidas:
 ```bash
 curl -s http://localhost:8080/.well-known/jwks.json | jq
-curl -XPOST http://localhost:8080/admin/rotate-keys
+curl -XPOST http://localhost:8080/admin/rotate-keys -H "X-Admin-Api-Key: $AUTH_ADMIN_API_KEY"
 ```
 
 ## Métricas (Prometheus)
@@ -312,6 +386,12 @@ Sólo unitarias:
 ```powershell
 npm test -- tests/unit
 ```
+
+Flujos críticos RBAC (`authorize`/`token`/`introspection`/`revocation`):
+```powershell
+npm run test:rbac
+```
+Ejecuta la validación end-to-end contra Postgres real (stage `integration`) y revalida los contratos HTTP (stage `contract`) para bloquear regresiones de scopes/roles.
 
 #### Mocks
 - `tests/security/*` mockean `../../internal/adapters/db/pg.adapter` e `ioredis` para evitar dependencias externas.

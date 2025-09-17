@@ -1,0 +1,753 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
+jobs:
+  openapi:
+    name: OpenAPI Lint (Spectral)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Install tooling dependencies
+        run: npm ci
+      - name: Lint OpenAPI contracts
+        run: npm run lint:openapi
+  lint:
+    needs: openapi
+    name: Lint (${{ matrix.service }} · Node ${{ matrix.node }} · ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-service
+            node: 18.x
+            os: ubuntu-latest
+          - service: auth-service
+            node: 20.x
+            os: ubuntu-latest
+          - service: tenant-service
+            node: 18.x
+            os: ubuntu-latest
+          - service: tenant-service
+            node: 20.x
+            os: ubuntu-latest
+          - service: auth-service
+            node: 20.x
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: apps/services/${{ matrix.service }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: apps/services/${{ matrix.service }}
+      - name: Type check
+        shell: bash
+        working-directory: apps/services/${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          if node -e "process.exit(require('./package.json').scripts?.build ? 0 : 1)" >/dev/null 2>&1; then
+            npm run build -- --noEmit
+          elif node -e "process.exit(require('./package.json').scripts?.typecheck ? 0 : 1)" >/dev/null 2>&1; then
+            npm run typecheck
+          elif [ -f tsconfig.json ] && [ -f node_modules/typescript/package.json ]; then
+            npx tsc --noEmit
+          else
+            echo "No typecheck script detected; skipping"
+          fi
+      - name: Run ESLint
+        run: npm run lint
+        working-directory: apps/services/${{ matrix.service }}
+
+  secret-scan:
+    name: Secret Scan (Gitleaks)
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Gitleaks
+        uses: zricethezav/gitleaks-action@v2
+        with:
+          args: detect --report-format sarif --report-path gitleaks.sarif
+      - name: Upload Gitleaks SARIF artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-sarif
+          path: gitleaks.sarif
+      - name: Publish Gitleaks SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
+          category: gitleaks
+
+  unit:
+    name: Unit Tests (${{ matrix.service }} · Node ${{ matrix.node }})
+    needs: [lint, secret-scan]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-service
+            node: 18.x
+          - service: auth-service
+            node: 20.x
+          - service: user-service
+            node: 18.x
+          - service: user-service
+            node: 20.x
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: smartedify
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
+    env:
+      SERVICE_DIR: apps/services/${{ matrix.service }}
+      NODE_ENV: test
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: smartedify
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      AUTH_LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run database migrations
+        if: matrix.service == 'auth-service'
+        run: npm run migrate
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run unit tests with coverage
+        shell: bash
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          set -euo pipefail
+          coverage_dir="coverage/unit"
+          if node -e "process.exit(require('./package.json').scripts?.['test:proj:unit'] ? 0 : 1)" >/dev/null 2>&1; then
+            npm run test:proj:unit -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
+          else
+            npm test -- --runInBand --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov --testPathPattern=tests/unit
+          fi
+      - name: Upload unit coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage__${{ matrix.service }}__${{ matrix.node }}__unit
+          path: |
+            ${{ env.SERVICE_DIR }}/coverage/unit/cobertura-coverage.xml
+            ${{ env.SERVICE_DIR }}/coverage/unit/lcov.info
+          if-no-files-found: error
+
+  integration:
+    name: Integration Tests (${{ matrix.service }} · Node ${{ matrix.node }})
+    needs: [unit, secret-scan]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: auth-service
+            node: 18.x
+          - service: auth-service
+            node: 20.x
+          - service: user-service
+            node: 18.x
+          - service: user-service
+            node: 20.x
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: smartedify
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 5
+      redis:
+        image: redis:7.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 5
+    env:
+      SERVICE_DIR: apps/services/${{ matrix.service }}
+      NODE_ENV: test
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: smartedify
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      AUTH_LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run database migrations
+        if: matrix.service == 'auth-service'
+        run: npm run migrate
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run integration tests with coverage
+        shell: bash
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          set -euo pipefail
+          coverage_dir="coverage/integration"
+          if node -e "process.exit(require('./package.json').scripts?.['test:proj:integration'] ? 0 : 1)" >/dev/null 2>&1; then
+            npm run test:proj:integration -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
+          else
+            npm test -- --runInBand --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov --testPathPattern=tests/integration
+          fi
+      - name: Upload integration coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage__${{ matrix.service }}__${{ matrix.node }}__integration
+          path: |
+            ${{ env.SERVICE_DIR }}/coverage/integration/cobertura-coverage.xml
+            ${{ env.SERVICE_DIR }}/coverage/integration/lcov.info
+          if-no-files-found: error
+
+  tenant-service-observability:
+    name: Tenant service tracing smoke (Node 20)
+    needs: [unit, secret-scan]
+    runs-on: ubuntu-latest
+    env:
+      SERVICE_DIR: apps/services/tenant-service
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run observability smoke test
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm run test:smoke
+
+  contract:
+    name: Contract validation
+    needs: [integration, tenant-service-observability, secret-scan]
+    runs-on: ubuntu-latest
+    env:
+      SERVICE_NAME: auth-service
+      SERVICE_DIR: apps/services/auth-service
+      NODE_ENV: test
+      AUTH_LOG_LEVEL: warn
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Lint OpenAPI definitions (Spectral)
+        run: npx --yes @stoplight/spectral lint api/openapi/*.yaml
+      - name: Detect OpenAPI breaking changes against base
+        shell: bash
+        run: |
+          set -euo pipefail
+          base_ref="${{ github.base_ref }}"
+          before_sha="${{ github.event.before }}"
+          default_branch="${{ github.event.repository.default_branch || 'main' }}"
+          base_commit=""
+          if [ -n "$base_ref" ]; then
+            git fetch origin "$base_ref":"refs/remotes/origin/$base_ref"
+            base_commit="origin/$base_ref"
+          elif [ -n "$before_sha" ]; then
+            base_commit="$before_sha"
+          else
+            git fetch origin "$default_branch":"refs/remotes/origin/$default_branch"
+            base_commit="origin/$default_branch"
+          fi
+          if [ -z "$base_commit" ]; then
+            echo "::warning::No base reference resolved; skipping OpenAPI diff"
+            exit 0
+          fi
+          status=0
+          for spec in api/openapi/*.yaml; do
+            [ -f "$spec" ] || continue
+            if git cat-file -e "$base_commit:$spec" 2>/dev/null; then
+              tmp_base=$(mktemp)
+              git show "$base_commit:$spec" > "$tmp_base"
+              echo "Comparing $spec against $base_commit"
+              if ! npx --yes openapi-diff "$tmp_base" "$spec"; then
+                status=1
+              fi
+              rm -f "$tmp_base"
+            else
+              echo "::notice::No base version of $spec found in $base_commit; treating as new file"
+            fi
+          done
+          exit $status
+      - name: Install service dependencies
+        run: npm ci
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run contract tests with coverage
+        id: contract_tests
+        shell: bash
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: |
+          set -euo pipefail
+          coverage_dir="coverage/contract"
+          npm run test:proj:contract -- --coverage --coverageDirectory="$coverage_dir" --coverageReporters=cobertura --coverageReporters=text-summary --coverageReporters=lcov
+          echo "coverage=true" >> "$GITHUB_OUTPUT"
+      - name: Upload contract coverage artifact
+        if: steps.contract_tests.outputs.coverage == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage__${{ env.SERVICE_NAME }}__20.x__contract
+          path: |
+            ${{ env.SERVICE_DIR }}/coverage/contract/cobertura-coverage.xml
+            ${{ env.SERVICE_DIR }}/coverage/contract/lcov.info
+          if-no-files-found: error
+      - name: Upload contract snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-snapshots__${{ env.SERVICE_NAME }}
+          path: ${{ env.SERVICE_DIR }}/tests/contract/__snapshots__
+          if-no-files-found: warn
+
+  coverage:
+    name: Coverage summary
+    needs: [unit, integration, contract, secret-scan]
+    runs-on: ubuntu-latest
+    env:
+      COVERAGE_THRESHOLD: '80'
+    steps:
+      - name: Download coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: coverage-reports
+      - name: Generate summary
+        run: |
+          python - <<'PY'
+          import os
+          import pathlib
+          import sys
+          import xml.etree.ElementTree as ET
+
+          base = pathlib.Path('coverage-reports')
+          files = list(base.rglob('cobertura-coverage.xml'))
+          if not files:
+              print('::error::No coverage reports found')
+              sys.exit(1)
+
+          threshold = float(os.environ.get('COVERAGE_THRESHOLD', '0'))
+          from collections import defaultdict
+
+          summary_lines = ['| Service | Node | Suite | Line coverage (%) |', '| --- | --- | --- | --- |']
+          service_rates = defaultdict(list)
+          below_threshold = []
+
+          def parse_artifact_name(name: str):
+              parts = name.split('__')
+              if len(parts) != 4 or parts[0] != 'coverage':
+                  return None
+              _, service, node, suite = parts
+              return service, node, suite
+
+          for xml_path in sorted(files):
+              artifact = xml_path.parts[1]
+              parsed = parse_artifact_name(artifact)
+              if not parsed:
+                  print(f"::warning::Skipping unexpected artifact naming: {artifact}")
+                  continue
+
+              service, node, suite = parsed
+
+              tree = ET.parse(xml_path)
+              root = tree.getroot()
+              line_rate = float(root.attrib.get('line-rate', '0')) * 100
+              summary_lines.append(f"| {service} | {node} | {suite} | {line_rate:.2f} |")
+              service_rates[service].append(line_rate)
+
+          if not service_rates:
+              print('::error::No recognizable coverage reports found')
+              sys.exit(1)
+
+          summary_lines.append('')
+          summary_lines.append('### Service coverage (minimum across suites & nodes)')
+          summary_lines.append('| Service | Min coverage (%) | Status |')
+          summary_lines.append('| --- | --- | --- |')
+
+          for service in sorted(service_rates):
+              min_rate = min(service_rates[service])
+              status = '✅' if min_rate >= threshold else '❌'
+              summary_lines.append(f"| {service} | {min_rate:.2f} | {status} |")
+              if min_rate < threshold:
+                  below_threshold.append(f"{service} -> {min_rate:.2f}%")
+
+          summary = '\n'.join(summary_lines) + '\n'
+          pathlib.Path('coverage-summary.md').write_text(summary)
+
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary_path:
+              with open(summary_path, 'a', encoding='utf-8') as handle:
+                  handle.write(summary)
+
+          if below_threshold:
+              print('::error::Coverage below threshold for: ' + ', '.join(below_threshold))
+              sys.exit(1)
+          PY
+      - name: Upload coverage summary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-summary
+          path: coverage-summary.md
+
+  sast:
+    name: SAST (CodeQL)
+    needs: [lint, secret-scan]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['javascript']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: '/language:${{ matrix.language }}'
+
+  trivy:
+    name: Trivy FS & Image Scans
+    needs: [contract, secret-scan]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      id-token: write
+    env:
+      SERVICES: "auth-service tenant-service user-service"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build service images
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          for service in "${services[@]}"; do
+            docker build -t smartedify/${service}:ci apps/services/${service}
+          done
+      - name: Install Syft CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
+          syft version
+      - name: Install Trivy CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+          trivy --version
+      - name: Set up Cosign
+        uses: sigstore/cosign-installer@v3
+        with:
+          cosign-release: 'v2.1.1'
+      - name: Generate SBOMs (Syft & Trivy)
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          mkdir -p supply-chain/sboms/syft supply-chain/sboms/trivy
+          for service in "${services[@]}"; do
+            image="smartedify/${service}:ci"
+            syft_dir="supply-chain/sboms/syft/${service}"
+            trivy_dir="supply-chain/sboms/trivy/${service}"
+            mkdir -p "${syft_dir}" "${trivy_dir}"
+
+            syft "${image}" -q -o cyclonedx-json --file "${syft_dir}/syft-${service}-cyclonedx.json"
+            syft "${image}" -q -o spdx-json --file "${syft_dir}/syft-${service}-spdx.json"
+
+            trivy sbom --quiet --skip-db-update --format cyclonedx --output "${trivy_dir}/trivy-${service}-cyclonedx.json" "${image}"
+            trivy sbom --quiet --skip-db-update --format spdx-json --output "${trivy_dir}/trivy-${service}-spdx.json" "${image}"
+          done
+      - name: Record image digests
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          mkdir -p supply-chain/digests
+          for service in "${services[@]}"; do
+            image="smartedify/${service}:ci"
+            digest=$(docker image inspect --format='{{index .RepoDigests 0}}' "${image}" || true)
+            if [ -z "${digest}" ]; then
+              image_id=$(docker image inspect --format='{{.Id}}' "${image}")
+              digest="smartedify/${service}@${image_id}"
+            fi
+            printf '%s\n' "${digest}" > "supply-chain/digests/${service}.txt"
+          done
+      - name: Sign container images (Cosign)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_YES: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          mkdir -p supply-chain/signatures
+          for service in "${services[@]}"; do
+            image="smartedify/${service}:ci"
+            sign_dir="supply-chain/signatures/${service}"
+            mkdir -p "${sign_dir}"
+            cosign sign --keyless --upload=false --tlog-upload=false \
+              --output-signature "${sign_dir}/image.sig" \
+              --output-certificate "${sign_dir}/image.pem" \
+              "${image}"
+          done
+      - name: Create CycloneDX attestations (Cosign)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          COSIGN_YES: "true"
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          mkdir -p supply-chain/attestations
+          for service in "${services[@]}"; do
+            image="smartedify/${service}:ci"
+            predicate="supply-chain/sboms/syft/${service}/syft-${service}-cyclonedx.json"
+            attest_dir="supply-chain/attestations/${service}"
+            mkdir -p "${attest_dir}"
+            cosign attest --keyless --upload=false --tlog-upload=false \
+              --type cyclonedx \
+              --predicate "${predicate}" \
+              --output-signature "${attest_dir}/cyclonedx.sig" \
+              --output-certificate "${attest_dir}/cyclonedx.pem" \
+              "${image}" > "${attest_dir}/cyclonedx.intoto.jsonl"
+          done
+      - name: Verify image signatures (Cosign)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          for service in "${services[@]}"; do
+            digest=$(cat "supply-chain/digests/${service}.txt")
+            sign_dir="supply-chain/signatures/${service}"
+            cosign verify --offline \
+              --certificate "${sign_dir}/image.pem" \
+              --signature "${sign_dir}/image.sig" \
+              "${digest}"
+          done
+      - name: Verify SBOM attestations (Cosign)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          for service in "${services[@]}"; do
+            digest=$(cat "supply-chain/digests/${service}.txt")
+            attest_dir="supply-chain/attestations/${service}"
+            cosign verify-attestation --offline --type cyclonedx \
+              --certificate "${attest_dir}/cyclonedx.pem" \
+              --signature "${attest_dir}/cyclonedx.sig" \
+              "${digest}" > "${attest_dir}/cyclonedx.verified.intoto.jsonl"
+          done
+      - name: Upload SBOM and signing artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-artifacts
+          path: |
+            supply-chain/sboms
+            supply-chain/signatures
+            supply-chain/attestations
+            supply-chain/digests
+          if-no-files-found: error
+      - name: Trivy filesystem scan (report)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-fs.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+      - name: Enforce critical findings (filesystem)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: fs
+          ignore-unfixed: true
+          format: table
+          output: trivy-fs-critical.txt
+          severity: CRITICAL
+          skip-db-update: true
+          exit-code: '1'
+      - name: Upload filesystem scan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-fs-reports
+          path: |
+            trivy-fs.sarif
+            trivy-fs-critical.txt
+      - name: Upload filesystem SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-fs.sarif
+          category: trivy-fs
+      - name: Trivy image scan (auth-service report)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/auth-service:ci
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-auth-service.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          skip-db-update: true
+      - name: Enforce critical findings (auth-service image)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/auth-service:ci
+          ignore-unfixed: true
+          format: table
+          output: trivy-auth-service-critical.txt
+          severity: CRITICAL
+          skip-db-update: true
+          exit-code: '1'
+      - name: Trivy image scan (tenant-service report)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/tenant-service:ci
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-tenant-service.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          skip-db-update: true
+      - name: Enforce critical findings (tenant-service image)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/tenant-service:ci
+          ignore-unfixed: true
+          format: table
+          output: trivy-tenant-service-critical.txt
+          severity: CRITICAL
+          skip-db-update: true
+          exit-code: '1'
+      - name: Trivy image scan (user-service report)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/user-service:ci
+          ignore-unfixed: true
+          format: sarif
+          output: trivy-user-service.sarif
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          skip-db-update: true
+      - name: Enforce critical findings (user-service image)
+        uses: aquasecurity/trivy-action@v0
+        with:
+          scan-type: image
+          image-ref: smartedify/user-service:ci
+          ignore-unfixed: true
+          format: table
+          output: trivy-user-service-critical.txt
+          severity: CRITICAL
+          skip-db-update: true
+          exit-code: '1'
+      - name: Upload image scan artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-image-reports
+          path: |
+            trivy-auth-service.sarif
+            trivy-auth-service-critical.txt
+            trivy-tenant-service.sarif
+            trivy-tenant-service-critical.txt
+            trivy-user-service.sarif
+            trivy-user-service-critical.txt
+      - name: Upload image SARIF (auth-service)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-auth-service.sarif
+          category: trivy-auth-service
+      - name: Upload image SARIF (tenant-service)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-tenant-service.sarif
+          category: trivy-tenant-service
+      - name: Upload image SARIF (user-service)
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-user-service.sarif
+          category: trivy-user-service

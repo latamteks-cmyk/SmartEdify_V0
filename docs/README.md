@@ -11,8 +11,10 @@ Este documento sirve como índice vivo para la operación, referencia y seguimie
 ## 2. Guías y lineamientos clave
 - [Lineamientos de arquitectura](architecture/guidelines.md)
 - [Guía de CI/CD y operaciones](operations/ci-cd.md)
+- Pipeline CI/CD obliga verificación de firmas y attestations (Cosign) antes de publicar imágenes y documenta la promoción/rollback de Auth Service.
 - [Guía de eventos y contratos](eventing-guidelines.md)
 - [Guía de seguridad y hardening](security-hardening.md)
+- Lint OpenAPI automatizado: `npm run lint:openapi` (Spectral con `.spectral.yaml`) y job `ci.yml` → `OpenAPI Lint`.
 
 ## 3. Estado y dependencias
 - **Áreas críticas**: ver sección de riesgos y pendientes en `ARCHITECTURE.md` y `docs/tareas.md`.
@@ -24,11 +26,79 @@ Este documento sirve como índice vivo para la operación, referencia y seguimie
   | Mobile App   | No iniciada; alcance y navegación documentados en backlog móvil. | Auth Service, Tenant Service |
 
 ## 4. Catálogo de endpoints y contratos
-- Contratos OpenAPI en `api/openapi/` (verifica siempre contra la rama principal).
-- Ejemplo de endpoints activos:
-  - **Auth Service**: `/register`, `/login`, `/refresh-token`, `/forgot-password`, `/reset-password`, `/health`, `/metrics`.
+- **Contratos OpenAPI**:
+  - **Auth Service** (`v1.2.0`): `api/openapi/auth.yaml`. Incluye los flujos `/authorize`, `/token`, `/userinfo`, `/introspection`, `/revocation`, los alias `/oauth/*`, discovery `/.well-known/*`, métricas y rotación manual de JWKS. Se añadieron los campos opcionales de discovery (`service_documentation`, métodos de autenticación por endpoint) y ejemplos de error consistentes con la implementación actual.
+  - **Tenant Service** (`v0.4.x`): contrato en consolidación (ver `docs/openapi-guidelines.md` y backlog en `docs/tareas.md`).
+  - **Assembly Service** (`v1.1.0`): `api/openapi/assembly.yaml` con descripciones enriquecidas, respuestas de error estandarizadas y ejemplos para flujos de convocatoria, check-in y voto.
+  - **User Service** (`v1.0.0`): `api/openapi/user.yaml` con contrato CRUD completo, ejemplos y respuestas estandarizadas.
+- **Documentos de descubrimiento OIDC** (mantener sincronizados con despliegues):
+  - `/.well-known/openid-configuration` y `/.well-known/jwks.json` contienen la instantánea canonical del proveedor.
+  - `docs/oidc/openid-configuration.json` y `docs/oidc/jwks.json` replican los valores publicados para referencia offline.
+- **Hallazgos de auditoría — Auth Service**:
+  1. El contrato previo sólo cubría el MVP (`/register`, `/login`, `/refresh-token`) → se añadieron todos los endpoints públicos activos y alias `/oauth/*`.
+  2. No se documentaban los códigos de error ni los payloads de respuesta → se normalizaron respuestas JSON, `operationId` y esquemas reutilizables.
+  3. Los documentos `/.well-known/*` no estaban versionados → se añadieron snapshots en `docs/oidc/` para discovery y JWKS.
+  4. No existía automatización formal de rotación JWKS → se agregó el job `npm run jwks:rotate` con verificación y métricas de edad.
+- **Ejemplos de endpoints activos**:
+  - **Auth Service**: `/register`, `/login`, `/refresh-token`, `/logout`, `/forgot-password`, `/reset-password`, `/roles`, `/permissions`, `/authorize`, `/oauth/authorize`, `/token`, `/oauth/token`, `/userinfo`, `/oauth/userinfo`, `/introspection`, `/oauth/introspection`, `/revocation`, `/oauth/revocation`, `/.well-known/openid-configuration`, `/.well-known/jwks.json`, `/health`, `/metrics`.
   - **Tenant Service**: `/tenants`, `/tenants/{id}`, `/tenants/{id}/units`, `/units/{id}/memberships`, `/tenant-context`, `/governance/transfer-admin`.
 - Para detalles y seguridad, consulta los archivos OpenAPI y la documentación de cada servicio.
+
+### Referencia rápida OIDC / ejemplos
+- **Authorization Code + PKCE**:
+  ```bash
+  curl -G "https://auth.smartedify.com/authorize" \
+    -H "Authorization: Bearer <ACCESS_TOKEN>" \
+    --data-urlencode "response_type=code" \
+    --data-urlencode "client_id=squarespace" \
+    --data-urlencode "redirect_uri=https://www.smart-edify.com/auth/callback" \
+    --data-urlencode "scope=openid profile email offline_access" \
+    --data-urlencode "code_challenge=<CODE_CHALLENGE>" \
+    --data-urlencode "code_challenge_method=S256"
+  ```
+- **Authorization Code + PKCE (alias `/oauth/authorize`)**:
+  ```bash
+  curl -G "https://auth.smartedify.com/oauth/authorize" \
+    -H "Authorization: Bearer <ACCESS_TOKEN>" \
+    --data-urlencode "response_type=code" \
+    --data-urlencode "client_id=squarespace" \
+    --data-urlencode "redirect_uri=https://www.smart-edify.com/auth/callback" \
+    --data-urlencode "scope=openid profile email offline_access" \
+    --data-urlencode "code_challenge=<CODE_CHALLENGE>" \
+    --data-urlencode "code_challenge_method=S256"
+  ```
+- **Intercambio de tokens**:
+  ```bash
+  curl -X POST https://auth.smartedify.com/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=authorization_code" \
+    -d "code=<CODE>" \
+    -d "redirect_uri=https://www.smart-edify.com/auth/callback" \
+    -d "client_id=squarespace" \
+    -d "code_verifier=<CODE_VERIFIER>"
+  ```
+- **Intercambio de tokens (alias `/oauth/token`)**:
+  ```bash
+  curl -X POST https://auth.smartedify.com/oauth/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=refresh_token" \
+    -d "refresh_token=<REFRESH_TOKEN>" \
+    -u "client-id:client-secret"
+  ```
+- **UserInfo con scope `profile email`**:
+  ```bash
+  curl https://auth.smartedify.com/userinfo \
+    -H "Authorization: Bearer <ACCESS_TOKEN>"
+  ```
+- **Discovery**:
+  ```bash
+  curl https://auth.smartedify.com/.well-known/openid-configuration | jq
+  ```
+- **Rotación JWKS (job batch)**:
+  ```bash
+  npm run jwks:rotate
+  ```
+  El job publica nuevas llaves via `/admin/rotate-keys`, verifica el documento `/.well-known/jwks.json` y emite métricas `auth_jwks_key_age_hours{status="current"}` y `auth_jwks_key_age_hours{status="next"}` en stdout.
 
 ## 5. Referencias cruzadas y trazabilidad
 - Documento rector: `../ARCHITECTURE.md`
@@ -49,10 +119,10 @@ Protocolos detallados en [Política operativa y de CI/CD](operations/ci-cd.md).
 - `ADR-0004` — Publisher & Envelope en outbox para eventos confiables.
 - `ADR-0005` — Consumer processing con métricas y retries controlados.
 - `ADR-0006` — Estrategia de tracing distribuido (en implementación progresiva).
-- `ADR-0007` — Plan de rotación JWKS y gestión de claves.
+- `ADR-0007` — Plan de rotación JWKS y gestión de claves (**Aceptado**).
 
 ### Referencias y apéndices
-- Snapshot estratégico actualizado: `docs/status.md` (2025-09-15).
+- Snapshot estratégico actualizado: `docs/status.md` (2025-09-23).
 - Especificación técnica consolidada: `docs/spec.md`.
 - Auditorías periódicas: `docs/audits/2025-09-16-structure.md`.
 - Glosario y runbooks ampliados permanecen en elaboración: seguimiento en `docs/tareas.md` (sección Documentación).
@@ -90,7 +160,7 @@ Protocolos detallados en [Política operativa y de CI/CD](operations/ci-cd.md).
 
 Estructura monorepo y premisas. Objetivo: entrega rápida, calidad constante, auditoría simple.
 
-> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-15). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
+> Snapshot estratégico actualizado: ver `docs/status.md` (2025-09-23). Especificación técnica consolidada en `docs/spec.md`. Backlog granular en `docs/tareas.md`.
 
 ### 1) Estructura de carpetas (estado actual — 2025-09-22)
 
@@ -229,6 +299,7 @@ apps/mobile-app/             # Estructura objetivo (no creada)
   - `auth_http_request_duration_seconds` (histogram)
   - Métricas por defecto Node (GC, heap, event loop)
 * Métricas de negocio (implementadas en auth-service: login_success_total, login_fail_total, password_reset_requested_total, password_reset_completed_total, refresh_rotated_total, refresh_reuse_blocked_total) – exportadas junto a métricas técnicas.
+* Métricas de llaves JWKS: `auth_jwks_keys_total{status}` y `auth_jwks_rotation_total`; el job `npm run jwks:rotate` ejecuta la rotación via `/admin/rotate-keys`, valida el JWKS publicado y reporta la edad de cada clave (stdout y métricas Prometheus).
 
 # SmartEdify — Documentación principal
 
