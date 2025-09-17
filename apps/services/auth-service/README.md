@@ -105,6 +105,7 @@ HandlerRefresh --> CtxAPI
 ### Validación cruzada con User Service
 - Cliente HTTP con `fetch` nativo, timeouts configurables y reintentos exponenciales cortos.
 - `AUTH_USER_SERVICE_MODE=mock` permite aislar pruebas; `http` ejecuta POST `AUTH_USER_SERVICE_VALIDATE_PATH`.
+- En producción se debe fijar `AUTH_USER_SERVICE_MODE=http` junto a `AUTH_USER_SERVICE_URL`; si falta la URL o se fuerza `mock` el servicio falla en el arranque para evitar mocks accidentales.
 - El cliente propaga `roles`, `permissions` y `status` devueltos por el User Service y los persiste durante el registro.
 - `bypass` fuerza aprobación (útil en entornos de contingencia controlados).
 
