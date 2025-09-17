@@ -1,10 +1,4 @@
 jest.mock('ioredis');
-<<<<<<< HEAD
-// Eliminado mock inline de pg.adapter para usar el mock global
-import { issueTokenPair, verifyAccess, verifyRefresh, rotateRefresh } from '../../internal/security/jwt';
-import { getCurrentKey } from '../../internal/security/keys';
-=======
-jest.mock('ioredis');
 // Eliminado mock inline de pg.adapter para usar el mock global
 const originalAccessTtl = process.env.AUTH_JWT_ACCESS_TTL;
 const originalRefreshTtl = process.env.AUTH_JWT_REFRESH_TTL;
@@ -16,7 +10,6 @@ import { getCurrentKey } from '../../internal/security/keys';
 
 const ACCESS_TTL_MS = 5 * 1000;
 const REFRESH_TTL_MS = 10 * 1000;
->>>>>>> 082763a42d088791ac1d53e4f34daacb7f655f6c
 
 process.env.NODE_ENV = 'test';
 

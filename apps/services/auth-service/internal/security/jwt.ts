@@ -201,7 +201,6 @@ export async function rotateRefresh(oldRefreshToken: string): Promise<TokenPair 
     }
     await addToRevocationList(decoded.jti, 'refresh', 'rotated', Math.min(3600, REFRESH_TTL_SECONDS));
     await markRefreshRotated(decoded.jti, Math.min(3600, REFRESH_TTL_SECONDS));
-<<<<<<< HEAD
     return issueTokenPair({
       sub: decoded.sub,
       tenant_id: decoded.tenant_id,
@@ -210,16 +209,6 @@ export async function rotateRefresh(oldRefreshToken: string): Promise<TokenPair 
       client_id: decoded.client_id,
       auth_time: typeof decoded.auth_time === 'number' ? decoded.auth_time : undefined
     });
-=======
-  return issueTokenPair({
-      sub: decoded.sub,
-      tenant_id: decoded.tenant_id,
-      roles: decoded.roles,
-      scope: decoded.scope,
-      client_id: decoded.client_id,
-      auth_time: typeof decoded.auth_time === 'number' ? decoded.auth_time : undefined
-    });
->>>>>>> 082763a42d088791ac1d53e4f34daacb7f655f6c
   } catch (e) {
     if (process.env.DEBUG_REFRESH || process.env.AUTH_TEST_LOGS) console.log('[rotateRefresh] error verifying refresh', (e as any)?.message);
     return null;

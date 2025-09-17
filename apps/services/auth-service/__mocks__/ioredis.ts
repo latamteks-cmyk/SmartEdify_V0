@@ -127,10 +127,12 @@ class MockRedis {
 }
 
 // Exportación compatible ESM/CommonJS para Jest
-// Para que `import Redis from 'ioredis'` reciba un objeto con .default
-// y `require('ioredis')` reciba la clase directamente
+// Soporta: `import Redis from 'ioredis'` y `const Redis = require('ioredis')`
+export default MockRedis;
 // @ts-ignore
-if (typeof module !== 'undefined') {
+if (typeof module !== 'undefined' && module.exports) {
   // @ts-ignore
-  module.exports = { default: MockRedis };
+  module.exports = MockRedis;
+  // @ts-ignore
+  module.exports.default = MockRedis;
 }

@@ -8,15 +8,11 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-<<<<<<< HEAD
     "baseUrl": ".",
     "paths": {
       "@db/*": ["internal/adapters/db/*"]
     },
     "types": ["node", "jest"]
-=======
-    "types": ["node", "jest"]
->>>>>>> 082763a42d088791ac1d53e4f34daacb7f655f6c
   },
   "include": ["internal", "cmd", "tests", "migrations_ts", "jobs"]
 }

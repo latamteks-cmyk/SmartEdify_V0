@@ -149,7 +149,7 @@ export async function tokenHandler(req: Request, res: Response) {
       : typeof pair.roles === 'string'
       ? [pair.roles]
       : [];
-    const tenantId = typeof pair.tenant_id === 'string' ? pair.tenant_id : typeof pair.tenantId === 'string' ? pair.tenantId : 'default';
+    const tenantId = typeof pair.tenant_id === 'string' ? pair.tenant_id : 'default';
 
     let idToken: string | null = null;
     if (scopeString.includes('openid')) {

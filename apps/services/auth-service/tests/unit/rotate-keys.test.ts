@@ -1,6 +1,10 @@
 import request from 'supertest';
 import app from '../app.test';
 
+// Asegurar credenciales de admin para este test
+process.env.AUTH_ADMIN_API_KEY = 'test-admin-key';
+process.env.AUTH_ADMIN_API_HEADER = 'x-admin-api-key';
+
 /**
  * Rotación manual de claves:
  * - Asegura que al inicio hay una clave current.
@@ -19,7 +23,11 @@ describe('POST /admin/rotate-keys', () => {
     expect(initialCurrent).toBeDefined();
 
     // Primera rotación: si no existe next se generará y current sigue current
-    const rotate1 = await request(app).post('/admin/rotate-keys').send({}).expect(200);
+    const rotate1 = await request(app)
+      .post('/admin/rotate-keys')
+      .set(process.env.AUTH_ADMIN_API_HEADER || 'x-admin-api-key', process.env.AUTH_ADMIN_API_KEY || 'test-admin-key')
+      .send({})
+      .expect(200);
     expect(rotate1.body.current.kid).toBeDefined();
 
     jwksRes = await request(app).get('/.well-known/jwks.json').expect(200);
@@ -33,7 +41,11 @@ describe('POST /admin/rotate-keys', () => {
     expect(nextKidBefore).toBeDefined();
 
     // Segunda rotación: current -> retiring, next -> current, new next generado
-    const rotate2 = await request(app).post('/admin/rotate-keys').send({}).expect(200);
+    const rotate2 = await request(app)
+      .post('/admin/rotate-keys')
+      .set(process.env.AUTH_ADMIN_API_HEADER || 'x-admin-api-key', process.env.AUTH_ADMIN_API_KEY || 'test-admin-key')
+      .send({})
+      .expect(200);
     expect(rotate2.body.current.kid).toBeDefined();
 
     jwksRes = await request(app).get('/.well-known/jwks.json').expect(200);

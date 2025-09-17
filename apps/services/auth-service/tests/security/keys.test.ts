@@ -1,17 +1,8 @@
 jest.mock('ioredis');
 // Mock específico del pool usado en keys.ts (ruta relativa que keys usa: ../adapters/db/pg.adapter)
-<<<<<<< HEAD
-// Eliminado mock inline de pg.adapter para usar el mock global
-import { getCurrentKey, getNextKey, rotateKeys, buildJwks, getKeyByKid } from '../../internal/security/keys';
-=======
-jest.mock('ioredis');
-// Mock específico del pool usado en keys.ts (ruta relativa que keys usa: ../adapters/db/pg.adapter)
-// Eliminado mock inline de pg.adapter para usar el mock global
+// Eliminado mock inline de pg.adapter para usar el mock global (se configura en jest.setup)
 import { getCurrentKey, getNextKey, rotateKeys, getKeyByKid, getPublicJwks, __resetKeyCacheForTests } from '../../internal/security/keys';
 const dbPoolMock = require('../../internal/adapters/db/pg.adapter').default as any;
-import { getCurrentKey, getNextKey, rotateKeys, getKeyByKid, getPublicJwks, __resetKeyCacheForTests } from '../../internal/security/keys';
-const dbPoolMock = require('../../internal/adapters/db/pg.adapter').default as any;
->>>>>>> 082763a42d088791ac1d53e4f34daacb7f655f6c
 
 // Forzar entorno test
 envSetup();
