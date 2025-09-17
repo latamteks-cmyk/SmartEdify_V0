@@ -6,7 +6,8 @@ import {
   addToRevocationList,
   deleteSession,
   markRefreshRotated,
-  revokeRefreshToken
+  revokeRefreshToken,
+  addAccessTokenToDenyList
 } from '../redis/redis.adapter';
 import { tokenRevokedCounter } from '../../../cmd/server/main';
 
@@ -73,6 +74,11 @@ export async function revocationHandler(req: Request, res: Response) {
         await addToRevocationList(decoded.jti, 'access', 'revocation', ttl);
       } catch (e) {
         if (process.env.AUTH_TEST_LOGS) console.error('[revocation] addToRevocationList access failed', e);
+      }
+      try {
+        await addAccessTokenToDenyList(decoded.jti, 'revocation', ttl);
+      } catch (e) {
+        if (process.env.AUTH_TEST_LOGS) console.error('[revocation] addAccessTokenToDenyList failed', e);
       }
       try {
         tokenRevokedCounter.inc({ type: 'access' });

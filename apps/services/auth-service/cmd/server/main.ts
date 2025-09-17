@@ -34,6 +34,7 @@ import pool from '../../internal/adapters/db/pg.adapter';
 import { redisPing } from '../../internal/adapters/redis/redis.adapter';
 import { loginRateLimiter, bruteForceGuard } from '../../internal/middleware/rate-limit';
 import { getPublicJwks, rotateKeys, getCurrentKey } from '../../internal/security/keys';
+import { revokeSessionsByKid } from '../../internal/security/jwt';
 
 const rootLogger = pino({
   level: process.env.AUTH_LOG_LEVEL || 'info',
@@ -247,6 +248,20 @@ app.post('/admin/rotate-keys', async (_req, res) => {
   } catch (e: any) {
     logger.error({ err: e }, 'Error en rotación manual');
     res.status(500).json({ error: 'rotation_failed' });
+  }
+});
+
+app.post('/admin/revoke-kid', async (req, res) => {
+  const kid = typeof req.body?.kid === 'string' ? req.body.kid.trim() : '';
+  if (!kid) {
+    return res.status(400).json({ error: 'kid_required' });
+  }
+  try {
+    const result = await revokeSessionsByKid(kid);
+    res.json({ message: 'revoked', ...result });
+  } catch (e: any) {
+    logger.error({ err: e, kid }, 'Error revocando sesiones por kid');
+    res.status(500).json({ error: 'revoke_failed' });
   }
 });
 

@@ -162,13 +162,14 @@ HandlerRefresh --> CtxAPI
 - Revocación de refresh tokens vía logout y deny-list corta para access/refresh tokens comprometidos.
 
 ## Rotación de Claves JWT (JWKS)
-> Procedimiento operacional detallado: [Runbook — Rotación de claves (Auth)](../../../docs/runbooks/incident-auth-key-rotation.md).
+> Procedimiento operacional detallado: [Runbook — Rotación de claves (Auth)](../../../docs/operations/incident-auth-key-rotation.md).
 
 Se implementó un almacén de claves rotativas en la tabla `auth_signing_keys` con estados `current`, `next`, `retiring`, `expired`.
 
 Endpoints:
 - `GET /.well-known/jwks.json` devuelve claves públicas activas (`current`, `next`, `retiring`).
 - `POST /admin/rotate-keys` fuerza rotación manual (MVP sin auth; proteger en producción).
+- `POST /admin/revoke-kid` invalida sesiones activas firmadas con un `kid` comprometido y marca la clave como revocada.
 
 Emisión y verificación de tokens:
 - Los access y refresh tokens se firman con `RS256` usando la clave `current` e incluyen `kid`.

@@ -17,6 +17,21 @@ class MockRedis {
     return !!(entry && entry.expiresAt && entry.expiresAt < Date.now());
   }
 
+  private readSet(entry: Stored | undefined): Set<string> {
+    if (!entry) return new Set();
+    if (!entry.value.startsWith('__SET__:')) return new Set();
+    try {
+      const parsed = JSON.parse(entry.value.substring(8));
+      if (Array.isArray(parsed)) return new Set(parsed.map(String));
+    } catch {}
+    return new Set();
+  }
+
+  private writeSet(entry: Stored | undefined, set: Set<string>): Stored {
+    const expiresAt = entry?.expiresAt;
+    return { value: '__SET__:' + JSON.stringify(Array.from(set)), expiresAt };
+  }
+
   async set(key: string, value: string, mode?: string, ttl?: number) {
     const entry: Stored = { value };
     if (mode === 'EX' && typeof ttl === 'number') {
@@ -34,6 +49,48 @@ class MockRedis {
   async del(key: string) {
     this.store.delete(key);
     return 1;
+  }
+  async sadd(key: string, ...members: string[]) {
+    const entry = this.store.get(key);
+    const set = this.readSet(entry);
+    let added = 0;
+    for (const member of members) {
+      const str = String(member);
+      if (!set.has(str)) {
+        set.add(str);
+        added += 1;
+      }
+    }
+    const stored: Stored = this.writeSet(entry, set);
+    this.store.set(key, stored);
+    return added;
+  }
+  async smembers(key: string) {
+    const entry = this.store.get(key);
+    if (!entry || this.isExpired(entry)) {
+      this.store.delete(key);
+      return [];
+    }
+    return Array.from(this.readSet(entry));
+  }
+  async srem(key: string, ...members: string[]) {
+    const entry = this.store.get(key);
+    if (!entry || this.isExpired(entry)) {
+      this.store.delete(key);
+      return 0;
+    }
+    const set = this.readSet(entry);
+    let removed = 0;
+    for (const member of members) {
+      if (set.delete(String(member))) removed += 1;
+    }
+    const stored = this.writeSet(entry, set);
+    if (set.size === 0) {
+      this.store.delete(key);
+      return removed;
+    }
+    this.store.set(key, stored);
+    return removed;
   }
   // Incrementa valor numérico (interpreta falta como 0)
   async incr(key: string) {
