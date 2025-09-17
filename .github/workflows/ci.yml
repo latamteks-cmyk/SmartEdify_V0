@@ -243,9 +243,31 @@ jobs:
             ${{ env.SERVICE_DIR }}/coverage/integration/lcov.info
           if-no-files-found: error
 
+  tenant-service-observability:
+    name: Tenant service tracing smoke (Node 20)
+    needs: [unit, secret-scan]
+    runs-on: ubuntu-latest
+    env:
+      SERVICE_DIR: apps/services/tenant-service
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ${{ env.SERVICE_DIR }}
+      - name: Run observability smoke test
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm run test:smoke
+
   contract:
     name: Contract validation
-    needs: [integration, secret-scan]
+    needs: [integration, tenant-service-observability, secret-scan]
     runs-on: ubuntu-latest
     env:
       SERVICE_NAME: auth-service

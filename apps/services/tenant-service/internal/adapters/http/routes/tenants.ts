@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { tenantCreatedTotal } from '../../../metrics/registry.js';
+import { trace } from '@opentelemetry/api';
 
 const createTenantSchema = z.object({
   name: z.string().min(1),
@@ -21,6 +22,13 @@ export async function tenantRoutes(app: FastifyInstance) {
     const body: CreateTenantBody = parsed.data;
     const t = await repo.create(body);
     tenantCreatedTotal.inc();
+    const span = trace.getActiveSpan();
+    if (span) {
+      span.setAttribute('tenant.id', t.id);
+      if (t.code) {
+        span.setAttribute('tenant.code', t.code);
+      }
+    }
     await app.di.outboxRepo.enqueue({
       aggregateType: 'tenant',
       aggregateId: t.id,
