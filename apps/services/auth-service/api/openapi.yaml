@@ -302,7 +302,13 @@ components:
               format: email
             name:
               type: string
+            status:
+              type: string
             roles:
+              type: array
+              items:
+                type: string
+            permissions:
               type: array
               items:
                 type: string
@@ -310,7 +316,9 @@ components:
             - id
             - email
             - name
+            - status
             - roles
+            - permissions
       required:
         - message
         - user

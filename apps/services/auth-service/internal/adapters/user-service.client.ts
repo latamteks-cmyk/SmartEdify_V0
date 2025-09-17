@@ -119,9 +119,14 @@ export function createHttpUserServiceClient(options: HttpUserServiceClientOption
 }
 
 function resolveDefaultClient(): UserServiceClient {
-  const mode = (process.env.AUTH_USER_SERVICE_MODE || '').toLowerCase();
+  const rawMode = process.env.AUTH_USER_SERVICE_MODE
+    ?? (process.env.AUTH_USER_SERVICE_URL ? 'http' : 'mock');
+  const mode = rawMode.trim().toLowerCase();
 
   if (mode === 'mock') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('El modo mock del User Service está deshabilitado en producción');
+    }
     return createMockUserServiceClient();
   }
 
@@ -139,10 +144,25 @@ function resolveDefaultClient(): UserServiceClient {
     };
   }
 
+  if (mode !== 'http' && mode !== 'auto' && mode !== '') {
+    const warning = `[user-service] Modo desconocido "${mode}", usando mock`;
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(warning);
+    }
+    if (process.env.AUTH_TEST_LOGS) {
+      console.warn(warning);
+    }
+    return createMockUserServiceClient();
+  }
+
   const baseUrl = process.env.AUTH_USER_SERVICE_URL;
   if (!baseUrl) {
+    const message = 'AUTH_USER_SERVICE_URL debe configurarse cuando AUTH_USER_SERVICE_MODE=http';
+    if (mode === 'http' || process.env.NODE_ENV === 'production') {
+      throw new Error(message);
+    }
     if (process.env.AUTH_TEST_LOGS) {
-      console.warn('[user-service] AUTH_USER_SERVICE_URL no configurado, usando mock');
+      console.warn(`[user-service] ${message}; usando mock como fallback`);
     }
     return createMockUserServiceClient();
   }
