@@ -33,6 +33,7 @@ import { openIdConfigurationHandler } from '../../internal/adapters/http/openid-
 import pool from '../../internal/adapters/db/pg.adapter';
 import { redisPing } from '../../internal/adapters/redis/redis.adapter';
 import { loginRateLimiter, bruteForceGuard } from '../../internal/middleware/rate-limit';
+import { adminAuthMiddleware } from '../../internal/middleware/admin-auth';
 import { getPublicJwks, rotateKeys, getCurrentKey } from '../../internal/security/keys';
 import { revokeSessionsByKid } from '../../internal/security/jwt';
 
@@ -240,7 +241,7 @@ app.get('/.well-known/jwks.json', async (_req, res) => {
 app.get('/.well-known/openid-configuration', openIdConfigurationHandler);
 
 // Rotación manual (MVP) - proteger en producción
-app.post('/admin/rotate-keys', async (_req, res) => {
+app.post('/admin/rotate-keys', adminAuthMiddleware, async (_req, res) => {
   try {
     const result = await rotateKeys();
     jwksRotationCounter.inc();
@@ -251,7 +252,7 @@ app.post('/admin/rotate-keys', async (_req, res) => {
   }
 });
 
-app.post('/admin/revoke-kid', async (req, res) => {
+app.post('/admin/revoke-kid', adminAuthMiddleware, async (req, res) => {
   const kid = typeof req.body?.kid === 'string' ? req.body.kid.trim() : '';
   if (!kid) {
     return res.status(400).json({ error: 'kid_required' });
