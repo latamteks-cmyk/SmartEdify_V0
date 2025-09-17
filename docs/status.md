@@ -1,18 +1,19 @@
 # Status Ejecutivo Backend SmartEdify
-Fecha snapshot: 2025-09-22
-Versión documento: 1.1
+Fecha snapshot: 2025-09-23
+Versión documento: 1.2
 
 ## 0. Changelog de Snapshots
 | Fecha | Versión | Puntos clave |
 |-------|---------|--------------|
+| 2025-09-23 | 1.2 | Gate Cosign bloqueante, ADR-0007 aceptado, promoción/rollback Auth documentados. |
 | 2025-09-22 | 1.1 | Rotación JWKS operativa, métricas de negocio Auth publicadas y tracing básico en login/refresh. |
 | 2025-09-15 | 1.0 | Radiografía inicial con Auth estabilizado y Tenant Fase 0 completada. |
 
 ## 1. Resumen Ejecutivo
-Estado general: Plataforma en fase de endurecimiento. Auth-service ya opera con rotación dual de claves (JWKS) y métricas de negocio expuestas en dashboards de observabilidad; tracing básico disponible en los flujos críticos. Prioridad inmediata: cerrar gaps de contract testing (Auth/Tenant), ampliar trazas a tenant-context/outbox y reforzar el pipeline de supply-chain (SBOM + firma automatizada).
+Estado general: Plataforma en fase de endurecimiento. Auth-service opera con rotación dual de claves (JWKS) y métricas de negocio expuestas en dashboards de observabilidad; tracing básico disponible en los flujos críticos. El pipeline de supply-chain ahora bloquea el release ante fallas de firmas o attestations Cosign. Prioridad inmediata: cerrar gaps de contract testing (Auth/Tenant), ampliar trazas a tenant-context/outbox y extender controles de supply-chain al entorno runtime.
 
 Riesgos críticos mitigados: ausencia de rotación JWKS (rotación dual + métricas), inestabilidad pruebas integración (mock Redis duplicado, DB no real), fugas de handles Jest, outbox DLQ sin purga.
-Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad limitada en Tenant (medio), métricas de negocio Tenant sin definir (medio), ausencia SBOM/Firma con validación (medio-alto), políticas de logout/refresh aún laxas (medio).
+Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad limitada en Tenant (medio), métricas de negocio Tenant sin definir (medio), políticas de logout/refresh aún laxas (medio).
 
 ## 2. Estado por Servicio
 ### Auth Service
@@ -47,7 +48,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 | Seguridad | Hashing + rotación refresh + JWKS dual | Automatizar rotación + revoke list access |
 | Eventos | Outbox + DLQ tenant | Emitir `user.registered` completo y consumirlo en user-service |
 | CI/CD | Workflow auth parcial | Unificar plantillas + publicar reportes métricas en summary |
-| Supply-chain | SBOM + firmas automatizadas (Syft/Trivy/Cosign) | Definir políticas de verificación y volver el gate bloqueante |
+| Supply-chain | SBOM + firmas automatizadas (Syft/Trivy/Cosign) + gate Cosign bloqueante | Implementar políticas de admisión/OPA en clúster y firma de manifiestos |
 
 ## 4. Riesgos
 ### Mitigados
@@ -56,6 +57,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 - Fugas de handles Jest → Teardown explícito (Pool/Redis/metrics).
 - Sin rotación JWKS (claves estáticas) → Rotación dual + alerting expiración.
 - Ausencia de SBOM/firma en CI → Pipeline Syft+Trivy+Cosign con artefactos firmados y attestations.
+- Validación de firmas/attestations manual → Gate Cosign bloqueante en CI antes de publicar imágenes.
 
 ### Abiertos
 | Riesgo | Impacto | Prob. | Mitigación Propuesta | ETA |
@@ -63,7 +65,6 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 | Contract tests incompletos (Auth/Tenant) | Regresiones API silenciosas | Medio-Alto | Finalizar Spectral + snapshots end-to-end | T+10d |
 | Tracing parcial en Tenant | Diagnóstico degradado | Medio | Instrumentar tenant-context y outbox | T+7d |
 | Métricas negocio Tenant ausentes | Falta visibilidad activaciones | Medio | Definir KPIs + exponer gauges/counters | T+12d |
-| Validación automática SBOM/firma aún manual | Riesgo supply-chain | Medio | Automatizar políticas OPA/Cosign para bloquear deployments si falla verificación | T+21d |
 | Logout sin invalidación estricta access | Ventana reutilización tokens | Medio | Lista corta revocados + TTL | T+21d |
 | Falta de gate de cobertura en CI | Riesgo de regresiones silenciosas | Medio | Añadir umbral/badge automático post-reportes | T+21d |
 
@@ -72,7 +73,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 2. Extender tracing distribuido a tenant-context/outbox y publicar tableros iniciales.
 3. Instrumentar métricas de negocio Tenant (tenants activos, memberships vigentes).
 4. Automatizar rotación JWKS (cron job + verificación post-rotación) y short deny-list access tokens.
-5. Automatizar verificación de firmas/SBOM en pipeline (policy controller + gate bloqueante).
+5. Desplegar políticas de admisión/OPA que consuman los resultados de Cosign y SBOM en el clúster.
 
 ## 6. Métricas Clave (Baseline / Objetivo)
 | Métrica | Baseline | Objetivo T+14d |
@@ -86,6 +87,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 ## 7. Decisiones Recientes (Delta)
 | Fecha | Decisión | Razonamiento |
 |-------|----------|--------------|
+| 2025-09-23 | Declarar ADR-0007 (rotación JWKS) aceptado y formalizar promoción/rollback Auth | Unificar criterio operativo y trazabilidad documental |
 | 2025-09-22 | Adoptar rotación dual JWKS con métrica `auth_signing_key_age_days` | Garantizar renovación segura y trazabilidad |
 | 2025-09-21 | Publicar métricas negocio Auth en Prometheus | Habilitar alertas sobre abuso/autenticaciones |
 | 2025-09-20 | Incorporar tracing OTel básico | Reducir tiempo diagnóstico incidentes |
@@ -103,7 +105,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 - [ ] Configurar dashboard Grafana con métricas Auth negocio.
 - [ ] Preparar script automation rotación JWKS (dry-run en staging).
 - [x] Añadir job Syft+Trivy en CI (artefactos SBOM + firmas Cosign publicados).
-- [ ] Definir gate automático para verificar Cosign/SBOM antes de despliegues.
+- [x] Definir gate automático para verificar Cosign/SBOM antes de despliegues (Cosign verify + verify-attestation bloqueantes).
 
 ## 10. Notas / Observaciones
 - Evitar introducir mocks globales nuevos sin revisar documento de política (ver sección 8 spec.md).
@@ -113,4 +115,4 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 - Registrar variables JWKS (`AUTH_JWKS_ALG`, `AUTH_JWKS_GRACE_SECONDS`, `AUTH_JWKS_ROTATION_CRON`) en el inventario de configuraciones operativas.
 
 ---
-Responsable CTO Snapshot: (auto-generado asistente) 2025-09-22
+Responsable CTO Snapshot: (auto-generado asistente) 2025-09-23

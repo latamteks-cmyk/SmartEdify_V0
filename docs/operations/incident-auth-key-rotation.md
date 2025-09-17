@@ -121,6 +121,47 @@ PY
 5. Monitorea la alerta `AuthKidRevokedSessions` (cubre spikes de `auth_token_revoked_total`) y confirma que las métricas de login se estabilizan.
 6. Regenera *refresh tokens* afectados (flujo login forzado) y comunica al equipo de seguridad el rollback ejecutado con enlace al ticket de seguimiento.
 
+## Escenarios de fallback KMS / Secrets Manager
+Cuando el KMS o el Secrets Manager no están disponibles o presentan latencia elevada, seguir los siguientes caminos controlados:
+
+1. **Diagnóstico rápido (5 minutos):**
+   - Ejecutar `aws kms describe-key --key-id <ARN>` o equivalente GCP/Azure desde dos regiones distintas.
+   - Revisar dashboard `KMS Latency` en Grafana y canal `#cloud-status` para incidentes globales.
+   - Consultar *status page* del proveedor (AWS/GCP/Azure) y abrir ticket interno `INC-<fecha>-KMS`.
+2. **Fallback de lectura (recuperar claves existentes):**
+   - Usar el *vault* local cifrado (`/secure/vault/auth-service.enc`) almacenado en S3 con acceso break-glass.
+   - Solicitar aprobación dual (SRE + Seguridad) antes de descargarlo.
+   - Desencriptar con `sops -d secure/vault/auth-service.enc > /tmp/auth-keys.json` y cargar manualmente la clave en base de datos (`status='current'`/`'next'`).
+3. **Fallback de generación de claves sin KMS:**
+   - Generar clave RSA 2048 con `openssl` en estación segura (sin historia shell, `HISTCONTROL=ignorespace`).
+   - Cifrar la clave privada con AES-256 local (`openssl enc -aes-256-cbc -salt -in next-private.pem -out next-private.pem.enc`).
+   - Registrar en ticket la contraseña temporal utilizada y almacenarla en *sealed secret* manual (Kubernetes) hasta restablecer KMS.
+   - Una vez restablecido KMS, reimportar la clave siguiendo flujo estándar (`getNextKey(true)`), eliminar la clave temporal y rotar credenciales que hayan sido expuestas manualmente.
+4. **Protección de secretos de aplicación:**
+   - Si AWS Secrets Manager está afectado, utilizar caché local (`/var/run/secrets/auth-service/*.json`) que se sincroniza cada 15 minutos; confirmar timestamp < 30 min.
+   - En caso de expiración, inyectar configuración desde `configmaps` de respaldo (`auth-service-secrets-backup`) y establecer TTL < 12 h.
+   - Documentar cada secreto recuperado manualmente, responsable y hora, y programar rotación forzada cuando el servicio vuelva.
+5. **Cierre:**
+   - Ejecutar `postmortem` corto con seguridad y plataforma, enumerando claves expuestas, rotaciones pendientes y limpieza de archivos temporales (`shred`, `srm`).
+   - Actualizar `docs/status.md` con el incidente y acciones permanentes adoptadas.
+
+## Plan de entrenamiento on-call
+1. **Handover semanal:** lunes 09:00 con revisión de métricas JWKS, incidentes de la semana anterior y estado de automatizaciones.
+2. **Simulacros mensuales:**
+   - Semana 1: ejercicio de rotación programada sin incidentes (dry-run en staging) ejecutado por la persona on-call con supervisión.
+   - Semana 3: *Game Day* simulando caída de KMS/Secrets Manager utilizando el procedimiento de fallback descrito arriba.
+   - Documentar métricas (`MTTR`, pasos manuales, gaps) y actualizar runbook al final de cada simulacro.
+3. **Checklist pre-turno:**
+   - Accesos vigentes a: Kubernetes prod/staging, base de datos `auth_service`, herramientas KMS/Secrets Manager.
+   - Revise credenciales de break-glass en `1Password` corporativo y confirme contacto de respaldo.
+   - Validar que los scripts `deploy.sh`, `smoke-test.sh` y `cosign` están instalados en la estación on-call.
+4. **Post-turno (retroalimentación):**
+   - Completar formulario `On-call Handoff` en Notion con: incidentes atendidos, pasos manuales y recomendaciones.
+   - Programar sesión de repaso si se detectaron pasos no documentados o dudas.
+5. **Capacitación continua:**
+   - Cada nuevo integrante debe completar laboratorio guiado (`jwks-rotation-workshop.md`) y repasar este runbook con un miembro senior.
+   - Registrar fecha de última capacitación en el inventario on-call y alertar si > 90 días.
+
 ## Contacts
 - **On-call Seguridad**: `#sec-oncall` / security@smartedify.com
 - **Equipo Auth Service**: auth-team@smartedify.com (propietarios del servicio y esquema)

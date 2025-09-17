@@ -588,6 +588,36 @@ jobs:
               --output-certificate "${attest_dir}/cyclonedx.pem" \
               "${image}" > "${attest_dir}/cyclonedx.intoto.jsonl"
           done
+      - name: Verify image signatures (Cosign)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          for service in "${services[@]}"; do
+            digest=$(cat "supply-chain/digests/${service}.txt")
+            sign_dir="supply-chain/signatures/${service}"
+            cosign verify --offline \
+              --certificate "${sign_dir}/image.pem" \
+              --signature "${sign_dir}/image.sig" \
+              "${digest}"
+          done
+      - name: Verify SBOM attestations (Cosign)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+        shell: bash
+        run: |
+          set -euo pipefail
+          read -ra services <<< "${SERVICES}"
+          for service in "${services[@]}"; do
+            digest=$(cat "supply-chain/digests/${service}.txt")
+            attest_dir="supply-chain/attestations/${service}"
+            cosign verify-attestation --offline --type cyclonedx \
+              --certificate "${attest_dir}/cyclonedx.pem" \
+              --signature "${attest_dir}/cyclonedx.sig" \
+              "${digest}" > "${attest_dir}/cyclonedx.verified.intoto.jsonl"
+          done
       - name: Upload SBOM and signing artifacts
         uses: actions/upload-artifact@v4
         with:

@@ -1,7 +1,7 @@
 ---
 title: "ADR-0007: Rotación y Distribución de Claves JWT (JWKS)"
 date: 2025-09-14
-status: Propuesto
+status: Aceptado
 authors: [Equipo de arquitectura]
 
 # ADR-0007: Rotación y Distribución de Claves JWT (JWKS)
