@@ -1,3 +1,4 @@
+import { trace } from '@opentelemetry/api';
 import { withConn } from './db.js';
 
 export interface OutboxEvent {
@@ -12,22 +13,38 @@ export interface OutboxEvent {
   retryCount: number;
   nextRetryAt: Date | null;
   lastError: string | null;
+  traceId?: string | null;
+  spanId?: string | null;
 }
 
 export class PgOutboxRepository {
   async enqueue(e: { aggregateType: string; aggregateId: string; type: string; payload: any }): Promise<void> {
+    const span = trace.getActiveSpan();
+    const spanCtx = span?.spanContext();
     await withConn(async c => {
       await c.query(
-        'INSERT INTO outbox_events (aggregate_type, aggregate_id, type, payload) VALUES ($1,$2,$3,$4)',
-        [e.aggregateType, e.aggregateId, e.type, JSON.stringify(e.payload)]
+        'INSERT INTO outbox_events (aggregate_type, aggregate_id, type, payload, trace_id, span_id) VALUES ($1,$2,$3,$4,$5,$6)',
+        [
+          e.aggregateType,
+          e.aggregateId,
+          e.type,
+          JSON.stringify(e.payload),
+          spanCtx?.traceId ?? null,
+          spanCtx?.spanId ?? null
+        ]
       );
+    });
+    span?.addEvent('outbox.enqueue', {
+      'outbox.aggregate_type': e.aggregateType,
+      'outbox.aggregate_id': e.aggregateId,
+      'outbox.event_type': e.type
     });
   }
 
   async fetchBatch(limit: number): Promise<OutboxEvent[]> {
     return await withConn(async c => {
       const res = await c.query(
-        `SELECT id, aggregate_type, aggregate_id, type, payload, created_at, published_at, status, retry_count, next_retry_at, last_error
+        `SELECT id, aggregate_type, aggregate_id, type, payload, created_at, published_at, status, retry_count, next_retry_at, last_error, trace_id, span_id
          FROM outbox_events
          WHERE status = 'pending'
            AND (published_at IS NULL)
@@ -47,7 +64,9 @@ export class PgOutboxRepository {
         status: r.status,
         retryCount: r.retry_count,
         nextRetryAt: r.next_retry_at,
-        lastError: r.last_error
+        lastError: r.last_error,
+        traceId: r.trace_id,
+        spanId: r.span_id
       }));
     });
   }
@@ -95,7 +114,9 @@ export class PgOutboxRepository {
         last_error TEXT NULL,
         retry_count INT NOT NULL,
         original_status TEXT NOT NULL,
-        moved_reason TEXT NOT NULL DEFAULT 'failed_permanent'
+        moved_reason TEXT NOT NULL DEFAULT 'failed_permanent',
+        trace_id TEXT NULL,
+        span_id TEXT NULL
       )`);
       await c.query('CREATE INDEX IF NOT EXISTS idx_outbox_dlq_failed_at ON outbox_events_dlq(failed_at)');
       await c.query('BEGIN');
@@ -104,16 +125,16 @@ export class PgOutboxRepository {
           `UPDATE outbox_events
               SET status='failed_permanent', last_error = left($2, 500), next_retry_at=NULL
             WHERE id=$1
-            RETURNING id, aggregate_type, aggregate_id, type, payload, created_at, retry_count, status, last_error`,
+            RETURNING id, aggregate_type, aggregate_id, type, payload, created_at, retry_count, status, last_error, trace_id, span_id`,
           [id, String(error)]
         );
         if (res.rowCount === 1) {
           const r = res.rows[0];
           await c.query(
-            `INSERT INTO outbox_events_dlq (id, aggregate_type, aggregate_id, type, payload, created_at, last_error, retry_count, original_status)
-             VALUES ($1,$2,$3,$4,$5,$6,left($7,500),$8,$9)
+            `INSERT INTO outbox_events_dlq (id, aggregate_type, aggregate_id, type, payload, created_at, last_error, retry_count, original_status, trace_id, span_id)
+             VALUES ($1,$2,$3,$4,$5,$6,left($7,500),$8,$9,$10,$11)
              ON CONFLICT (id) DO NOTHING`,
-            [r.id, r.aggregate_type, r.aggregate_id, r.type, r.payload, r.created_at, r.last_error, r.retry_count, r.status]
+            [r.id, r.aggregate_type, r.aggregate_id, r.type, r.payload, r.created_at, r.last_error, r.retry_count, r.status, r.trace_id, r.span_id]
           );
         }
         await c.query('COMMIT');
@@ -127,7 +148,7 @@ export class PgOutboxRepository {
   async listDLQ(limit: number): Promise<any[]> {
     return await withConn(async c => {
       const r = await c.query(
-        `SELECT id, aggregate_type, aggregate_id, type, payload, created_at, failed_at, last_error, retry_count, original_status, moved_reason
+        `SELECT id, aggregate_type, aggregate_id, type, payload, created_at, failed_at, last_error, retry_count, original_status, moved_reason, trace_id, span_id
            FROM outbox_events_dlq
            ORDER BY failed_at DESC
            LIMIT $1`,
@@ -161,10 +182,10 @@ export class PgOutboxRepository {
         if (sel.rowCount === 0) { await c.query('ROLLBACK'); return false; }
         const ev = sel.rows[0];
         await c.query(
-          `INSERT INTO outbox_events (id, aggregate_type, aggregate_id, type, payload, created_at, published_at, status, retry_count, last_error, next_retry_at)
-             VALUES ($1,$2,$3,$4,$5,$6,NULL,'pending',0,NULL,NULL)
-           ON CONFLICT (id) DO UPDATE SET status='pending', retry_count=0, last_error=NULL, next_retry_at=NULL, published_at=NULL`,
-          [ev.id, ev.aggregate_type, ev.aggregate_id, ev.type, ev.payload, ev.createdAt]
+          `INSERT INTO outbox_events (id, aggregate_type, aggregate_id, type, payload, created_at, published_at, status, retry_count, last_error, next_retry_at, trace_id, span_id)
+             VALUES ($1,$2,$3,$4,$5,$6,NULL,'pending',0,NULL,NULL,$7,$8)
+           ON CONFLICT (id) DO UPDATE SET status='pending', retry_count=0, last_error=NULL, next_retry_at=NULL, published_at=NULL, trace_id=EXCLUDED.trace_id, span_id=EXCLUDED.span_id`,
+          [ev.id, ev.aggregate_type, ev.aggregate_id, ev.type, ev.payload, ev.created_at, ev.trace_id ?? null, ev.span_id ?? null]
         );
         await c.query('DELETE FROM outbox_events_dlq WHERE id=$1', [id]);
         await c.query('COMMIT');

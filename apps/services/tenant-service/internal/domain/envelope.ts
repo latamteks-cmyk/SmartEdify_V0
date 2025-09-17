@@ -15,6 +15,7 @@ export interface Envelope {
   partitionKey?: string;
   headers?: Record<string, string>;
   traceId?: string;
+  spanId?: string;
 }
 
 // Alias de compatibilidad (publisher usaba OutboxEnvelope)

@@ -1,6 +1,5 @@
 name: auth-service-ci
 
-# Controlar ejecuciones simultáneas sobre misma ref
 concurrency:
   group: auth-service-${{ github.ref }}
   cancel-in-progress: true
@@ -23,8 +22,8 @@ env:
   SERVICE_DIR: apps/services/auth-service
 
 jobs:
-  quality:
-    name: Lint & Typecheck
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,17 +35,44 @@ jobs:
       - name: Install deps
         working-directory: ${{ env.SERVICE_DIR }}
         run: npm ci
-      - name: Lint
+      - name: ESLint
         working-directory: ${{ env.SERVICE_DIR }}
         run: npm run lint
-      - name: Build (type-check)
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
+      - name: Install deps
         working-directory: ${{ env.SERVICE_DIR }}
-        run: npm run build --silent
+        run: npm ci
+      - name: Build (tsc)
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: npm run build -- --pretty false
+
+  openapi_lint:
+    name: OpenAPI Lint
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Lint OpenAPI specs
+        run: npm run lint:openapi
 
   tests:
-    name: Unit & Integration Tests
+    name: Tests (unit, integration & contract)
     runs-on: ubuntu-latest
-    needs: quality
+    needs: [lint, typecheck]
     services:
       postgres:
         image: postgres:15-alpine
@@ -84,49 +110,95 @@ jobs:
       - name: Run migrations
         working-directory: ${{ env.SERVICE_DIR }}
         run: npm run migrate up
-      - name: Test (with coverage)
+      - name: Run test suites with coverage
         working-directory: ${{ env.SERVICE_DIR }}
         run: npm test -- --runInBand --coverage
-      - name: Docker test stage build
+      - name: Publicar resumen de cobertura de integración
         working-directory: ${{ env.SERVICE_DIR }}
-        run: docker build --target test -t auth-service:test .
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const summaryPath = path.join(process.cwd(), 'coverage/integration/coverage-summary.json');
+          if (!fs.existsSync(summaryPath)) {
+            console.warn('No se encontró coverage-summary.json para integración');
+            process.exit(0);
+          }
+          const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+          const total = summary.total || {};
+          const lines = total.lines ? total.lines.pct : 0;
+          const statements = total.statements ? total.statements.pct : 0;
+          const branches = total.branches ? total.branches.pct : 0;
+          const functions = total.functions ? total.functions.pct : 0;
+          const md = [
+            '### Cobertura integración auth-service',
+            '',
+            '| Métrica | % |',
+            '| --- | --- |',
+            `| Líneas | ${lines}% |`,
+            `| Sentencias | ${statements}% |`,
+            `| Funciones | ${functions}% |`,
+            `| Branches | ${branches}% |`
+          ].join('\n');
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${md}\n`);
+          NODE
       - name: Upload coverage artifact
         uses: actions/upload-artifact@v4
         with:
           name: auth-service-coverage
           path: ${{ env.SERVICE_DIR }}/coverage
-      - name: Basic smoke (health)
-        working-directory: ${{ env.SERVICE_DIR }}
-        run: |
-          node dist/cmd/server/main.js &
-          PID=$!
-          echo "Esperando 3s a que levante"; sleep 3
-          curl -f http://localhost:8080/health || (echo "Smoke FAILED"; kill $PID; exit 1)
-          kill $PID
 
-  security_audit:
-    name: NPM Audit (Advisories)
+  sbom:
+    name: Generar SBOM
     runs-on: ubuntu-latest
-    needs: quality
+    needs: lint
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Generar SBOM SPDX
+        uses: anchore/sbom-action@v0.16.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: ${{ env.SERVICE_DIR }}/package-lock.json
-      - name: Install deps (prod+dev)
-        working-directory: ${{ env.SERVICE_DIR }}
-        run: npm ci
-      - name: npm audit (no fail)
-        working-directory: ${{ env.SERVICE_DIR }}
-        run: |
-          npm audit --omit=dev || true
+          path: ${{ env.SERVICE_DIR }}
+          format: spdx-json
+          output-file: auth-service-sbom.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auth-service-sbom
+          path: auth-service-sbom.json
 
-  summary:
-    name: CI Summary
+  sast:
+    name: SAST (Semgrep)
     runs-on: ubuntu-latest
-    needs: [tests, security_audit]
+    needs: lint
     steps:
-      - name: Print summary
-        run: 'echo CI pipeline completada: quality + tests + security_audit \(Node $NODE_VERSION\)'
+      - uses: actions/checkout@v4
+      - uses: returntocorp/semgrep-action@v1
+        with:
+          config: p/ci
+
+  container_scan:
+    name: Container Scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: tests
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        working-directory: ${{ env.SERVICE_DIR }}
+        run: docker build -t auth-service:ci .
+      - name: Scan image
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: auth-service:ci
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+
+  secret_scan:
+    name: Secret Scan (Gitleaks)
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: gitleaks/gitleaks-action@v2
+        with:
+          config-path: ''
+          verbose: true

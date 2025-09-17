@@ -42,7 +42,25 @@ module.exports = {
       // setupFiles se ejecuta antes que cualquier import de test -> mock temprano
       setupFiles: ['<rootDir>/tests/integration/jest.integration.setup.ts'],
       setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.ts'],
-      testTimeout: 20000
+      testTimeout: 20000,
+      collectCoverage: true,
+      coverageDirectory: '<rootDir>/coverage/integration',
+      coverageProvider: 'v8',
+      coverageReporters: ['text-summary', 'lcov'],
+      collectCoverageFrom: [
+        '<rootDir>/internal/adapters/http/**/*.ts',
+        '<rootDir>/internal/security/**/*.ts',
+        '<rootDir>/cmd/server/**/*.ts'
+      ],
+      coveragePathIgnorePatterns: ['<rootDir>/internal/adapters/http/openapi.*', '<rootDir>/internal/adapters/http/__mocks__'],
+      coverageThreshold: {
+        global: {
+          statements: 80,
+          branches: 70,
+          functions: 80,
+          lines: 80
+        }
+      }
     },
     {
       ...base,

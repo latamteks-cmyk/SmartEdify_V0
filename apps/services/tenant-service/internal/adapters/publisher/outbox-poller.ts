@@ -3,7 +3,7 @@ import { outboxPendingGauge, outboxPublishFailedTotal, outboxPublishedTotal, out
 import { Publisher } from './publisher.js';
 import { validateEnvelope } from './envelope-validation.js';
 import { config } from '../../config/env.js';
-import { trace, SpanStatusCode } from '@opentelemetry/api';
+import { trace, SpanStatusCode, context, TraceFlags, SpanContext, Context } from '@opentelemetry/api';
 
 export interface OutboxPublisherOptions {
   intervalMs: number;
@@ -62,12 +62,18 @@ export class OutboxPoller {
       const publishedIds: string[] = [];
       const now = Date.now();
       for (const ev of batch) {
-        await tracer.startActiveSpan('outbox.publish', { attributes: {
-          'event.id': ev.id,
-          'event.type': ev.type,
-          'event.aggregate_type': ev.aggregateType,
-          'event.retry_count': ev.retryCount
-        } }, async evSpan => {
+        const remoteParent = createRemoteParentContext(ev);
+        await tracer.startActiveSpan('outbox.publish', {
+          attributes: {
+            'event.id': ev.id,
+            'event.type': ev.type,
+            'event.aggregate_type': ev.aggregateType,
+            'event.retry_count': ev.retryCount,
+            'outbox.parent.trace_id': remoteParent?.spanContext.traceId || undefined,
+            'outbox.parent.span_id': remoteParent?.spanContext.spanId || undefined
+          },
+          links: remoteParent ? [{ context: remoteParent.spanContext }] : undefined
+        }, remoteParent?.ctx, async evSpan => {
           try {
             outboxPublishAttemptsTotal.inc();
             const envelope = {
@@ -84,7 +90,8 @@ export class OutboxPoller {
               correlationId: undefined,
               partitionKey: ev.aggregateId,
               headers: undefined,
-              traceId: span.spanContext().traceId
+              traceId: ev.traceId || span.spanContext().traceId,
+              spanId: ev.spanId || span.spanContext().spanId
             } as const;
             const validation = validateEnvelope(envelope, { maxPayloadBytes: config.outboxMaxPayloadBytes });
             if (!validation.ok) {
@@ -154,4 +161,27 @@ export class OutboxPoller {
   }
 
   async stop() { if (this.timer) { clearTimeout(this.timer); this.timer = null; } }
+}
+
+interface TraceCarrier {
+  traceId?: string | null;
+  spanId?: string | null;
+}
+
+function createRemoteParentContext(ev: TraceCarrier): { spanContext: SpanContext; ctx: Context } | null {
+  const traceId = typeof ev.traceId === 'string' && /^[0-9a-f]{32}$/i.test(ev.traceId)
+    ? ev.traceId
+    : null;
+  if (!traceId) return null;
+  const spanId = typeof ev.spanId === 'string' && /^[0-9a-f]{16}$/i.test(ev.spanId)
+    ? ev.spanId
+    : '0000000000000000';
+  const spanContext: SpanContext = {
+    traceId,
+    spanId,
+    traceFlags: TraceFlags.SAMPLED,
+    isRemote: true
+  };
+  const ctx = trace.setSpan(context.active(), trace.wrapSpanContext(spanContext));
+  return { spanContext, ctx };
 }
