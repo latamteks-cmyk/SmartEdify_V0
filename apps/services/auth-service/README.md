@@ -38,6 +38,11 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 - AUTH_JWT_SECRET
 - AUTH_WEBHOOK_URL
 - AUTH_LOG_LEVEL
+- AUTH_USER_SERVICE_MODE (`mock`, `http`, `bypass`)
+- AUTH_USER_SERVICE_URL (cuando `MODE=http`)
+- AUTH_USER_SERVICE_TIMEOUT_MS / AUTH_USER_SERVICE_RETRIES
+- AUTH_USER_SERVICE_API_KEY (opcional)
+- AUTH_USER_SERVICE_VALIDATE_PATH (opcional)
 
 ## Endpoints principales
 - GET `/authorize`
@@ -96,6 +101,12 @@ HandlerRefresh --> CtxAPI
 - Login con emisión de access/refresh tokens, rate limiting y lookup opcional de contexto Tenant.
 - Refresh token con rotación básica y fallback de compatibilidad simétrica.
 - Recuperación de contraseña: emisión de token namespaced y consumo único en reset.
+
+### Validación cruzada con User Service
+- Cliente HTTP con `fetch` nativo, timeouts configurables y reintentos exponenciales cortos.
+- `AUTH_USER_SERVICE_MODE=mock` permite aislar pruebas; `http` ejecuta POST `AUTH_USER_SERVICE_VALIDATE_PATH`.
+- El cliente propaga `roles`, `permissions` y `status` devueltos por el User Service y los persiste durante el registro.
+- `bypass` fuerza aprobación (útil en entornos de contingencia controlados).
 
 ### Ejemplo Authorization Code + PKCE
 1. **Redirección inicial** (requiere un access token válido del usuario):

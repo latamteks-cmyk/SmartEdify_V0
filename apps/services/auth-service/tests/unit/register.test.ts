@@ -9,6 +9,8 @@ describe('POST /register', () => {
       .send({ email, password: '12345678', name: 'Demo' });
     expect(res.status).toBe(201);
     expect(res.body.message).toBe('Usuario registrado');
+    expect(res.body.user.status).toBe('active');
+    expect(Array.isArray(res.body.user.permissions)).toBe(true);
   });
 
   it('debe rechazar datos inválidos', async () => {

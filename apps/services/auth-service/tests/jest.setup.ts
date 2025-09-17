@@ -1,5 +1,18 @@
 // Forzar NODE_ENV test
 process.env.NODE_ENV = 'test';
+// Forzamos modo mock para el User Service durante las suites de Jest
+process.env.AUTH_USER_SERVICE_MODE = 'mock';
+
+try {
+  const { setUserServiceClient } = require('../internal/adapters/user-service.client');
+  const { createMockUserServiceClient } = require('../internal/adapters/user-service.mock');
+  setUserServiceClient(createMockUserServiceClient());
+} catch (err) {
+  // En algunos tests que mockean módulos podemos ignorar el fallo
+  if (process.env.AUTH_TEST_LOGS) {
+    console.warn('[jest.setup] No se pudo configurar mock de User Service', err);
+  }
+}
 
 // Mock ligero de OpenTelemetry NodeSDK para evitar timers / sockets en tests
 jest.mock('@opentelemetry/sdk-node', () => {

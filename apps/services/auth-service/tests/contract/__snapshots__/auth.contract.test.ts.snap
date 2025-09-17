@@ -11,9 +11,11 @@ exports[`Auth contract snapshots POST /register devuelve contrato estable POST /
       "id": "<id>",
       "email": "contract.register@demo.com",
       "name": "Register User",
+      "status": "active",
       "roles": [
         "user"
-      ]
+      ],
+      "permissions": []
     }
   }
 }
