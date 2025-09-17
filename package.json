@@ -1,0 +1,10 @@
+{
+  "name": "smartedify-tooling",
+  "version": "0.2.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Tooling y automatizaciones para contratos OpenAPI y utilidades transversales.",
+  "scripts": {
+    "lint:openapi": "npx --yes @stoplight/spectral-cli@6.11.1 lint \"api/openapi/**/*.yaml\" \"docs/**/*.yaml\""
+  }
+}
