@@ -83,6 +83,14 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
     npm --prefix apps/services/tenant-service run test
     npm --prefix apps/services/tenant-service run test:integration
     ```
+  - Contratos HTTP (Schemathesis):
+    ```sh
+    python -m pip install -r requirements-schemathesis.txt
+    npm run contract:auth:schemathesis
+    npm run contract:tenant:schemathesis
+    ```
+    - Los wrappers inician cada servicio con `SKIP_DB_TESTS=1`, esperan `/health` y ejecutan un smoke test sobre el contrato (`/health`).
+    - Los reportes JUnit se guardan en `reports/contracts/` y pueden subirse como artefactos en CI.
 
 ### Ejecución rápida de tests (scripts raíz)
   - Windows (PowerShell 5.1+):

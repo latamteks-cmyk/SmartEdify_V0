@@ -78,6 +78,18 @@ npm run build
 npm start
 ```
 
+## Contratos HTTP (Schemathesis)
+
+Ejecuta el smoke test de contrato basado en OpenAPI con Schemathesis:
+
+```bash
+python -m pip install -r requirements-schemathesis.txt
+npm run contract:tenant:schemathesis
+```
+
+- El script inicia el servidor con `SKIP_DB_TESTS=1`, espera `http://127.0.0.1:18083/health` y ejercita el endpoint de salud.
+- El reporte JUnit se genera en `reports/contracts/tenant-service-schemathesis.xml` para ser consumido por CI.
+
 ## Métricas Iniciales (definición)
 Actual (Fase 0 + Operability Addendum):
 
