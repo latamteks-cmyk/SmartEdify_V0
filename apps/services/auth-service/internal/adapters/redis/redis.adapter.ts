@@ -1,3 +1,4 @@
+
 import Redis from 'ioredis';
 
 // En entorno de test Jest usará el mock de @smartedify/shared/mocks/ioredis. No abrirá conexión real.
@@ -310,3 +311,42 @@ export async function redisPing() {
 }
 
 export default redis;
+
+export async function revokeAllUserSessions(userId: string): Promise<void> {
+    if (isTestEnv) {
+        const now = Date.now();
+        for (const [tokenId, entry] of inMemoryRefreshStore.entries()) {
+            if (entry.value.sub === userId) {
+                inMemoryRefreshStore.delete(tokenId);
+            }
+        }
+        return;
+    }
+
+    const stream = redis.scanStream({
+        match: 'refresh:*',
+        count: 100,
+    });
+
+    const tokensToDelete: string[] = [];
+
+    for await (const keys of stream) {
+        for (const key of keys) {
+            const rawToken = await redis.get(key);
+            if (rawToken) {
+                try {
+                    const tokenData = JSON.parse(rawToken);
+                    if (tokenData.sub === userId) {
+                        tokensToDelete.push(key);
+                    }
+                } catch (error) {
+                    console.error(`Error parsing token data for key ${key}:`, error);
+                }
+            }
+        }
+    }
+
+    if (tokensToDelete.length > 0) {
+        await redis.del(...tokensToDelete);
+    }
+}
