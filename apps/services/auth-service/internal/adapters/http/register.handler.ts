@@ -4,7 +4,7 @@ import { getUserServiceClient } from '../user-service.client';
 import { hashPassword } from '../../security/crypto';
 import * as pgAdapter from '@db/pg.adapter';
 import { RegisterRequestSchema } from './register.dto';
-import { withSpan } from '@smartedify/shared/tracing';
+import { withSpan } from '@smartedify/shared';
 
 const DEFAULT_ROLE = process.env.AUTH_DEFAULT_ROLE || 'user';
 const AUTH_TRACER = process.env.AUTH_SERVICE_NAME || 'auth-service';

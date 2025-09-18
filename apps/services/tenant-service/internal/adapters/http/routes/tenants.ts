@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { tenantCreatedTotal } from '../../../metrics/registry.js';
-import { withSpan } from '@smartedify/shared/tracing';
+import { withSpan } from '@smartedify/shared';
 import { getActiveTraceparent } from '../../../observability/trace-context.js';
 
 const createTenantSchema = z.object({

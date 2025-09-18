@@ -1,5 +1,14 @@
 import request from 'supertest';
 import app from '../app.test';
+import { refreshRotatedCounter, refreshReuseBlockedCounter } from '../../cmd/server/main';
+
+function counterValue(counter: { get: () => { values: Array<{ value: number }> }; reset: () => void }): number {
+  const snapshot = counter.get();
+  if (!snapshot || !Array.isArray(snapshot.values) || snapshot.values.length === 0) {
+    return 0;
+  }
+  return snapshot.values[0]?.value ?? 0;
+}
 
 /**
  * Escenario: cadena de refresh.
@@ -10,6 +19,11 @@ import app from '../app.test';
  */
 
 describe('POST /refresh-token chain', () => {
+  beforeEach(() => {
+    refreshRotatedCounter.reset();
+    refreshReuseBlockedCounter.reset();
+  });
+
   it('rota un refresh token y bloquea reutilización', async () => {
     const email = `refresh_${Date.now()}@demo.com`;
     // Registro
@@ -56,5 +70,8 @@ describe('POST /refresh-token chain', () => {
       .send({ refresh_token: secondRefresh })
       .expect(401);
     expect(thirdRefresh).toBeTruthy();
+
+    expect(counterValue(refreshRotatedCounter)).toBeGreaterThanOrEqual(2);
+    expect(counterValue(refreshReuseBlockedCounter)).toBeGreaterThanOrEqual(2);
   });
 });
