@@ -1,14 +1,23 @@
-import type { RunnerOption } from 'node-pg-migrate';
-import migrate from 'node-pg-migrate';
+// Importación laxa para evitar problemas de tipos en distintos modos (ESM/CJS)
+// y no forzar a consumidores a tener tipos de node-pg-migrate en tiempo de test
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const migrate = require('node-pg-migrate');
 
 export interface MigrationLogger {
   readonly info?: (message: string) => void;
   readonly error?: (message: string, error: unknown) => void;
 }
 
-export interface MigrationOptions extends RunnerOption {
+export interface MigrationOptions {
   readonly direction?: 'up' | 'down';
   readonly logger?: MigrationLogger;
+  // Opciones mínimas esperadas por node-pg-migrate
+  readonly databaseUrl?: string | { connectionString: string };
+  readonly dir?: string | string[];
+  readonly migrationsTable?: string;
+  readonly schema?: string;
+  // Permitir opciones adicionales sin tipar estrictamente
+  readonly [key: string]: unknown;
 }
 
 export async function runMigrations({
@@ -17,7 +26,7 @@ export async function runMigrations({
   ...options
 }: MigrationOptions): Promise<void> {
   try {
-    await migrate({ direction, ...options });
+  await migrate({ direction, ...options });
     logger?.info?.(`Migrations executed (${direction}).`);
   } catch (error) {
     logger?.error?.('Migration execution failed.', error);

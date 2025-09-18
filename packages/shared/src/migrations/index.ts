@@ -1,1 +1,1 @@
-export * from './pg-migrate.js';
+export * from './pg-migrate';

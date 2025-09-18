@@ -11,9 +11,17 @@ const base = {
   transform: { '^.+\\.tsx?$': 'ts-jest' },
   moduleFileExtensions: ['ts', 'js', 'json'],
   transformIgnorePatterns: ['/node_modules/(?!uuid)/'],
+  globals: {
+    'ts-jest': {
+      tsconfig: '<rootDir>/tsconfig.test.json'
+    }
+  },
   moduleNameMapper: {
-    '^ioredis$': '@smartedify/shared/mocks/ioredis',
-    '^@db/(.*)$': '<rootDir>/internal/adapters/db/$1'
+    '^ioredis$': '<rootDir>/../../../packages/shared/src/mocks/ioredis.ts',
+    '^@db/(.*)$': '<rootDir>/internal/adapters/db/$1',
+    // Resolver alias de TypeScript para el paquete compartido durante tests
+    '^@smartedify/shared$': '<rootDir>/../../../packages/shared/src/index.ts',
+    '^@smartedify/shared/(.*)$': '<rootDir>/../../../packages/shared/src/$1'
   },
   modulePathIgnorePatterns: ['<rootDir>/tests/__mocks__/ioredis.ts','<rootDir>/tests/__mocks__/pg.ts','<rootDir>/dist']
 };

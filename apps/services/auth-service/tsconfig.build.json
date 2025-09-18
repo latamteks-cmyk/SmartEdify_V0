@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "rootDir": "./",
+    "outDir": "./dist",
+    "baseUrl": ".",
+    "typeRoots": ["./types", "./node_modules/@types"],
+    "paths": {
+      "@db/*": ["internal/adapters/db/*"]
+    }
+  },
+  "include": ["internal", "cmd", "jobs", "migrations_ts"],
+  "exclude": ["tests", "dist", "node_modules"]
+}

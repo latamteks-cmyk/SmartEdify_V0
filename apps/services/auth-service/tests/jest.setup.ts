@@ -4,6 +4,27 @@ import { createAuthPgAdapterMock } from '@smartedify/shared/mocks/auth-pg-adapte
 process.env.NODE_ENV = 'test';
 // Forzamos modo mock para el User Service durante las suites de Jest
 process.env.AUTH_USER_SERVICE_MODE = 'mock';
+// Defaults mínimos requeridos por el esquema de entorno durante tests
+process.env.PORT = process.env.PORT || '0';
+process.env.AUTH_PORT = process.env.AUTH_PORT || '0';
+process.env.PGHOST = process.env.PGHOST || 'localhost';
+process.env.PGPORT = process.env.PGPORT || '5432';
+process.env.PGUSER = process.env.PGUSER || 'postgres';
+process.env.PGPASSWORD = process.env.PGPASSWORD || 'postgres';
+process.env.PGDATABASE = process.env.PGDATABASE || 'smartedify';
+process.env.REDIS_HOST = process.env.REDIS_HOST || 'localhost';
+process.env.REDIS_PORT = process.env.REDIS_PORT || '6379';
+process.env.AUTH_LOGIN_WINDOW_MS = process.env.AUTH_LOGIN_WINDOW_MS || '60000';
+process.env.AUTH_LOGIN_MAX_ATTEMPTS = process.env.AUTH_LOGIN_MAX_ATTEMPTS || '10';
+process.env.AUTH_BRUTE_WINDOW_SEC = process.env.AUTH_BRUTE_WINDOW_SEC || '300';
+process.env.AUTH_BRUTE_MAX_ATTEMPTS = process.env.AUTH_BRUTE_MAX_ATTEMPTS || '20';
+process.env.AUTH_ADMIN_RATE_LIMIT_WINDOW_MS = process.env.AUTH_ADMIN_RATE_LIMIT_WINDOW_MS || '60000';
+process.env.AUTH_ADMIN_RATE_LIMIT_MAX = process.env.AUTH_ADMIN_RATE_LIMIT_MAX || '10';
+process.env.AUTH_JWT_ACCESS_TTL = process.env.AUTH_JWT_ACCESS_TTL || '900s';
+process.env.AUTH_JWT_REFRESH_TTL = process.env.AUTH_JWT_REFRESH_TTL || '30d';
+process.env.AUTH_HOST = process.env.AUTH_HOST || 'localhost';
+process.env.AUTH_USE_TLS = process.env.AUTH_USE_TLS || 'false';
+process.env.SKIP_DB_TESTS = process.env.SKIP_DB_TESTS || '1';
 // Timeout de pruebas unificado (evita usar testTimeout en la config)
 // 15s por defecto; tests específicos pueden ajustar con jest.setTimeout local
 jest.setTimeout(15000);

@@ -9,7 +9,7 @@ export interface NodeTracingOptions {
   readonly environment?: string;
   readonly exporters?: readonly SpanExporter[];
   readonly sampler?: Sampler;
-  readonly resourceAttributes?: Record<string, unknown>;
+  readonly resourceAttributes?: Record<string, string | number | boolean | undefined>;
   readonly diagLogger?: DiagLogger;
   readonly diagLogLevel?: DiagLogLevel;
 }
@@ -32,7 +32,7 @@ export function initializeNodeTracing({
     diag.setLogger(diagLogger, diagLogLevel);
   }
 
-  const attributes: Record<string, unknown> = {
+  const attributes: Record<string, string | number | boolean | undefined> = {
     [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
     ...resourceAttributes
   };

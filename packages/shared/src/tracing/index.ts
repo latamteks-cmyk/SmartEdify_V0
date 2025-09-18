@@ -1,2 +1,2 @@
-export * from './node-tracing.js';
-export * from './with-span.js';
+export * from './node-tracing';
+export * from './with-span';

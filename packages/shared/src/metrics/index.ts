@@ -22,8 +22,7 @@ export function initializePrometheusMetrics({
   if (defaultMetrics) {
     collectDefaultMetrics({
       prefix,
-      register: registry,
-      timeout: defaultMetricsInterval
+      register: registry
     });
   }
 

@@ -1,6 +1,7 @@
-import type { ZodError, ZodTypeAny } from 'zod';
+import type { ZodError, ZodTypeAny, infer as zInfer } from 'zod';
 
-type InferSchema<TSchema extends ZodTypeAny> = TSchema extends ZodTypeAny<infer Output> ? Output : never;
+// Extrae el tipo de salida de un esquema Zod de forma segura
+type InferSchema<TSchema extends ZodTypeAny> = zInfer<TSchema>;
 
 export interface ParseEnvOptions<TSchema extends ZodTypeAny> {
   readonly source?: Record<string, string | undefined>;

@@ -7,19 +7,20 @@ Fecha: 2025-09-17
 - [x] CI: Validación Mermaid de todos los `.mmd`
 - [x] CI: Lint de OpenAPI con Spectral en `api/**` y `apps/**/api/**`
 - [x] README raíz: comandos Windows/Linux para tests; política de snapshots y warnings
-- [x] Limpieza: eliminar `apps/services/auth-service/db-test.js` (si no se usa)
+- [ ] Limpieza: eliminar `apps/services/auth-service/db-test.js` (si no se usa) — El archivo aún existe y debe eliminarse si no se utiliza.
 - [x] Limpieza: revisar/eliminar `apps/services/tenant-service/migrations_clean/` y `migrations_ts/` (duplicados)
 	- Revisión completada: no existen dichas carpetas en tenant-service; no hay duplicados.
 
 ## P1 — Seguridad, Config y Pruebas
 - [x] Config central con Zod para `process.env` (auth/tenant)
 	- Integrado en arranque de ambos servicios: auth falla si falta `AUTH_ADMIN_API_KEY` en producción; tenant falla si falta `TENANT_DB_URL` en producción. README de cada servicio actualizado.
-- [ ] Automatizar rotación JWKS (cron/job) + métricas + rate limit endpoints admin
-	- Iniciado: workflow placeholder manual (`workflow_dispatch`) para rotación JWKS; pendiente habilitar schedule y variables de entorno seguras.
-- [ ] Añadir Schemathesis para pruebas contractuales OpenAPI (auth/tenant)
-	- Iniciado: documentado en CI/CD; pendiente integrar job y entorno Python.
-- [ ] Scripts raíz: `test:all`, `test:fast`, `test:contract`
-	- Iniciado: añadidos `test:fast:win|nix` y `test:contract:win|nix` en `package.json` raíz.
+- [x] Automatizar rotación JWKS (cron/job) + métricas + rate limit endpoints admin
+	- Hecho: workflow `jwks-rotate.yml` con `schedule` (cron), variables/secretos referenciados y endpoints `/admin/*` protegidos con `adminRateLimiter` + `admin-auth`.
+	- Pendiente operacional: configurar `secrets`/`vars` en GitHub Environments para producción/staging (p.ej. `AUTH_SERVICE_ADMIN_API_KEY`, `AUTH_SERVICE_PG*`, `AUTH_SERVICE_BASE_URL`).
+- [x] Añadir Schemathesis para pruebas contractuales OpenAPI (auth/tenant)
+	- Hecho: job `schemathesis-contracts` en CI instala Python, corre `schemathesis` con `requirements-schemathesis.txt` y publica reportes (scripts en `scripts/contracts/run-schemathesis.js`).
+- [x] Scripts raíz: `test:all`, `test:fast`, `test:contract`
+	- Hecho: disponibles variantes `*:win|nix` en `package.json` y ejecutadas en Windows.
 
 ## P1 — Librería compartida interna
 - [ ] Crear paquete `@smartedify/shared` con migrador base, métricas, mocks, JWT/JWKS utils, tipos comunes

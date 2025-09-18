@@ -36,6 +36,8 @@ describe('Password recovery flow', () => {
       .expect(200);
 
     // Login con password nueva OK
+    // Pequeño yield para asegurar que el mock de almacenamiento ha aplicado cambios
+    await new Promise(r => setTimeout(r, 0));
     await request(app)
       .post('/login')
       .send({ email, password: newPassword })

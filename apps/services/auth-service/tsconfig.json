@@ -10,11 +10,8 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@db/*": ["internal/adapters/db/*"],
-      "@smartedify/shared": ["../../../packages/shared/src/index.ts"],
-      "@smartedify/shared/*": ["../../../packages/shared/src/*"]
-    },
-    "types": ["node", "jest"]
+      "@db/*": ["internal/adapters/db/*"]
+    }
   },
   "include": ["internal", "cmd", "tests", "migrations_ts", "jobs"]
 }

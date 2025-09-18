@@ -63,7 +63,9 @@ export const EnvSchema = z.object({
 export type Env = z.infer<typeof EnvSchema>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = parseEnvironment(EnvSchema, { source });
+  // Desactivamos la coerción automática: el esquema ya usa z.coerce donde aplica
+  // y mantenemos enums string como 'true'/'false' o '0'/'1' sin convertirlos.
+  const parsed = parseEnvironment(EnvSchema, { source, coerce: false });
   // Validaciones de seguridad en producción (fail-fast)
   if (parsed.NODE_ENV === 'production') {
     if (!parsed.AUTH_ADMIN_API_KEY || !parsed.AUTH_ADMIN_API_KEY.trim()) {

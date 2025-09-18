@@ -184,6 +184,18 @@ export function createAuthPgAdapterMock(jestLike: JestLike): AuthPgAdapterMock {
       };
     }
 
+    if (normalized.startsWith('update users set pwd_hash')) {
+      const [pwd_hash, id] = params;
+      const user = findUserById(id);
+      if (user) {
+        user.pwd_hash = String(pwd_hash);
+        user.__plain = user.pwd_hash.startsWith('mock$')
+          ? user.pwd_hash.substring(5)
+          : user.pwd_hash;
+      }
+      return { rows: [] };
+    }
+
     if (normalized.startsWith('select role from user_roles where user_id=')) {
       const [user_id, tenant_id] = params;
       const roles = await getUserRoles(user_id, tenant_id);

@@ -8,7 +8,7 @@
     "test": "tests"
   },
   "scripts": {
-    "build": "tsc -p .",
+  "build": "tsc -p tsconfig.build.json",
     "start": "node dist/cmd/server/main.js",
     "dev": "nodemon --watch internal --watch cmd --exec ts-node cmd/server/main.ts",
     "migrate": "node-pg-migrate up -m ./migrations_clean --verbose",

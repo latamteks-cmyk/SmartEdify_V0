@@ -3,8 +3,8 @@ import request from 'supertest';
 import app from '../app.test';
 import { loginSuccessCounter, loginFailCounter } from '../../cmd/server/main';
 
-function counterValue(counter: { get: () => { values: Array<{ value: number }> }; reset: () => void }): number {
-  const snapshot = counter.get();
+async function counterValue(counter: { get: () => Promise<{ values: Array<{ value: number }> }>; reset: () => void }): Promise<number> {
+  const snapshot = await counter.get();
   if (!snapshot || !Array.isArray(snapshot.values) || snapshot.values.length === 0) {
     return 0;
   }
@@ -30,7 +30,7 @@ describe('POST /login', () => {
     expect(res.body.message).toBe('Login exitoso');
     expect(res.body.access_token).toBeDefined();
     expect(res.body.refresh_token).toBeDefined();
-    expect(counterValue(loginSuccessCounter)).toBeGreaterThanOrEqual(1);
+  await expect(counterValue(loginSuccessCounter)).resolves.toBeGreaterThanOrEqual(1);
   });
 
   it('incrementa métrica de fallos con credenciales incorrectas', async () => {
@@ -43,7 +43,7 @@ describe('POST /login', () => {
       .send({ email, password: 'WrongPass123' });
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('Credenciales inválidas');
-    expect(counterValue(loginFailCounter)).toBeGreaterThanOrEqual(1);
+  await expect(counterValue(loginFailCounter)).resolves.toBeGreaterThanOrEqual(1);
   });
 
   it('debe rechazar login inválido', async () => {

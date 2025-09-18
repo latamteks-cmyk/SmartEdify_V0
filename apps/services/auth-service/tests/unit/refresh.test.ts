@@ -2,8 +2,8 @@ import request from 'supertest';
 import app from '../app.test';
 import { refreshRotatedCounter, refreshReuseBlockedCounter } from '../../cmd/server/main';
 
-function counterValue(counter: { get: () => { values: Array<{ value: number }> }; reset: () => void }): number {
-  const snapshot = counter.get();
+async function counterValue(counter: { get: () => Promise<{ values: Array<{ value: number }> }>; reset: () => void }): Promise<number> {
+  const snapshot = await counter.get();
   if (!snapshot || !Array.isArray(snapshot.values) || snapshot.values.length === 0) {
     return 0;
   }
@@ -71,7 +71,7 @@ describe('POST /refresh-token chain', () => {
       .expect(401);
     expect(thirdRefresh).toBeTruthy();
 
-    expect(counterValue(refreshRotatedCounter)).toBeGreaterThanOrEqual(2);
-    expect(counterValue(refreshReuseBlockedCounter)).toBeGreaterThanOrEqual(2);
+  await expect(counterValue(refreshRotatedCounter)).resolves.toBeGreaterThanOrEqual(2);
+  await expect(counterValue(refreshReuseBlockedCounter)).resolves.toBeGreaterThanOrEqual(2);
   });
 });

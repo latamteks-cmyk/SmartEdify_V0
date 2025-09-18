@@ -10,15 +10,10 @@ type StoredEntry = {
   value: string;
   expiresAt?: number;
 };
-
-interface GlobalWithRedisStore extends typeof globalThis {
-  __SMARTEDIFY_REDIS_STORE__?: Map<string, StoredEntry>;
-}
-
-const globalWithStore = globalThis as GlobalWithRedisStore;
-const sharedStore: Map<string, StoredEntry> =
-  globalWithStore.__SMARTEDIFY_REDIS_STORE__ || new Map();
-globalWithStore.__SMARTEDIFY_REDIS_STORE__ = sharedStore;
+const STORE_KEY = '__SMARTEDIFY_REDIS_STORE__' as const;
+const g: any = globalThis as any;
+const sharedStore: Map<string, StoredEntry> = (g[STORE_KEY] as Map<string, StoredEntry>) || new Map();
+g[STORE_KEY] = sharedStore;
 
 export class InMemoryRedis {
   private readonly store = sharedStore;
@@ -173,3 +168,5 @@ export class InMemoryRedis {
 }
 
 export default InMemoryRedis;
+// Compat de import por defecto sin llaves
+module.exports = InMemoryRedis;

@@ -18,7 +18,7 @@ export async function startTracing(): Promise<void> {
     headers: {}
   });
 
-  tracing = initializeNodeTracing({
+  tracing = await initializeNodeTracing({
     serviceName,
     environment,
     exporters: [exporter]
