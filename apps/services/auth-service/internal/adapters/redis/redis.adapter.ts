@@ -1,6 +1,6 @@
 import Redis from 'ioredis';
 
-// En entorno de test Jest usará el mock (__mocks__/ioredis.ts). No abrirá conexión real.
+// En entorno de test Jest usará el mock de @smartedify/shared/mocks/ioredis. No abrirá conexión real.
 const redis = new Redis({
   host: process.env.REDIS_HOST || 'localhost',
   port: Number(process.env.REDIS_PORT) || 6379,
@@ -11,7 +11,7 @@ const isTestEnv = process.env.NODE_ENV === 'test';
 const inMemoryAccessDeny: Map<string, { reason: string; expiresAt: number | null }> = (global as any).__ACCESS_DENY__ || new Map();
 (global as any).__ACCESS_DENY__ = inMemoryAccessDeny;
 
-// Tip: el mock en __mocks__/ioredis.ts ya implementa incr/expire/ttl.
+// Tip: el mock compartido implementa incr/expire/ttl.
 // Para robustez tipada (aunque no usamos types estricto aquí) agregamos wrappers opcionales
 // que delegan a la instancia real/mocked.
 export async function incr(key: string) {

@@ -10,7 +10,7 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 - Seguridad: Argon2id (costos diferenciados por entorno), JWT RS256 (access + refresh) con rotación de claves (estados `current|next|retiring`), rotación de refresh tokens single-use y detección básica de reuso bloqueando la cadena inmediata.
 - Recuperación de contraseña: tokens de un solo uso namespaced, residentes en almacenamiento simulado (mock Redis) + métrica de solicitudes y completados.
 - Observabilidad: logging estructurado (`pino`), métricas técnicas HTTP + contadores de negocio/seguridad, health check lógico (en modo test mockea Postgres/Redis para aislamiento reproducible), JWKS publicado.
-- Pruebas: suite unificada (47 tests) aislada de infraestructura física mediante mocks de DB (`__mocks__/pg.adapter.ts`) y Redis; incluye flujos end-to-end de registro, login, refresh, rotación de claves y password reset.
+- Pruebas: suite unificada (47 tests) aislada de infraestructura física mediante los mocks compartidos de Postgres/Redis exportados por `@smartedify/shared`; incluye flujos end-to-end de registro, login, refresh, rotación de claves y password reset.
 - Logout: revoca refresh token activo y niega reuso subsecuente; incrementa métricas de revocación.
 - Registro: asigna rol base (`user`) y refleja roles efectivos en respuesta y claims del JWT.
 
@@ -31,7 +31,7 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 - Auditoría de eventos de seguridad y métricas: `auth_login_total`, `token_issued_total`, `refresh_reuse_detected_total`, etc.
 
 ## Ejecución local
-1. Instala dependencias y configura variables de entorno usando `.env.example`.
+1. Instala dependencias y configura variables de entorno usando `.env.example`. El servicio depende del paquete interno `@smartedify/shared`, por lo que la instalación raíz (`npm install`) enlaza automáticamente las utilidades compartidas.
 2. Compila (opcional) `npm run build`.
 3. Ejecuta en modo desarrollo: `npm run dev`.
 4. Ejecuta la suite de pruebas: `npm test -- --runInBand`.
@@ -299,8 +299,8 @@ curl -XPOST http://localhost:8080/admin/rotate-keys -H "X-Admin-Api-Key: $AUTH_A
 > Consultar en `/metrics`. Ejemplo: `curl -s http://localhost:8080/metrics | grep auth_password_reset`.
 
 ## Mocks y Aislamiento de Infraestructura
-- `__mocks__/pg.adapter.ts`: simula operaciones mínimas de usuarios, roles y claves de firma.
-- Redis: mock in-memory para namespaces de tokens (refresh, password reset) y rate limiting.
+- `@smartedify/shared/mocks/auth-pg-adapter`: simula operaciones mínimas de usuarios, roles y claves de firma reutilizando la misma implementación entre proyectos.
+- Redis: mock in-memory del paquete compartido (`@smartedify/shared/mocks/ioredis`) para namespaces de tokens (refresh, password reset) y rate limiting.
 - Beneficios: ejecución determinista en CI, velocidad, sin dependencias de contenedores.
 - Limitación: no valida SQL real ni tiempos de red; pruebas de integración “reales” se desplazarán a una futura pipeline E2E.
 
@@ -344,7 +344,7 @@ curl -XPOST http://localhost:8080/admin/rotate-keys -H "X-Admin-Api-Key: $AUTH_A
 - Emails dinámicos por test (`test-${timestamp}@example.com`).
 - Password fija con complejidad adecuada.
 - Captura de tokens reset mediante fallback in-memory (solo test).
-- Mocks compartidos de Redis (`__mocks__/ioredis`) y coste Argon2 reducido.
+- Mocks compartidos de Redis (`@smartedify/shared/mocks/ioredis`) y coste Argon2 reducido.
 
 ### Métricas y calidad
 - Incorporar `tests_total`, `tests_failed_total` en CI.

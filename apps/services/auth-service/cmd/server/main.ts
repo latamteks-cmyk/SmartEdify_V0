@@ -4,13 +4,13 @@
  */
 
 import 'dotenv/config';
-import { parseEnv } from '../../internal/config/env';
+import { loadEnv } from '../../internal/config/env';
 import { startTracing, shutdownTracing } from '../../internal/observability/tracing';
 
 import { context, trace } from '@opentelemetry/api';
 
 // Validación de entorno temprana (fail-fast en producción)
-const __env = parseEnv(process.env);
+const __env = loadEnv(process.env);
 if (__env.NODE_ENV === 'production') {
   if (!__env.AUTH_ADMIN_API_KEY) {
     // Asegurar que los endpoints administrativos estén protegidos en prod
@@ -29,6 +29,7 @@ import express from 'express';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
 import client from 'prom-client';
+import { initializePrometheusMetrics } from '@smartedify/shared/metrics';
 
 import * as pgAdapter from '@db/pg.adapter';
 import { forgotPasswordHandler } from '../../internal/adapters/http/forgot-password.handler';
@@ -77,11 +78,10 @@ logger.debug({
 }, 'PG environment variables');
 
 // Prometheus metrics setup
-const register = new client.Registry();
-// Nota: collectDefaultMetrics devuelve void en prom-client v15; simplemente no lo llamamos en test
-if (process.env.NODE_ENV !== 'test') {
-  client.collectDefaultMetrics({ register });
-}
+const { registry: register } = initializePrometheusMetrics({
+  registry: new client.Registry(),
+  defaultMetrics: process.env.NODE_ENV !== 'test'
+});
 
 // Custom metrics
 const httpRequestsTotal = new client.Counter({

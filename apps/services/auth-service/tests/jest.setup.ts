@@ -1,3 +1,5 @@
+import { createAuthPgAdapterMock } from '@smartedify/shared/mocks/auth-pg-adapter';
+
 // Forzar NODE_ENV test
 process.env.NODE_ENV = 'test';
 // Forzamos modo mock para el User Service durante las suites de Jest
@@ -20,8 +22,13 @@ if (process.env.DEBUG_AUTH) {
   delete process.env.AUTH_TEST_LOGS;
 }
 
-// Mock del alias unificado @db/pg.adapter antes de cualquier import de producción
-jest.mock('@db/pg.adapter', () => require('../__mocks__/pg.adapter.ts'));
+const authPgMock = createAuthPgAdapterMock(jest);
+
+jest.mock('@db/pg.adapter', () => authPgMock.module);
+
+afterEach(() => {
+  authPgMock.reset();
+});
 
 // Mock de crypto hashing para acelerar y coordinar con pg.adapter mock
 jest.mock('../internal/security/crypto', () => ({
@@ -44,5 +51,5 @@ try {
   }
 }
 
-// Nota: el mock de ioredis se resuelve vía moduleNameMapper a <rootDir>/__mocks__/ioredis.ts
+// Nota: el mock de ioredis se resuelve vía moduleNameMapper a @smartedify/shared/mocks/ioredis
 // No es necesario declarar jest.mock('ioredis', ... ) aquí.

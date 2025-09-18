@@ -1,34 +1,49 @@
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { initializeNodeTracing, type TracingInitializationResult } from '@smartedify/shared/tracing';
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
+import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
+import { registerInstrumentations } from '@opentelemetry/instrumentation';
 
-let otelSdk: NodeSDK | null = null;
+let tracing: TracingInitializationResult | null = null;
 
-export async function startTracing() {
-  if (process.env.OTEL_DIAG_LOG_LEVEL) {
-    diag.setLogger(new DiagConsoleLogger(), DiagLogLevel[process.env.OTEL_DIAG_LOG_LEVEL as keyof typeof DiagLogLevel] ?? DiagLogLevel.INFO);
+export async function startTracing(): Promise<void> {
+  if (tracing) return;
+
+  const diagLevel = process.env.OTEL_DIAG_LOG_LEVEL;
+  if (diagLevel) {
+    const levelKey = diagLevel as keyof typeof DiagLogLevel;
+    const level = DiagLogLevel[levelKey] ?? DiagLogLevel.INFO;
+    diag.setLogger(new DiagConsoleLogger(), level);
   }
 
-  // Construir el exporter aquí para que tome variables de entorno definidas en runtime
-  const exporter = new OTLPTraceExporter({
-    // usa OTEL_EXPORTER_OTLP_ENDPOINT / OTEL_EXPORTER_OTLP_TRACES_ENDPOINT si están definidos
+  const exporter = new OTLPTraceExporter({});
+
+  tracing = initializeNodeTracing({
+    serviceName: process.env.TENANT_SERVICE_NAME || 'tenant-service',
+    environment: process.env.NODE_ENV || 'development',
+    exporters: [exporter]
   });
 
-  otelSdk = new NodeSDK({
-    traceExporter: exporter,
-    instrumentations: [getNodeAutoInstrumentations({
-      '@opentelemetry/instrumentation-fs': { enabled: false },
-      '@opentelemetry/instrumentation-http': { enabled: true }
-    })]
+  registerInstrumentations({
+    instrumentations: [
+      getNodeAutoInstrumentations({
+        '@opentelemetry/instrumentation-fs': { enabled: false },
+        '@opentelemetry/instrumentation-http': { enabled: true }
+      })
+    ]
   });
-
-  await otelSdk.start();
 }
 
-export async function shutdownTracing() {
-  if (otelSdk) {
-    await otelSdk.shutdown();
-    otelSdk = null;
+export async function shutdownTracing(): Promise<void> {
+  if (!tracing) return;
+  try {
+    await tracing.shutdown();
+  } catch (error) {
+    if (process.env.TENANT_LOG_LEVEL === 'debug') {
+      // eslint-disable-next-line no-console
+      console.warn('[tenant-tracing] shutdown failed', error);
+    }
   }
+  tracing = null;
 }
+

@@ -1,9 +1,9 @@
 import client from 'prom-client';
+import { initializePrometheusMetrics } from '@smartedify/shared/metrics';
 
-export const registry = new client.Registry();
+const { registry } = initializePrometheusMetrics({ registry: new client.Registry() });
 
-// Default metrics
-client.collectDefaultMetrics({ register: registry });
+export { registry };
 
 // Business metrics definitions (just registry wiring; increments in handlers later)
 export const tenantCreatedTotal = new client.Counter({
