@@ -54,6 +54,21 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 
 > Nota: En modo test se ignoran credenciales reales de Postgres/Redis porque se usan mocks en memoria; para producción deberán definirse URLs reales.
 
+### Configuración de entorno (Zod)
+- El arranque valida `process.env` con `internal/config/env.ts` usando Zod.
+- En `production` el servicio falla en el arranque si falta `AUTH_ADMIN_API_KEY` (protege endpoints `/admin/*`).
+- Variables principales validadas:
+  - `NODE_ENV` (`test|development|production`, default `development`)
+  - `AUTH_ADMIN_API_HEADER` (default `x-admin-api-key`)
+  - `PORT` (default `8080`)
+  - Parámetros Postgres (`PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`) con defaults para dev/test.
+
+Ejemplo (PowerShell):
+```powershell
+$env:AUTH_ADMIN_API_KEY = 'mi-clave-super-secreta'
+node dist/cmd/server/main.js
+```
+
 ## Endpoints principales
 - GET `/authorize`
 - POST `/token`

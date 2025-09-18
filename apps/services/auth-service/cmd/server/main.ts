@@ -4,9 +4,19 @@
  */
 
 import 'dotenv/config';
+import { parseEnv } from '../../internal/config/env';
 import { startTracing, shutdownTracing } from '../../internal/observability/tracing';
 
 import { context, trace } from '@opentelemetry/api';
+
+// Validación de entorno temprana (fail-fast en producción)
+const __env = parseEnv(process.env);
+if (__env.NODE_ENV === 'production') {
+  if (!__env.AUTH_ADMIN_API_KEY) {
+    // Asegurar que los endpoints administrativos estén protegidos en prod
+    throw new Error('AUTH_ADMIN_API_KEY es obligatorio en producción');
+  }
+}
 
 // Inicializar tracing (no bloquear si falla)
 startTracing().catch(err => {

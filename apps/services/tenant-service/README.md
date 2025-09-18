@@ -35,6 +35,30 @@ TENANT_OUTBOX_BATCH_SIZE=50
 TENANT_CONTEXT_CACHE_TTL_MS=60000
 OUTBOX_MAX_PAYLOAD_BYTES=65536
 
+### Configuración de entorno (Zod)
+- El archivo `internal/config/env.ts` valida `process.env` con Zod y construye el objeto `config` usado por el servidor.
+- En `production` se exige `TENANT_DB_URL` (fail-fast si falta). En `development/test`, si no se define, se construye desde `PGHOST/PGPORT/POSTGRES_*`.
+- Publisher/Consumer:
+	- `TENANT_PUBLISHER` (`logging|kafka|rabbitmq`, default `logging`). Si se selecciona `kafka` pero `KAFKA_BROKERS` está vacío se hace fallback a logging con `warn`.
+	- `TENANT_CONSUMER` (`none|logging|kafka|rabbitmq`, default `none`).
+- JWKS/JWT:
+	- `TENANT_JWKS_URL` opcional (si se define, valida tokens RS256 vía JWKS; si no, usa `TENANT_JWT_PUBLIC_KEY` si está presente).
+ - Otros parámetros validados:
+	 - `TENANT_CONTEXT_CACHE_TTL_MS` (default 60000)
+	 - `CONSUMER_MAX_RETRIES` (default 5)
+	 - `CONSUMER_RETRY_BASE_DELAY_MS` (default 100)
+	 - `CONSUMER_RETRY_MAX_DELAY_MS` (default 2000)
+
+Ejemplo rápido (PowerShell, dev):
+```powershell
+$env:PGHOST = 'localhost'
+$env:PGPORT = '5542'
+$env:POSTGRES_USER = 'postgres'
+$env:POSTGRES_PASSWORD = 'postgres'
+$env:POSTGRES_DB = 'smartedify'
+npm run dev
+```
+
 ## Ejecución Local
 
 Instalación dependencias y arranque en modo desarrollo (watch):
