@@ -8,10 +8,21 @@
 > - Diagrama: [architecture-overview.mmd](../design/diagrams/architecture-overview.mmd)
 > - Dashboards: [Grafana CI/CD](https://grafana.smartedify.internal/d/cicd)
 
-## Gates obligatorios
-- `lint`, `typecheck`, `test:unit`, `test:int`, `openapi:lint`, `sbom`, `sast`, `container:scan`, `secret-scan`.
+## Gates obligatorios (activos hoy)
+- `lint`, `typecheck`, `test:unit`, `test:contract` (por servicio; integración si aplica)
+- Validación de diagramas Mermaid (render/syntax OK)
+- Lint de OpenAPI con Spectral
 
-### `secret-scan`
+Estos gates están implementados en los workflows actuales del monorepo (ver sección "Workflows").
+
+## Gates planificados (roadmap)
+- `coverage` ≥ 80 % como gate bloqueante
+- `sast` (escaneo estático) bloqueante
+- `sbom` + firmas y attestations con Cosign (ver sección de supply-chain más abajo)
+- `container:scan` (Trivy) bloqueante
+- `secret-scan` (Gitleaks)
+
+### `secret-scan` (planificado)
 - Detecta *leaks* y credenciales accidentales utilizando [Gitleaks](https://github.com/gitleaks/gitleaks).
 - El pipeline sube los resultados en formato SARIF a Code Scanning y bloquea el merge si el job falla.
 - Para reproducirlo localmente desde la raíz del repo:
@@ -21,7 +32,7 @@
   ```
   El archivo `gitleaks.sarif` puede abrirse con VS Code o subirse manualmente a GitHub Code Scanning para revisión.
 
-### `sbom` / `supply-chain`
+### `sbom` / `supply-chain` (planificado)
 - Tras construir las imágenes `smartedify/<service>:ci`, la CI genera SBOM en formatos CycloneDX y SPDX utilizando **Syft** y **Trivy**. Todo queda publicado como artefacto `supply-chain-artifacts` junto con los *digests*, firmas y attestations de **Cosign**.
 - Descarga de artefactos para una `run` concreta:
   ```bash
@@ -57,6 +68,31 @@
   cualquiera de las firmas o attestations falla la tubería se detiene y se notifica a `#oncall-plataforma`.
 - Ante discrepancias entre Syft/Trivy o firma inválida, bloquear el release y notificar a `#oncall-plataforma`.
 
+## Ejecución local rápida
+
+Para reproducir los gates principales localmente:
+
+- Tests (Windows PowerShell 5.1+):
+  ```powershell
+  cd c:\Edgar\Programacion\SmartEdify_A\SmartEdify_V0
+  npm run test:all:win
+  ```
+- Tests (Nix):
+  ```bash
+  cd ./SmartEdify_V0
+  npm run test:all:nix
+  ```
+- OpenAPI lint (Spectral):
+  ```bash
+  npm run lint:openapi
+  ```
+- Validación Mermaid: se ejecuta en CI; localmente usar la previsualización de Mermaid del editor para revisar cambios antes del PR.
+
+## Workflows
+- `/.github/workflows/ci-quality.yml`: gates globales (typecheck, lint, tests, Mermaid, Spectral).
+- `/.github/workflows/tenant-service-ci.yml`: quality (lint/typecheck) y build de imagen para tenant-service.
+- Otros workflows específicos por servicio pueden añadirse conforme evolucione el roadmap.
+
 ## Estrategia de despliegue
 - *Canary* por servicio con *feature flags*.
 - *Rollback* automático ante aumento de error rate o latencia p95.
@@ -84,6 +120,7 @@
 3. **Go/No-Go:**
    - Checklist de verificación firmado por dueños de producto y on-call plataforma.
    - Confirmar que `cosign verify` y `verify-attestation` en staging apuntan al mismo digest publicado.
+  - Confirmar suites sin warnings (Jest) y snapshots sin obsoletos.
 4. **Promoción a producción:**
    ```bash
    ./scripts/deploy.sh --service auth-service --environment production --ref <sha>
@@ -109,6 +146,7 @@
 5. **Post-rollback:**
    - Ejecutar validación extendida (`/metrics`, dashboards, logs).
    - Actualizar `docs/status.md` y `task.md` con la lección aprendida y estado del release.
+  - Re-ejecutar suites unit/contract en el commit revertido.
 
 ## Validación post-despliegue
 - SLI/SLO por servicio. Alertas: error rate, p95, 5xx, *consumer lag*, DLQ > umbral.

@@ -2,10 +2,15 @@
 title: SmartEdify - Auth Service Login Sequence
 ---
 sequenceDiagram
-  participant C as Client
-  participant AS as auth-service
-  participant JW as JWKS
-  C->>AS: POST /auth/login
-  AS-->>JW: load JWKS (cache)
-  AS->>C: 200 { access, refresh, kid }
-  Note over C,AS: Rotación: `kid` actual y `next` válido
+    participant C as Client
+    participant AS as Auth Service
+    participant DB as Postgres
+    participant R as Redis
+    C->>AS: POST /login {email, password, tenant_id}
+    AS->>DB: SELECT user by email+tenant
+    DB-->>AS: user + roles
+    AS->>AS: Verify password (argon2/mock)
+    AS->>AS: Issue access/refresh (RS256, kid=current)
+    AS->>R: save refresh session (jti, kid)
+    AS-->>C: 200 {access_token, refresh_token, expires_in, kid}
+    Note over C,AS: Rotación: 'current' firma y 'retiring' solo verifica

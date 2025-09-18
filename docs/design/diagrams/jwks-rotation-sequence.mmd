@@ -8,24 +8,23 @@ sequenceDiagram
     participant DB as Postgres
     participant Client as Client Service
 
-    Note over Auth: Estado inicial
-    Note over Auth: current(K1), next(K2)
+    Note over Auth: Estado inicial: current(K1), next(K2)
 
     Admin->>Auth: POST /admin/rotate-keys
     Auth->>DB: INSERT new key K3 status=next
     DB-->>Auth: ok
-    Auth-->>Admin: 201 Created (K3 metadata)
+    Auth-->>Admin: 200 OK (K3 metadata)
 
     Client->>Auth: GET /.well-known/jwks.json
     Auth->>DB: SELECT keys WHERE status IN (current,next,retiring)
     DB-->>Auth: K1,K2,K3
     Auth-->>Client: JWKS {K1,K2,K3}
 
-    Note over Admin: Promoción tras periodo T
+    Note over Admin: Promoción tras periodo T (ventana de gracia)
 
     Admin->>Auth: POST /admin/promote-key K2
-    Auth->>DB: UPDATE K2 status=current
-    Auth->>DB: UPDATE K1 status=retiring
+    Auth->>DB: UPDATE K2 status=current (promoted_at=now())
+    Auth->>DB: UPDATE K1 status=retiring (retiring_at=now())
     Auth->>DB: UPDATE K3 status=next
     DB-->>Auth: ok
 

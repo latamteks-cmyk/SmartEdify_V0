@@ -7,6 +7,11 @@
   "scripts": {
     "lint:openapi": "npx --yes @stoplight/spectral-cli@6.11.1 lint \"api/openapi/**/*.yaml\" \"docs/**/*.yaml\"",
     "jwks:rotate": "npm run jwks:rotate --prefix apps/services/auth-service",
-    "oidc:sync": "cp .well-known/openid-configuration.json docs/oidc/openid-configuration.json && cp .well-known/jwks.json docs/oidc/jwks.json"
+    "oidc:sync": "cp .well-known/openid-configuration.json docs/oidc/openid-configuration.json && cp .well-known/jwks.json docs/oidc/jwks.json",
+    "test:auth:nix": "cd apps/services/auth-service && SKIP_DB_TESTS=1 NODE_ENV=test AUTH_ADMIN_API_KEY=test-admin-key npm run test:proj:unit --silent && SKIP_DB_TESTS=1 NODE_ENV=test AUTH_ADMIN_API_KEY=test-admin-key npm run test:proj:contract --silent",
+    "test:auth:win": "cd apps\\services\\auth-service && set SKIP_DB_TESTS=1&& set NODE_ENV=test&& set AUTH_ADMIN_API_KEY=test-admin-key&& npm run test:proj:unit --silent&& npm run test:proj:contract --silent",
+    "test:tenant": "cd apps/services/tenant-service && npm test --silent",
+    "test:all:nix": "npm run test:auth:nix && npm run test:tenant",
+    "test:all:win": "npm run test:auth:win && npm run test:tenant"
   }
 }

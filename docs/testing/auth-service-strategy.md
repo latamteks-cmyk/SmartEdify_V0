@@ -12,7 +12,7 @@ Históricamente se plantearon tres proyectos (`security`, `unit`, `integration`)
 
 Resumen actual:
 - `unit/`: Handlers y lógica de flujo (temporariamente aún mezcla negocio + HTTP).
-- `integration/`: Flujos encadenados (login->refresh->logout, health, register/login; actualmente también mockeados de DB).
+- `integration/`: Flujos encadenados (login->refresh->logout, health, register/login; actualmente también mockeados de DB, a reintroducir con contenedores efímeros más adelante).
 - `security/`: JWT, rotación de claves, validaciones de `kid` y JWKS.
 
 Conteo consolidado: 47 tests (18 suites) tras eliminar duplicados de password reset (`forgot-password.test.ts`, `reset-password.test.ts`, `forgot-reset.integration.test.ts`).
@@ -36,6 +36,23 @@ Conteo consolidado: 47 tests (18 suites) tras eliminar duplicados de password re
 ## Contratos y *snapshots*
 - Próximo hito: pruebas de contrato HTTP desde OpenAPI (`api/auth.yaml`) usando Spectral + Schemathesis.
 - Uso moderado de snapshots: sanitizar tokens (`<JWT>` / `<REFRESH>` / `<RESET_TOKEN>`).
+ - Snapshots actuales alineados (0 obsoletos tras limpieza); el `contractSnapshot` normaliza headers (`x-request-id`) y números variables.
+
+## Configuración y comandos (Windows)
+- Unit:
+	```cmd
+	cd /d c:\Edgar\Programacion\SmartEdify_A\SmartEdify_V0\apps\services\auth-service
+	set SKIP_DB_TESTS=1 && set NODE_ENV=test && set AUTH_ADMIN_API_KEY=test-admin-key && npm run test:proj:unit --silent
+	```
+- Contract:
+	```cmd
+	cd /d c:\Edgar\Programacion\SmartEdify_A\SmartEdify_V0\apps\services\auth-service
+	set SKIP_DB_TESTS=1 && set NODE_ENV=test && set AUTH_ADMIN_API_KEY=test-admin-key && npm run test:proj:contract --silent
+	```
+
+Notas:
+- En entorno de test, `/health` devuelve 200 con `db/redis` mockeados para estabilidad de contratos.
+- Endpoints admin (rotación JWKS) requieren header `x-admin-api-key`; los tests establecen `AUTH_ADMIN_API_KEY` por defecto.
 
 ## Dependencias de seguridad inmediatas
 1. Reuse detection avanzada: cadena de refresh tokens + invalidación transitiva.

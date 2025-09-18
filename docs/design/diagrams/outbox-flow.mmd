@@ -2,7 +2,7 @@
 title: SmartEdify - Outbox Flow
 ---
 flowchart TD
-    subgraph Domain TX (DB Transaction)
+    subgraph Domain TX
         A[Domain Aggregate Change]
         B[Persist Aggregate]
         C[Insert Outbox Row JSON]

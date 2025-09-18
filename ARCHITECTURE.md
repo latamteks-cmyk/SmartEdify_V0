@@ -41,12 +41,8 @@ SmartEdify es una plataforma SaaS modular para educación, compuesta por tres do
 - Idempotencia: `409` + `idempotency-key` y `event_id`.
 
 ## 5. Seguridad
-<<<<<<< HEAD
-- JWT con `aud`, `iss`, `kid`. Rotación 3 estados (`current`, `next`, `retiring`). Ver detalles de diseño y métricas en la sección "Rotación de Claves JWT (JWKS)" del README del Auth Service (`apps/services/auth-service/README.md#rotación-de-claves-jwt-jwks`).
-- Publicación JWKS: endpoint `/.well-known/jwks.json` y rotación manual (`/admin/rotate-keys`). Métricas asociadas (`auth_jwks_keys_total`, `auth_jwks_rotation_total`).
-=======
-- JWT con `aud`, `iss`, `kid`. Rotación 3 estados (`current`, `next`, `retiring`) definida en ADR-0007 (Aceptado).
->>>>>>> 082763a42d088791ac1d53e4f34daacb7f655f6c
+- JWT con `aud`, `iss`, `kid`. Rotación de claves en 3 estados (`current`, `next`, `retiring`) definida en ADR-0007 (Aceptado) y documentada en el README del Auth Service (ver `apps/services/auth-service/README.md#rotación-de-claves-jwt-jwks`).
+- Publicación JWKS: endpoint `/.well-known/jwks.json` y rotación manual mediante endpoint de administración (`/admin/rotate-keys`) protegido por header/API key. Métricas expuestas: `auth_jwks_keys_total`, `auth_jwks_rotation_total`.
 - mTLS entre servicios (futuro), TLS extremo a extremo, HSTS.
 - Gestión de secretos: GitHub Secrets y AWS Secrets Manager.
 - Hardening: contenedores no root, FS inmutable, límites de recursos, CORS estricto.
@@ -62,7 +58,7 @@ SmartEdify es una plataforma SaaS modular para educación, compuesta por tres do
 - Retenciones: outbox 7 días, DLQ 30 días, documentos WORM.
 
 ## 8. DevOps y Operación
-- CI monorepo, SBOM, escaneo de contenedores, gates de calidad (lint, pruebas, cobertura ≥80 %, SAST) y verificación Cosign (firmas y attestations) bloqueante antes de liberar imágenes.
+- CI monorepo, SBOM, escaneo de contenedores, y gates de calidad activos: lint, typecheck, pruebas unitarias/contrato, validación de diagramas Mermaid y linting de OpenAPI con Spectral. Cobertura ≥80 % como objetivo (próximo gate). SAST y verificación Cosign (firmas y attestations) planificados como gates bloqueantes antes de liberar imágenes.
 - Despliegue canario con rollback.
 - Protocolos y guías en `docs/operations/ci-cd.md` y `docs/docker.md`.
 

@@ -63,16 +63,47 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
 - Otros servicios siguen el mismo patrón (`run build`, `run start`, `run dev`).
 
 ### Tests
-- Auth Service (Jest multi-proyecto):
-  ```sh
-  npm --prefix apps/services/auth-service test
-  npm --prefix apps/services/auth-service run test:proj:integration
-  ```
-- Tenant Service (Vitest):
-  ```sh
-  npm --prefix apps/services/tenant-service run test
-  npm --prefix apps/services/tenant-service run test:integration
-  ```
+### Tests
+  - Auth Service (Jest multi-proyecto):
+    - Windows (PowerShell):
+      ```powershell
+      cd c:\Edgar\Programacion\SmartEdify_A\SmartEdify_V0
+      npm run test:auth:win
+      ```
+    - Nix (bash/zsh):
+      ```bash
+      cd ./SmartEdify_V0
+      npm run test:auth:nix
+      ```
+    - Notas:
+      - Usa mocks de Postgres/Redis con `SKIP_DB_TESTS=1` y requiere `AUTH_ADMIN_API_KEY` para endpoints admin en tests.
+      - En entorno de test, `/health` devuelve `200`.
+  - Tenant Service (Vitest):
+    ```sh
+    npm --prefix apps/services/tenant-service run test
+    npm --prefix apps/services/tenant-service run test:integration
+    ```
+
+### Ejecución rápida de tests (scripts raíz)
+  - Windows (PowerShell 5.1+):
+    ```powershell
+    cd c:\Edgar\Programacion\SmartEdify_A\SmartEdify_V0
+    npm run test:all:win
+    ```
+  - Nix (bash/zsh):
+    ```bash
+    cd ./SmartEdify_V0
+    npm run test:all:nix
+    ```
+
+### Quality gates para PRs
+El pipeline valida:
+  - `lint` y `typecheck` en servicios modificados.
+  - `tests` unitarios/contrato (auth) y smoke (tenant) en CI.
+  - Validación de diagramas Mermaid.
+  - Linting de OpenAPI con Spectral.
+
+Objetivos próximos: cobertura ≥80 % como gate; SAST y verificación de firmas (Cosign) como gates bloqueantes.
 
 ## Feature Highlights
 ### Observabilidad y tracing distribuido

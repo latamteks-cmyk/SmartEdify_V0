@@ -1,3 +1,10 @@
+## Estado (2025-09-17)
+- Aún no iniciado. Bloqueado por SDK y contratos definitivos.
+
+## Próximos pasos
+1. Generar SDK a partir de OpenAPI cuando contratos estén listos.
+2. Integración inicial con Auth `/login` y `/refresh-token`.
+3. Probar flujos con entornos mock y feature flags.
 # Plan de integración — User Portal (Squarespace)
 
 ## Contexto
