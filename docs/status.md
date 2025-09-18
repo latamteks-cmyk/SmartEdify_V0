@@ -45,6 +45,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 |------|--------|-------------|
 | Testing | Integración Auth estable + snapshots parciales | Formalizar pipeline `spectral lint` + snapshots sanitizados (login, refresh, forgot/reset, register) |
 | Observabilidad | Logs + métricas técnicas + tracing login | Extender tracing a tenant-context/outbox + tableros negocio |
+| Operación diaria | Bitácora manual dispersa | Consolidar rondas y cron jobs en [`docs/operations/daily-operations.md`](operations/daily-operations.md) |
 | Seguridad | Hashing + rotación refresh + JWKS dual | Automatizar rotación + revoke list access |
 | Eventos | Outbox + DLQ tenant | Emitir `user.registered` completo y consumirlo en user-service |
 | CI/CD | Workflow auth parcial | Unificar plantillas + publicar reportes métricas en summary |
@@ -113,6 +114,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 - Revisar testTimeout warnings en Jest (ajustar si persisten tras refactor config).
 - Documentar decisiones de métricas en `docs/observability/README.md` tras publicación de dashboards.
 - Registrar variables JWKS (`AUTH_JWKS_ALG`, `AUTH_JWKS_GRACE_SECONDS`, `AUTH_JWKS_ROTATION_CRON`) en el inventario de configuraciones operativas.
+- Mantener bitácora AM/PM y post-deploy siguiendo `docs/operations/daily-operations.md` (trazabilidad ejecutiva).
 
 ---
 Responsable CTO Snapshot: (auto-generado asistente) 2025-09-23
