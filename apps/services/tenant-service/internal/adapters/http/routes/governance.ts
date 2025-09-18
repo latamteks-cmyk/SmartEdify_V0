@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { governanceTransferTotal } from '../../../metrics/registry.js';
+import { getActiveTraceparent } from '../../../observability/trace-context.js';
 
 const transferSchema = z.object({
   fromUserId: z.string().uuid(),
@@ -27,11 +28,17 @@ export async function governanceRoutes(app: FastifyInstance) {
       // Intentar crear admin; si unique conflict, lanzar controlado.
       await app.di.governanceRepo.createAdmin(tenantId, targetUser);
       governanceTransferTotal.inc({ result: 'success' });
+      const traceparent = getActiveTraceparent();
       await app.di.outboxRepo.enqueue({
         aggregateType: 'tenant',
         aggregateId: tenantId,
         type: 'governance.changed',
-        payload: { tenantId, action: 'transferred', toUserId: targetUser }
+        payload: {
+          tenantId,
+          action: 'transferred',
+          toUserId: targetUser,
+          ...(traceparent ? { traceparent } : {})
+        }
       });
       return reply.code(200).send({ tenantId, newAdminUserId: targetUser, status: 'transferred' });
     } catch (e: any) {

@@ -30,6 +30,7 @@ import pino from 'pino';
 import pinoHttp from 'pino-http';
 import client from 'prom-client';
 import { initializePrometheusMetrics } from '@smartedify/shared/metrics';
+import { withSpan } from '@smartedify/shared/tracing';
 
 import * as pgAdapter from '@db/pg.adapter';
 import { forgotPasswordHandler } from '../../internal/adapters/http/forgot-password.handler';
@@ -152,6 +153,8 @@ export const jwksRotationCounter = new client.Counter({
 register.registerMetric(jwksKeysTotal);
 register.registerMetric(jwksRotationCounter);
 
+const AUTH_TRACER = process.env.AUTH_SERVICE_NAME || 'auth-service';
+
 export const app = express();
 // Export util para tests que permita limpiar intervalo si en algún momento se inicializa
 export async function _cleanupMetrics() { /* noop actual (mantener API por si cambiamos) */ }
@@ -256,28 +259,50 @@ app.get('/.well-known/openid-configuration', openIdConfigurationHandler);
 
 // Rotación manual (MVP) - proteger en producción
 app.post('/admin/rotate-keys', adminRateLimiter, adminAuthMiddleware, async (_req, res) => {
-  try {
-    const result = await rotateKeys();
-    jwksRotationCounter.inc();
-    res.json({ message: 'rotated', current: { kid: result.newCurrent.kid }, next: result.newNext ? { kid: result.newNext.kid } : null });
-  } catch (e: any) {
-    logger.error({ err: e }, 'Error en rotación manual');
-    res.status(500).json({ error: 'rotation_failed' });
-  }
+  return withSpan(AUTH_TRACER, 'auth.admin.rotate-keys', undefined, async span => {
+    try {
+      const result = await rotateKeys();
+      jwksRotationCounter.inc();
+      span.setAttribute('auth.result', 'success');
+      span.addEvent('admin.rotate.success', {
+        'jwks.current_kid': result.newCurrent.kid,
+        ...(result.newNext ? { 'jwks.next_kid': result.newNext.kid } : {})
+      });
+      res.json({
+        message: 'rotated',
+        current: { kid: result.newCurrent.kid },
+        next: result.newNext ? { kid: result.newNext.kid } : null
+      });
+    } catch (e: any) {
+      span.setAttribute('auth.result', 'error');
+      span.addEvent('admin.rotate.failure', { error: e instanceof Error ? e.message : String(e) });
+      logger.error({ err: e }, 'Error en rotación manual');
+      res.status(500).json({ error: 'rotation_failed' });
+    }
+  });
 });
 
 app.post('/admin/revoke-kid', adminRateLimiter, adminAuthMiddleware, async (req, res) => {
-  const kid = typeof req.body?.kid === 'string' ? req.body.kid.trim() : '';
-  if (!kid) {
-    return res.status(400).json({ error: 'kid_required' });
-  }
-  try {
-    const result = await revokeSessionsByKid(kid);
-    res.json({ message: 'revoked', ...result });
-  } catch (e: any) {
-    logger.error({ err: e, kid }, 'Error revocando sesiones por kid');
-    res.status(500).json({ error: 'revoke_failed' });
-  }
+  return withSpan(AUTH_TRACER, 'auth.admin.revoke-kid', undefined, async span => {
+    const kid = typeof req.body?.kid === 'string' ? req.body.kid.trim() : '';
+    if (!kid) {
+      span.setAttribute('auth.result', 'validation_error');
+      span.addEvent('admin.revoke.failure', { reason: 'kid_required' });
+      return res.status(400).json({ error: 'kid_required' });
+    }
+    span.setAttribute('auth.kid', kid);
+    try {
+      const result = await revokeSessionsByKid(kid);
+      span.setAttribute('auth.result', 'success');
+      span.addEvent('admin.revoke.success', { 'auth.kid': kid, revoked: result.revoked });
+      res.json({ message: 'revoked', ...result });
+    } catch (e: any) {
+      span.setAttribute('auth.result', 'error');
+      span.addEvent('admin.revoke.failure', { error: e instanceof Error ? e.message : String(e) });
+      logger.error({ err: e, kid }, 'Error revocando sesiones por kid');
+      res.status(500).json({ error: 'revoke_failed' });
+    }
+  });
 });
 
 if (process.env.NODE_ENV !== 'production') {

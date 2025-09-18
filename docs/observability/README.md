@@ -30,3 +30,16 @@ Los siguientes objetivos cubren los indicadores clave solicitados (p95 login, ta
 ## Automatización de verificación
 - Job `auth-slo-canary` (cron horario) ejecuta queries PromQL anteriores y adjunta resultados al canal `#auth-observability`.
 - El runbook de rotación JWKS se apoya en el panel *Tokens revocados* para validar la propagación de deny-list.
+
+## Correlación de trazas y outbox
+- Los spans HTTP del servicio de autenticación (`auth.login`, `auth.register`, `auth.refresh` y los administrativos) ahora exponen
+  atributos estándar `auth.user_id`, `auth.tenant_id` y `auth.result`. Estos valores permiten filtrar en el backend de trazas la misma
+  entidad que observamos en las métricas (`auth_login_*`) y en los dashboards.
+- Los eventos `login.success`/`login.failure`, `refresh.success`/`refresh.failure` y los nuevos eventos administrativos se convierten
+  en anotaciones visibles en Jaeger/Tempo. Úsalos para contrastar rápidamente si el contador Prometheus se incrementó en la misma
+  ventana de tiempo.
+- El servicio de tenants adjunta el encabezado W3C `traceparent` dentro del payload que encola en la outbox para los eventos
+  `tenant.created`, `unit.created` y `membership.added` (y también para `governance.changed`). Al consumir dichos eventos, basta
+  con propagar ese `traceparent` como encabezado del mensaje Kafka para reconstruir el end-to-end: petición HTTP → outbox →
+  consumidor.
+- Consulta `docs/design/diagrams/tracing-span-map.mmd` para ver el mapa actualizado de spans y atributos compartidos entre servicios.
