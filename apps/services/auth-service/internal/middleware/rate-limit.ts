@@ -12,6 +12,14 @@ export const loginRateLimiter = rateLimit({
   message: { error: 'Demasiados intentos de login, espera e inténtalo de nuevo' }
 });
 
+export const adminRateLimiter = rateLimit({
+  windowMs: Number(process.env.AUTH_ADMIN_RATE_LIMIT_WINDOW_MS || 60_000),
+  max: Number(process.env.AUTH_ADMIN_RATE_LIMIT_MAX || 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'admin_rate_limited' }
+});
+
 // Middleware brute force: cuenta intentos por combinación email+ip
 export async function bruteForceGuard(req: Request, res: Response, next: Function) {
   if (req.path !== '/login' || req.method !== 'POST') return next();

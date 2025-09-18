@@ -38,6 +38,8 @@ export const EnvSchema = z.object({
   AUTH_LOGIN_MAX_ATTEMPTS: z.coerce.number().default(10).optional(),
   AUTH_BRUTE_WINDOW_SEC: z.coerce.number().default(300).optional(),
   AUTH_BRUTE_MAX_ATTEMPTS: z.coerce.number().default(20).optional(),
+  AUTH_ADMIN_RATE_LIMIT_WINDOW_MS: z.coerce.number().default(60000).optional(),
+  AUTH_ADMIN_RATE_LIMIT_MAX: z.coerce.number().default(10).optional(),
   // Roles/Permisos por defecto
   AUTH_DEFAULT_ROLE: z.string().default('user').optional(),
   AUTH_FALLBACK_ROLES: z.string().optional(), // lista separada por espacios o comas
