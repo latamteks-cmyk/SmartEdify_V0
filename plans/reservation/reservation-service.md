@@ -1,3 +1,10 @@
+## Estado (2025-09-17)
+- Pendiente kickoff. Depende de `tenant-context` para autorización y roles.
+
+## Próximos pasos
+1. Definir modelo de dominio inicial y endpoints CRUD.
+2. Diseñar esquema de eventos y consumidores necesarios.
+3. Incorporar contract tests desde OpenAPI en el arranque.
 # Plan — reservation-service
 
 ## Objetivo PMV

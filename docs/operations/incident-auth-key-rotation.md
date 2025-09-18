@@ -13,6 +13,18 @@ Ejecutar una rotación controlada de las claves RSA utilizadas por Auth Service 
 - Capacidad para ejecutar comandos `openssl`, `uuidgen` y `psql` desde un entorno seguro.
 - Confirmación de que el *cache* y los consumidores aceptan claves en estados `current`, `next` y `retiring`.
 
+## Automatización programada
+- El workflow de GitHub Actions [`jwks-rotate`](../../.github/workflows/jwks-rotate.yml) se ejecuta automáticamente todos los días a las **05:00 UTC** y puede iniciarse manualmente desde `workflow_dispatch` seleccionando el entorno (`dev|staging|production`).
+- La ejecución utiliza `AUTH_SERVICE_BASE_URL` (vars) para construir la URL base, firma la llamada `POST /admin/rotate-keys` con `AUTH_SERVICE_ADMIN_API_KEY` y reutiliza los secretos de Postgres (`AUTH_SERVICE_PGHOST`, `AUTH_SERVICE_PGUSER`, `AUTH_SERVICE_PGPASSWORD`) para calcular métricas de edad.
+- Si está definido `JWKS_METRICS_PUSH_URL`, el job envía la métrica `auth_jwks_key_age_hours` al Pushgateway antes de cerrar la conexión a la base de datos.
+- El rate limiting administrativo es configurable mediante `AUTH_ADMIN_RATE_LIMIT_WINDOW_MS` y `AUTH_ADMIN_RATE_LIMIT_MAX`; ajustar valores en `Repository/Environment vars` antes de ampliar la frecuencia de ejecuciones manuales.
+
+### Validación post-cron
+1. Revisar el run más reciente en GitHub Actions (`Actions > jwks-rotate`); verificar que el nombre del job incluya el entorno esperado y que el estado sea `success`.
+2. Consultar el Pushgateway (`curl -s $JWKS_METRICS_PUSH_URL`) y confirmar que `auth_jwks_key_age_hours` muestra timestamp reciente y valores coherentes con la tabla `auth_signing_keys`.
+3. Ejecutar `curl -s "$AUTH_API/.well-known/jwks.json" | jq '.keys[] | {kid,status}'` y validar que el `kid` promovido aparece como `current`.
+4. Registrar en el ticket del cron (o en el canal on-call) la hora de la ejecución, `kid` resultante y el estado de la validación.
+
 ## Step-by-step
 1. **Revisar el estado actual y capturar snapshot.**
    ```bash

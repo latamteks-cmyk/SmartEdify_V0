@@ -1,3 +1,11 @@
+## Estado (2025-09-17)
+- En espera de contratos cross-service definitivos (Auth/Tenant/User).
+- No iniciar endpoints hasta cerrar contrato de `tenant-context` y `user.registered`.
+
+## Próximos pasos
+1. Definir casos de uso iniciales y dependencias (read models).
+2. Esbozar esquema de eventos a consumir (versión 0) y validación.
+3. Preparar test harness con mocks de productores (Auth/User/Tenant).
 # Plan — assembly-service
 
 ## Visión y objetivos

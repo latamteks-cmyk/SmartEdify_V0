@@ -9,25 +9,8 @@ stateDiagram-v2
     Deprecated --> Purge: TTL / Manual Cleanup
     Purge --> [*]
 
-    note right of Provisioning
-        Generate key pair
-        Store kid + created_at
-    end
-
-    note right of Current
-        Signs new tokens
-        JWKS exposes kid
-    end
-
-    note right of Retiring
-        Valid for verification only
-        New tokens use NEXT (promoted)
-    end
-
-    note right of Deprecated
-        Should not verify (unless forced rollback)
-    end
-
-    note right of Purge
-        Row deletion or archive
-    end
+    note right of Provisioning: Generate key pair<br/>Store kid + created_at
+    note right of Current: Signs new tokens<br/>JWKS exposes kid
+    note right of Retiring: Valid for verification only<br/>New tokens use CURRENT
+    note right of Deprecated: Should not verify (unless forced rollback)
+    note right of Purge: Row deletion or archive

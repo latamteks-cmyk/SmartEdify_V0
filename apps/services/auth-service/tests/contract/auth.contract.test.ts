@@ -33,6 +33,7 @@ async function registerUser(email: string, name = 'Contract User') {
 
 describe('Auth contract snapshots', () => {
   beforeEach(async () => {
+    process.env.AUTH_ADMIN_API_KEY = process.env.AUTH_ADMIN_API_KEY || 'test-admin-key';
     await resetState();
   });
 

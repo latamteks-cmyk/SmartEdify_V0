@@ -1,8 +1,10 @@
+// ...existing code...
+
+import { Pool } from 'pg';
 import dotenv from 'dotenv';
 dotenv.config();
-import { Pool } from 'pg';
 
-const pool = new Pool({
+export const pool = new Pool({
   host: process.env.PGHOST || 'localhost',
   port: Number(process.env.PGPORT) || 5432,
   user: process.env.PGUSER || 'postgres',
@@ -31,7 +33,7 @@ export async function createUser(user: {
     );
     // (log suprimido)
     return res.rows[0];
-  } catch (e: any) {
+  } catch (e: unknown) {
     if (process.env.AUTH_TEST_LOGS) console.error('[createUser] error', e);
     throw e;
   }
@@ -74,7 +76,7 @@ export async function logSecurityEvent(event: {
   ip: string;
   ua: string;
   tenant_id: string;
-  details_json?: any;
+  details_json?: Record<string, unknown>;
   ts?: Date;
 }) {
   const { actor, event: evt, ip, ua, tenant_id, details_json, ts } = event;
@@ -84,7 +86,19 @@ export async function logSecurityEvent(event: {
   );
 }
 
-export default pool;
+const pgAdapter = {
+  createUser,
+  getUserByEmail,
+  getUserById,
+  getUserRoles,
+  assignUserRole,
+  listRoles,
+  logSecurityEvent,
+  pool,
+  query: pool.query.bind(pool),
+};
+
+export default pgAdapter;
 
 export async function endPool() {
   try { await pool.end(); } catch {}

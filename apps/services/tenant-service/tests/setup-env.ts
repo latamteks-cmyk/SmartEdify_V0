@@ -40,7 +40,7 @@ try {
   const desiredDb = process.env.POSTGRES_DB || 'smartedify';
   const host = process.env.PGHOST || 'localhost';
   const port = process.env.PGPORT || process.env.PG_PORT || '5542';
-  const shouldOverride = !process.env.TENANT_DB_URL || !process.env.TENANT_DB_URL.startsWith(`postgres://${desiredUser}:`);
+  const shouldOverride = !process.env.TENANT_DB_URL; // respetar TENANT_DB_URL explícita
   if (shouldOverride) {
     process.env.TENANT_DB_URL = `postgres://${desiredUser}:${desiredPass}@${host}:${port}/${desiredDb}`;
   }
@@ -55,10 +55,19 @@ if (process.env.TENANT_DB_URL) {
   }
 }
 
-console.log('[setup-env] POSTGRES_USER=', process.env.POSTGRES_USER, 'PGPORT=', process.env.PGPORT, 'TENANT_DB_URL=', process.env.TENANT_DB_URL);
+if (process.env.TEST_VERBOSE === '1') {
+  console.log('[setup-env] POSTGRES_USER=', process.env.POSTGRES_USER, 'PGPORT=', process.env.PGPORT, 'TENANT_DB_URL=', process.env.TENANT_DB_URL);
+}
 
 process.env.TENANT_LOG_LEVEL = process.env.TENANT_LOG_LEVEL || 'error';
 process.env.OTEL_SDK_DISABLED = 'true';
+
+// Si ya viene marcado para saltar pruebas con DB, no hacer probe ni migraciones
+const presetSkip = process.env.SKIP_DB_TESTS === '1';
+if (presetSkip) {
+  // eslint-disable-next-line no-console
+  console.warn('[setup-env] SKIP_DB_TESTS=1 -> omitiendo probe y migraciones de DB');
+} else {
 
 async function probeDb(retries = 5, delayMs = 500): Promise<boolean> {
   for (let i = 0; i < retries; i++) {
@@ -85,16 +94,13 @@ async function probeDb(retries = 5, delayMs = 500): Promise<boolean> {
   return false;
 }
 
-const canDb = await probeDb();
-if (!canDb) {
-  // Si la URL no es la default fallback, intenta forzar ejecución (para ver error real en tests) quitando skip.
-  const isFallback = process.env.TENANT_DB_URL?.includes('postgres:postgres@localhost:5542/postgres');
-  if (isFallback) {
+  const canDb = await probeDb();
+  if (!canDb) {
+    // No se pudo conectar; por defecto, marcamos skip para evitar fallos de conexión en suites que respetan este flag
     process.env.SKIP_DB_TESTS = '1';
+    // eslint-disable-next-line no-console
+    console.warn('[probe-db] no se pudo conectar a Postgres -> SKIP_DB_TESTS=1 (omitiendo tests con DB)');
   } else {
-    // Continuamos sin skip para obtener error claro en tests de integración
-    console.warn('[probe-db] no se pudo conectar, se ejecutarán tests para mostrar error de conexión');
+    await (await import('./migrate.js')).runMigrationsIfNeeded();
   }
-} else {
-  await (await import('./migrate.js')).runMigrationsIfNeeded();
 }

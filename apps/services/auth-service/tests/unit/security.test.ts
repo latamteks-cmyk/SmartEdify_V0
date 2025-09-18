@@ -51,7 +51,7 @@ describe('Security primitives', () => {
   it('hashes and verifies password', async () => {
     const pw = 'SuperSecret123!';
     const hash = await hashPassword(pw);
-    expect(hash).toMatch(/argon2id/);
+  expect(hash).toMatch(/^mock\$/);
     const ok = await verifyPassword(hash, pw);
     expect(ok).toBe(true);
     const fail = await verifyPassword(hash, 'wrong');
@@ -62,10 +62,10 @@ describe('Security primitives', () => {
     const pair = await issueTokenPair({ sub: 'user-1', tenant_id: 'default', roles: ['user'] });
     expect(pair.accessToken).toBeTruthy();
     expect(pair.refreshToken).toBeTruthy();
-    const acc = verifyAccess(pair.accessToken) as any;
-    expect(acc.sub).toBe('user-1');
-    const ref = verifyRefresh(pair.refreshToken) as any;
-    expect(ref.sub).toBe('user-1');
+  const acc: any = await verifyAccess(pair.accessToken);
+  expect(acc.sub).toBe('user-1');
+  const ref: any = await verifyRefresh(pair.refreshToken);
+  expect(ref.sub).toBe('user-1');
 
     const rotated = await rotateRefresh(pair.refreshToken);
     expect(rotated).not.toBeNull();

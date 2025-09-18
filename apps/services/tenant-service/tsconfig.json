@@ -9,7 +9,12 @@
     "skipLibCheck": true,
     "outDir": "dist",
     "rootDir": ".",
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@smartedify/shared": ["../../../packages/shared/src/index.ts"],
+      "@smartedify/shared/*": ["../../../packages/shared/src/*"]
+    }
   },
   "include": ["cmd/**/*.ts", "internal/**/*.ts", "types/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]

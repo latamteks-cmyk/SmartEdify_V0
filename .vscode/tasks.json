@@ -1,0 +1,35 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "auth unit+contract tests (skip DB)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"$env:SKIP_DB_TESTS='1'; $env:NODE_ENV='test'; $env:AUTH_TEST_LOGS=''; cd apps/services/auth-service; npm run test:proj:unit --silent; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:proj:contract --silent"
+			]
+		},
+		{
+			"label": "auth unit+contract tests (skip DB)",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"$env:SKIP_DB_TESTS='1'; $env:NODE_ENV='test'; Remove-Item Env:AUTH_TEST_LOGS -ErrorAction SilentlyContinue; Set-Location apps/services/auth-service; npm run test:proj:unit --silent; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:proj:contract --silent"
+			]
+		},
+		{
+			"label": "auth unit+contract tests (skip DB) - fixed quoting",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"$env:SKIP_DB_TESTS='1'; $env:NODE_ENV='test'; if (Test-Path Env:AUTH_TEST_LOGS) { Remove-Item Env:AUTH_TEST_LOGS }; Set-Location 'apps/services/auth-service'; npm run test:proj:unit --silent; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; npm run test:proj:contract --silent"
+			]
+		}
+	]
+}

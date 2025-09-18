@@ -8,6 +8,12 @@ if (!process.env.AUTH_ADMIN_API_KEY) {
 if (!process.env.AUTH_ADMIN_API_HEADER) {
   process.env.AUTH_ADMIN_API_HEADER = 'x-admin-api-key';
 }
+if (!process.env.AUTH_ADMIN_RATE_LIMIT_MAX) {
+  process.env.AUTH_ADMIN_RATE_LIMIT_MAX = '1';
+}
+if (!process.env.AUTH_ADMIN_RATE_LIMIT_WINDOW_MS) {
+  process.env.AUTH_ADMIN_RATE_LIMIT_WINDOW_MS = '60000';
+}
 // Mock de ioredis para garantizar que la instancia usada en redis.adapter tenga incr/ttl/expire
 jest.mock('ioredis');
 

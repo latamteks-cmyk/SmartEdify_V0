@@ -1,5 +1,6 @@
-import rateLimit from 'express-rate-limit';
 import { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
+
 import redis, { incr, ttl as redisTtl, expire as redisExpire } from '../adapters/redis/redis.adapter';
 
 // Rate limiting simple en memoria + refuerzo con Redis para brute force por email
@@ -9,6 +10,14 @@ export const loginRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Demasiados intentos de login, espera e inténtalo de nuevo' }
+});
+
+export const adminRateLimiter = rateLimit({
+  windowMs: Number(process.env.AUTH_ADMIN_RATE_LIMIT_WINDOW_MS || 60_000),
+  max: Number(process.env.AUTH_ADMIN_RATE_LIMIT_MAX || 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'admin_rate_limited' }
 });
 
 // Middleware brute force: cuenta intentos por combinación email+ip

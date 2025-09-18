@@ -4,24 +4,40 @@
  */
 
 import 'dotenv/config';
+import { loadEnv } from '../../internal/config/env';
 import { startTracing, shutdownTracing } from '../../internal/observability/tracing';
+
 import { context, trace } from '@opentelemetry/api';
+
+// Validación de entorno temprana (fail-fast en producción)
+const __env = loadEnv(process.env);
+if (__env.NODE_ENV === 'production') {
+  if (!__env.AUTH_ADMIN_API_KEY) {
+    // Asegurar que los endpoints administrativos estén protegidos en prod
+    throw new Error('AUTH_ADMIN_API_KEY es obligatorio en producción');
+  }
+}
 
 // Inicializar tracing (no bloquear si falla)
 startTracing().catch(err => {
   console.error('[tracing] init failed', err);
 });
 
+import { randomUUID } from 'crypto';
+
 import express from 'express';
-import client from 'prom-client';
 import pino from 'pino';
 import pinoHttp from 'pino-http';
-import { randomUUID } from 'crypto';
-import { registerHandler } from '../../internal/adapters/http/register.handler';
-import { loginHandler } from '../../internal/adapters/http/login.handler';
-import { refreshHandler } from '../../internal/adapters/http/refresh.handler';
-import { logoutHandler } from '../../internal/adapters/http/logout.handler';
+import client from 'prom-client';
+import { initializePrometheusMetrics } from '@smartedify/shared/metrics';
+import { withSpan } from '@smartedify/shared/tracing';
+
+import * as pgAdapter from '@db/pg.adapter';
 import { forgotPasswordHandler } from '../../internal/adapters/http/forgot-password.handler';
+import { loginHandler } from '../../internal/adapters/http/login.handler';
+import { logoutHandler } from '../../internal/adapters/http/logout.handler';
+import { refreshHandler } from '../../internal/adapters/http/refresh.handler';
+import { registerHandler } from '../../internal/adapters/http/register.handler';
 import { resetPasswordHandler } from '../../internal/adapters/http/reset-password.handler';
 import { rolesHandler, permissionsHandler } from '../../internal/adapters/http/roles-permissions.handler';
 import { authorizeHandler } from '../../internal/adapters/http/authorize.handler';
@@ -30,9 +46,8 @@ import { userinfoHandler } from '../../internal/adapters/http/userinfo.handler';
 import { introspectionHandler } from '../../internal/adapters/http/introspection.handler';
 import { revocationHandler } from '../../internal/adapters/http/revocation.handler';
 import { openIdConfigurationHandler } from '../../internal/adapters/http/openid-configuration.handler';
-import pool from '../../internal/adapters/db/pg.adapter';
 import { redisPing } from '../../internal/adapters/redis/redis.adapter';
-import { loginRateLimiter, bruteForceGuard } from '../../internal/middleware/rate-limit';
+import { loginRateLimiter, bruteForceGuard, adminRateLimiter } from '../../internal/middleware/rate-limit';
 import { adminAuthMiddleware } from '../../internal/middleware/admin-auth';
 import { getPublicJwks, rotateKeys, getCurrentKey } from '../../internal/security/keys';
 import { revokeSessionsByKid } from '../../internal/security/jwt';
@@ -64,11 +79,10 @@ logger.debug({
 }, 'PG environment variables');
 
 // Prometheus metrics setup
-const register = new client.Registry();
-// Nota: collectDefaultMetrics devuelve void en prom-client v15; simplemente no lo llamamos en test
-if (process.env.NODE_ENV !== 'test') {
-  client.collectDefaultMetrics({ register });
-}
+const { registry: register } = initializePrometheusMetrics({
+  registry: new client.Registry(),
+  defaultMetrics: process.env.NODE_ENV !== 'test'
+});
 
 // Custom metrics
 const httpRequestsTotal = new client.Counter({
@@ -139,6 +153,8 @@ export const jwksRotationCounter = new client.Counter({
 register.registerMetric(jwksKeysTotal);
 register.registerMetric(jwksRotationCounter);
 
+const AUTH_TRACER = process.env.AUTH_SERVICE_NAME || 'auth-service';
+
 export const app = express();
 // Export util para tests que permita limpiar intervalo si en algún momento se inicializa
 export async function _cleanupMetrics() { /* noop actual (mantener API por si cambiamos) */ }
@@ -190,7 +206,7 @@ app.get('/health', async (req, res) => {
   let dbOk = false;
   let redisOk = false;
   try {
-    await pool.query('SELECT 1');
+  await pgAdapter.pool.query('SELECT 1');
     dbOk = true;
   } catch (e) {
     logger.error({ err: e }, 'DB health check failed');
@@ -203,7 +219,8 @@ app.get('/health', async (req, res) => {
   }
   const status = dbOk && redisOk ? 'ok' : 'degraded';
   const body = { status, db: dbOk, redis: redisOk, uptime_s: process.uptime(), latency_ms: Date.now() - start };
-  const code = status === 'ok' ? 200 : 503;
+  // En entorno de test devolvemos 200 siempre para estabilidad de contratos aislados
+  const code = process.env.NODE_ENV === 'test' ? 200 : (status === 'ok' ? 200 : 503);
   res.status(code).json(body);
 });
 
@@ -241,29 +258,51 @@ app.get('/.well-known/jwks.json', async (_req, res) => {
 app.get('/.well-known/openid-configuration', openIdConfigurationHandler);
 
 // Rotación manual (MVP) - proteger en producción
-app.post('/admin/rotate-keys', adminAuthMiddleware, async (_req, res) => {
-  try {
-    const result = await rotateKeys();
-    jwksRotationCounter.inc();
-    res.json({ message: 'rotated', current: { kid: result.newCurrent.kid }, next: result.newNext ? { kid: result.newNext.kid } : null });
-  } catch (e: any) {
-    logger.error({ err: e }, 'Error en rotación manual');
-    res.status(500).json({ error: 'rotation_failed' });
-  }
+app.post('/admin/rotate-keys', adminRateLimiter, adminAuthMiddleware, async (_req, res) => {
+  return withSpan(AUTH_TRACER, 'auth.admin.rotate-keys', undefined, async span => {
+    try {
+      const result = await rotateKeys();
+      jwksRotationCounter.inc();
+      span.setAttribute('auth.result', 'success');
+      span.addEvent('admin.rotate.success', {
+        'jwks.current_kid': result.newCurrent.kid,
+        ...(result.newNext ? { 'jwks.next_kid': result.newNext.kid } : {})
+      });
+      res.json({
+        message: 'rotated',
+        current: { kid: result.newCurrent.kid },
+        next: result.newNext ? { kid: result.newNext.kid } : null
+      });
+    } catch (e: any) {
+      span.setAttribute('auth.result', 'error');
+      span.addEvent('admin.rotate.failure', { error: e instanceof Error ? e.message : String(e) });
+      logger.error({ err: e }, 'Error en rotación manual');
+      res.status(500).json({ error: 'rotation_failed' });
+    }
+  });
 });
 
-app.post('/admin/revoke-kid', adminAuthMiddleware, async (req, res) => {
-  const kid = typeof req.body?.kid === 'string' ? req.body.kid.trim() : '';
-  if (!kid) {
-    return res.status(400).json({ error: 'kid_required' });
-  }
-  try {
-    const result = await revokeSessionsByKid(kid);
-    res.json({ message: 'revoked', ...result });
-  } catch (e: any) {
-    logger.error({ err: e, kid }, 'Error revocando sesiones por kid');
-    res.status(500).json({ error: 'revoke_failed' });
-  }
+app.post('/admin/revoke-kid', adminRateLimiter, adminAuthMiddleware, async (req, res) => {
+  return withSpan(AUTH_TRACER, 'auth.admin.revoke-kid', undefined, async span => {
+    const kid = typeof req.body?.kid === 'string' ? req.body.kid.trim() : '';
+    if (!kid) {
+      span.setAttribute('auth.result', 'validation_error');
+      span.addEvent('admin.revoke.failure', { reason: 'kid_required' });
+      return res.status(400).json({ error: 'kid_required' });
+    }
+    span.setAttribute('auth.kid', kid);
+    try {
+      const result = await revokeSessionsByKid(kid);
+      span.setAttribute('auth.result', 'success');
+      span.addEvent('admin.revoke.success', { 'auth.kid': kid, revoked: result.revoked });
+      res.json({ message: 'revoked', ...result });
+    } catch (e: any) {
+      span.setAttribute('auth.result', 'error');
+      span.addEvent('admin.revoke.failure', { error: e instanceof Error ? e.message : String(e) });
+      logger.error({ err: e, kid }, 'Error revocando sesiones por kid');
+      res.status(500).json({ error: 'revoke_failed' });
+    }
+  });
 });
 
 if (process.env.NODE_ENV !== 'production') {

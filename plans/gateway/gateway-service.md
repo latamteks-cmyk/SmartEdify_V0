@@ -1,3 +1,11 @@
+## Estado (2025-09-17)
+- Bloqueado por contratos estables de Auth/Tenant.
+- Próximo: verificación centralizada de JWT (RS256 + JWKS), cache de JWKS con invalidación por `Cache-Control` y fallback a `retiring`.
+
+## Próximos pasos
+1. Definir contrato OpenAPI inicial del gateway.
+2. Integrar validación `kid` con rotación dual (current/retiring) y grace period.
+3. Instrumentar métricas de rechazo y latencia p95 por ruta.
 # Plan — gateway-service (BFF para Squarespace)
 
 ## Objetivo

@@ -1,6 +1,7 @@
-import * as jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
-import { getCurrentKey, getKeyByKid } from './keys';
+
+import * as jwt from 'jsonwebtoken';
+
 import {
   addToRevocationList,
   addAccessTokenToDenyList,
@@ -18,6 +19,9 @@ import {
   deleteSession
 } from '../adapters/redis/redis.adapter';
 import { getIssuer } from '../config/issuer';
+
+import { getCurrentKey, getKeyByKid } from './keys';
+
 
 // In-memory rotated set (MVP). En producción debería sustentarse en Redis para múltiples réplicas.
 const rotatedRefreshJtis = new Set<string>();
@@ -171,29 +175,33 @@ export async function verifyRefresh(token: string) {
 
 export async function rotateRefresh(oldRefreshToken: string): Promise<TokenPair | null> {
   try {
-  const decoded: any = await verifyRefresh(oldRefreshToken);
+    const decoded: any = await verifyRefresh(oldRefreshToken);
     if (decoded.type !== 'refresh') return null;
-    const debug = !!process.env.DEBUG_REFRESH || process.env.NODE_ENV === 'test';
-    if (debug) console.log('[rotateRefresh] decoded jti', decoded.jti, 'type', decoded.type);
+    const debugVerbose = !!process.env.DEBUG_REFRESH; // modo explícito
+    const debugTest = !!process.env.AUTH_TEST_LOGS; // sólo si el usuario activó logs en test
+    const shouldLog = debugVerbose || debugTest;
+    if (shouldLog) console.log('[rotateRefresh] decoded jti', decoded.jti, 'type', decoded.type);
     if (rotatedRefreshJtis.has(decoded.jti)) {
-      if (debug) console.log('[rotateRefresh] reuse detected (in-memory)', decoded.jti);
+      if (shouldLog) console.log('[rotateRefresh] reuse detected (in-memory)', decoded.jti);
       return null;
     }
     if (await isRefreshRotated(decoded.jti)) {
-      if (debug) console.log('[rotateRefresh] reuse detected (redis)', decoded.jti);
+      if (shouldLog) console.log('[rotateRefresh] reuse detected (redis)', decoded.jti);
       return null;
     }
     const stored = await getRefreshToken(decoded.jti);
     if (!stored) {
-      if (debug) console.log('[rotateRefresh] stored not found for jti', decoded.jti);
+      if (shouldLog) console.log('[rotateRefresh] stored not found for jti', decoded.jti);
       return null;
     }
     await revokeRefreshToken(decoded.jti);
     rotatedRefreshJtis.add(decoded.jti);
-    setTimeout(() => rotatedRefreshJtis.delete(decoded.jti), 60 * 60 * 1000);
+    if (process.env.NODE_ENV !== 'test') {
+      setTimeout(() => rotatedRefreshJtis.delete(decoded.jti), 60 * 60 * 1000);
+    }
     await addToRevocationList(decoded.jti, 'refresh', 'rotated', Math.min(3600, REFRESH_TTL_SECONDS));
     await markRefreshRotated(decoded.jti, Math.min(3600, REFRESH_TTL_SECONDS));
-  return issueTokenPair({
+    return issueTokenPair({
       sub: decoded.sub,
       tenant_id: decoded.tenant_id,
       roles: decoded.roles,
@@ -202,7 +210,7 @@ export async function rotateRefresh(oldRefreshToken: string): Promise<TokenPair 
       auth_time: typeof decoded.auth_time === 'number' ? decoded.auth_time : undefined
     });
   } catch (e) {
-    if (process.env.NODE_ENV === 'test' || process.env.DEBUG_REFRESH) console.log('[rotateRefresh] error verifying refresh', (e as any)?.message);
+    if (process.env.DEBUG_REFRESH || process.env.AUTH_TEST_LOGS) console.log('[rotateRefresh] error verifying refresh', (e as any)?.message);
     return null;
   }
 }

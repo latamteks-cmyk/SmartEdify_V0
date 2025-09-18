@@ -1,16 +1,17 @@
 # Status Ejecutivo Backend SmartEdify
-Fecha snapshot: 2025-09-23
-Versión documento: 1.2
+Fecha snapshot: 2025-09-17
+Versión documento: 1.3
 
 ## 0. Changelog de Snapshots
 | Fecha | Versión | Puntos clave |
 |-------|---------|--------------|
+| 2025-09-17 | 1.3 | Auth tests unit/contract verdes y sin warnings; snapshots saneados; Tenant integración estable. |
 | 2025-09-23 | 1.2 | Gate Cosign bloqueante, ADR-0007 aceptado, promoción/rollback Auth documentados. |
 | 2025-09-22 | 1.1 | Rotación JWKS operativa, métricas de negocio Auth publicadas y tracing básico en login/refresh. |
 | 2025-09-15 | 1.0 | Radiografía inicial con Auth estabilizado y Tenant Fase 0 completada. |
 
 ## 1. Resumen Ejecutivo
-Estado general: Plataforma en fase de endurecimiento. Auth-service opera con rotación dual de claves (JWKS) y métricas de negocio expuestas en dashboards de observabilidad; tracing básico disponible en los flujos críticos. El pipeline de supply-chain ahora bloquea el release ante fallas de firmas o attestations Cosign. Prioridad inmediata: cerrar gaps de contract testing (Auth/Tenant), ampliar trazas a tenant-context/outbox y extender controles de supply-chain al entorno runtime.
+Estado general: Plataforma en fase de endurecimiento. Auth-service con rotación dual de claves (JWKS), pruebas unitarias y de contrato verdes sin warnings, y snapshots consolidados; Tenant-service con runner de migraciones idempotente y suite de integración estable. Prioridad inmediata: cerrar gaps de contract testing (Auth/Tenant), ampliar trazas a tenant-context/outbox y extender controles de supply-chain al entorno runtime.
 
 Riesgos críticos mitigados: ausencia de rotación JWKS (rotación dual + métricas), inestabilidad pruebas integración (mock Redis duplicado, DB no real), fugas de handles Jest, outbox DLQ sin purga.
 Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad limitada en Tenant (medio), métricas de negocio Tenant sin definir (medio), políticas de logout/refresh aún laxas (medio).
@@ -23,10 +24,9 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
   - Publicación en `/.well-known/jwks.json` (claves `current`+`retiring`) y `/.well-known/openid-configuration`; emisión firma solo con `current` y verificación acepta `current`+`retiring` con métricas `jwks_active_keys{status}` y `jwks_rotation_total`.
 - Métricas de negocio publicadas (`auth_login_success_total`, `auth_login_fail_total`, `auth_password_reset_total`, `auth_refresh_reuse_detected_total`).
 - Tracing OTel mínimo en login, refresh, register; propagación `x-request-id` operativa.
-- Backlog inmediato: completar contract tests, exponer métricas en dashboards compartidos, implementar revoke-list corta para access tokens, automatizar rotación via job y consolidar pruebas de rotación (security project + integración multi-`kid`).
+- Backlog inmediato: mantener suite con exit code 0 en agregados; completar contract tests, exponer métricas en dashboards compartidos, implementar revoke-list corta para access tokens, automatizar rotación vía job y consolidar pruebas de rotación (security project + integración multi-`kid`).
 
-### Tenant Service
-- Fase 0 estable; gauges de outbox/DLQ publicados.
+- Fase 0 estable; gauges de outbox/DLQ publicados; migrador idempotente con locks y parser que remueve comentarios; `MIGRATE_VERBOSE/TEST_VERBOSE` para silenciar ruido.
 - Endpoint `membership overlap` en desarrollo; cache de contexto definido pero no implementado.
 - Requiere trazas compartidas con Auth y métricas de negocio (activaciones, tenants activos).
 

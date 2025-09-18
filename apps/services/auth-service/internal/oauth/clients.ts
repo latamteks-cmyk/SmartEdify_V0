@@ -30,8 +30,8 @@ const RawClientSchema = z.object({
   client_secret: z.string().optional()
 });
 
-function unique(values: string[]): string[] {
-  return Array.from(new Set(values.filter(Boolean)));
+function unique<T extends string>(values: T[]): T[] {
+  return Array.from(new Set(values.filter(Boolean))) as T[];
 }
 
 function sanitizeRedirects(uris: string[]): string[] {

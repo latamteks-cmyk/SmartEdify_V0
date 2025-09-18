@@ -1,9 +1,13 @@
 import { execSync } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+
 import dotenv from 'dotenv';
 
 export default async function globalSetup() {
+  if (process.env.SKIP_DB_TESTS === '1') {
+    return;
+  }
   const root = process.cwd();
   const envTestPath = path.join(root, '.env.test');
   if (fs.existsSync(envTestPath)) {
