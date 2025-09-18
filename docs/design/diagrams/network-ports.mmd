@@ -1,9 +1,13 @@
 ---
-title: SmartEdify - Network Ports Mapping
+id: network-ports
+title: "SmartEdify – Network Ports Mapping"
+description: "Service-to-port mapping showing gateway, microservices, shared infrastructure, and observability endpoints."
+updated: 2025-02-14
+tags: ["infrastructure", "network", "flowchart"]
 ---
 flowchart TB
   subgraph Edge
-    GW[Gateway/BFF\napi.smart-edify.com:443]
+    GW[Gateway/BFF<br/>api.smart-edify.com:443]
   end
   subgraph Services[Microservicios]
     AUTH[auth-service:7001]

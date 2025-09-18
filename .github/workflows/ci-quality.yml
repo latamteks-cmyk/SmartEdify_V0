@@ -16,6 +16,9 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Lint Mermaid metadata
+        run: npm run lint:mermaid
+
       - name: Lint shared package
         run: npm run lint --workspace @smartedify/shared
 

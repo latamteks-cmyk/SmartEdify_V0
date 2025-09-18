@@ -1,5 +1,9 @@
 ---
-title: SmartEdify - Auth Token Lifecycle
+id: auth-token-lifecycle
+title: "SmartEdify – Auth Token Lifecycle"
+description: "State transitions for access and refresh tokens, including revocation, logout, and rate limiting protections."
+updated: 2025-02-14
+tags: ["auth", "tokens", "state"]
 ---
 stateDiagram-v2
     [*] --> Unauthenticated
@@ -27,5 +31,5 @@ stateDiagram-v2
     Unauthenticated --> RateLimited: Excessive failed attempts
     RateLimited --> Unauthenticated: Cooldown elapsed
 
-    note right of Authenticated: Access Token 'short TTL'\nRefresh Token 'long TTL'\nRotation on each refresh\nStore only refresh 'httpOnly cookie'
+    note right of Authenticated: Access Token 'short TTL'<br/>Refresh Token 'long TTL'<br/>Rotation on each refresh<br/>Store only refresh 'httpOnly cookie'
 

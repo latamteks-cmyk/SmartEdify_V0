@@ -1,22 +1,26 @@
 ---
-title: SmartEdify - Consumer Processing Flowchart
+id: consumer-processing-flowchart
+title: "SmartEdify – Consumer Processing Flowchart"
+description: "End-to-end Kafka consumer flow from outbox polling through handler dispatch, retries, and metrics."
+updated: 2025-02-14
+tags: ["eventing", "kafka", "flowchart"]
 ---
 %% Consumer Processing Flowchart
 flowchart LR
     subgraph Outbox
-        A["DB Outbox Row\nstatus=pending"]
+        A["DB Outbox Row<br/>status=pending"]
     end
-    A -->|poll + validate| B["Publisher Abstraction\n(Logging/Kafka)"]
+    A -->|poll + validate| B["Publisher Abstraction<br/>(Logging/Kafka)"]
     B -->|produce| K[(Kafka Topic)]
     subgraph Consumers
-        K --> C1["Lag Consumer\n(lag metrics)"]
-        K --> C2["Processing Consumer\n(eachBatch)"]
+        K --> C1["Lag Consumer<br/>(lag metrics)"]
+        K --> C2["Processing Consumer<br/>(eachBatch)"]
         C2 -->|dispatch eventType| R{Registry}
         R -->|found| H1["Handler"]
         R -->|not found| NF[[handler_not_found++]]
         H1 --> M1[[processed_success++]]
         H1 --> D1[[duration_histogram]]
-        H1 -->|error| E["Classify\n(transient? permanent?)"]
+        H1 -->|error| E["Classify<br/>(transient? permanent?)"]
         E -->|transient & < max| RT["Retry backoff+jitter"]
         RT --> C2
         E -->|permanent o max| FL[[processed_error++]]

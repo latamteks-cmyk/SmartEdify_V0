@@ -167,3 +167,4 @@ Este proyecto se distribuye bajo la licencia MIT. Consulta el archivo [LICENSE](
 1. Abre un issue o referencia una entrada en `docs/tareas.md` antes de iniciar trabajo.
 2. Sigue los linters y pruebas (`npm run lint`, `npm test`) en cada servicio modificado.
 3. Actualiza la documentación relacionada (README, spec, status) dentro de la misma PR cuando cambies contratos o métricas.
+4. Para diagramas Mermaid, sigue `docs/design/diagrams/README.md` y ejecuta `npm run lint:mermaid` antes de solicitar revisión.
