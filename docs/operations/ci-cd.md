@@ -72,16 +72,13 @@ Estos gates están implementados en los workflows actuales del monorepo (ver sec
 
 Para reproducir los gates principales localmente:
 
-- Tests (Windows PowerShell 5.1+):
-  ```powershell
-  cd c:\Edgar\Programacion\SmartEdify_A\SmartEdify_V0
-  npm run test:all:win
-  ```
-- Tests (Nix):
+- Tests (cross-platform):
   ```bash
-  cd ./SmartEdify_V0
-  npm run test:all:nix
+  npm run test:fast
+  npm run test:contract
+  npm run test:all
   ```
+  - El wrapper `scripts/run-test-suite.mjs` detecta automáticamente el sistema operativo y delega en los scripts internos (`test:<suite>:win|nix`).
 - OpenAPI lint (Spectral):
   ```bash
   npm run lint:openapi

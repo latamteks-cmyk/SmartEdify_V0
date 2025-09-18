@@ -93,16 +93,13 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
     - Los reportes JUnit se guardan en `reports/contracts/` y pueden subirse como artefactos en CI.
 
 ### Ejecución rápida de tests (scripts raíz)
-  - Windows (PowerShell 5.1+):
-    ```powershell
-    cd c:\Edgar\Programacion\SmartEdify_A\SmartEdify_V0
-    npm run test:all:win
-    ```
-  - Nix (bash/zsh):
+  - Ejecuta los suites soportados desde la raíz:
     ```bash
-    cd ./SmartEdify_V0
-    npm run test:all:nix
+    npm run test:fast
+    npm run test:contract
+    npm run test:all
     ```
+  - El wrapper `scripts/run-test-suite.mjs` detecta automáticamente si estás en Windows (`process.platform === 'win32'`) o en un entorno Nix y delega en los scripts internos (`test:<suite>:win|nix`).
 
 ### Quality gates para PRs
 El pipeline valida:
