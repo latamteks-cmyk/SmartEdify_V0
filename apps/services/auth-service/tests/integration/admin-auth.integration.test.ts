@@ -5,10 +5,12 @@ import { app } from '../../cmd/server/main';
 import pool from '../../internal/adapters/db/pg.adapter';
 import redis from '../../internal/adapters/redis/redis.adapter';
 import { __resetKeyCacheForTests } from '../../internal/security/keys';
+import { adminRateLimiter } from '../../internal/middleware/rate-limit';
 
 describe('Middleware administrativo', () => {
   const headerName = process.env.AUTH_ADMIN_API_HEADER || 'x-admin-api-key';
   const adminKey = process.env.AUTH_ADMIN_API_KEY as string;
+  const rateLimitKeys = ['::ffff:127.0.0.1', '127.0.0.1'];
 
   if (!adminKey) {
     throw new Error('AUTH_ADMIN_API_KEY debe configurarse para las pruebas de integración');
@@ -18,6 +20,15 @@ describe('Middleware administrativo', () => {
     await pool.query('TRUNCATE TABLE auth_signing_keys RESTART IDENTITY CASCADE');
     await (redis as any).flushdb?.();
     __resetKeyCacheForTests();
+    rateLimitKeys.forEach(key => {
+      (adminRateLimiter as any).resetKey?.(key);
+    });
+  });
+
+  afterEach(() => {
+    rateLimitKeys.forEach(key => {
+      (adminRateLimiter as any).resetKey?.(key);
+    });
   });
 
   it.each([
@@ -44,5 +55,19 @@ describe('Middleware administrativo', () => {
       .set(headerName, adminKey);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe('rotated');
+  });
+
+  it('aplica rate limiting y responde 429 cuando se excede el límite', async () => {
+    const baseRequest = () =>
+      request(app)
+        .post('/admin/rotate-keys')
+        .set(headerName, adminKey);
+
+    const first = await baseRequest();
+    expect(first.status).toBe(200);
+
+    const second = await baseRequest();
+    expect(second.status).toBe(429);
+    expect(second.body.error).toBe('admin_rate_limited');
   });
 });

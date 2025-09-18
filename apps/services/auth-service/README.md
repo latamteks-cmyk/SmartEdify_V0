@@ -6,7 +6,7 @@
 Este servicio cubre la autenticación central de SmartEdify tras separar la gobernanza multi-tenant en un Tenant Service dedicado. El MVP reforzado prioriza hashing seguro, emisión y rotación básica de tokens, protección contra fuerza bruta, recuperación de contraseña y observabilidad inicial. No gestiona delegaciones ni traspasos de administración; se enfoca en identidad, sesiones y tokens.
 
 ### Alcance implementado (estado actual)
-- Endpoints REST: `/register`, `/login`, `/logout`, `/refresh-token`, `/forgot-password`, `/reset-password`, `/roles`, `/permissions`, `/health`, `/metrics`, `/.well-known/jwks.json`, `/admin/rotate-keys` (MVP sin auth dura para rotación manual).
+- Endpoints REST: `/register`, `/login`, `/logout`, `/refresh-token`, `/forgot-password`, `/reset-password`, `/roles`, `/permissions`, `/health`, `/metrics`, `/.well-known/jwks.json`, `/admin/rotate-keys` (protegido con API key + rate limiting administrativo) y `/admin/revoke-kid`.
 - Seguridad: Argon2id (costos diferenciados por entorno), JWT RS256 (access + refresh) con rotación de claves (estados `current|next|retiring`), rotación de refresh tokens single-use y detección básica de reuso bloqueando la cadena inmediata.
 - Recuperación de contraseña: tokens de un solo uso namespaced, residentes en almacenamiento simulado (mock Redis) + métrica de solicitudes y completados.
 - Observabilidad: logging estructurado (`pino`), métricas técnicas HTTP + contadores de negocio/seguridad, health check lógico (en modo test mockea Postgres/Redis para aislamiento reproducible), JWKS publicado.
@@ -48,8 +48,12 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 | `AUTH_JWT_REFRESH_SECRET` | Clave simétrica fallback | — |
 | `AUTH_TEST_LOGS` | Si está definido, habilita logs adicionales en tests | `1` |
 | `DEBUG_REFRESH` | Traza extendida de rotación de refresh tokens | `1` |
-| `AUTH_RATE_LIMIT_WINDOW` | Ventana rate limit (ms) | `60000` |
-| `AUTH_RATE_LIMIT_MAX` | Máximo solicitudes ventana/email+IP | `10` |
+| `AUTH_LOGIN_WINDOW_MS` | Ventana rate limit login (ms) | `60000` |
+| `AUTH_LOGIN_MAX_ATTEMPTS` | Máximo solicitudes ventana/email+IP | `10` |
+| `AUTH_ADMIN_RATE_LIMIT_WINDOW_MS` | Ventana (ms) para rate limiting de endpoints `/admin/*` | `60000` |
+| `AUTH_ADMIN_RATE_LIMIT_MAX` | Solicitudes permitidas por IP en endpoints `/admin/*` | `10` |
+| `JWKS_METRICS_PUSH_URL` | (Opcional) Pushgateway para publicar `auth_jwks_key_age_hours` tras cada rotación | `https://pushgateway.internal/metrics/job/auth-jwks-rotation` |
+| `AUTH_ADMIN_BASE_URL` | (Opcional) Base URL para jobs que invoquen `/admin/rotate-keys` | `https://auth.dev.smartedify.internal` |
 | `NODE_ENV` | Entorno (`development|test|production`) | `test` |
 
 > Nota: En modo test se ignoran credenciales reales de Postgres/Redis porque se usan mocks en memoria; para producción deberán definirse URLs reales.
@@ -60,6 +64,7 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 - Variables principales validadas:
   - `NODE_ENV` (`test|development|production`, default `development`)
   - `AUTH_ADMIN_API_HEADER` (default `x-admin-api-key`)
+  - Ventanas/umbrales de rate limit administrativos (`AUTH_ADMIN_RATE_LIMIT_WINDOW_MS`, `AUTH_ADMIN_RATE_LIMIT_MAX`)
   - `PORT` (default `8080`)
   - Parámetros Postgres (`PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`) con defaults para dev/test.
 
@@ -68,6 +73,16 @@ Ejemplo (PowerShell):
 $env:AUTH_ADMIN_API_KEY = 'mi-clave-super-secreta'
 node dist/cmd/server/main.js
 ```
+
+### Automatización de rotación JWKS
+- El workflow [`jwks-rotate`](../../../.github/workflows/jwks-rotate.yml) ejecuta el job `npm run jwks:rotate` diariamente a las 05:00 UTC y puede dispararse manualmente con `workflow_dispatch` seleccionando `dev|staging|production`.
+- El job consume `/admin/rotate-keys` mediante `fetch` autenticado con la credencial administrativa (`AUTH_SERVICE_ADMIN_API_KEY`) y valida el JWKS publicado desde `/.well-known/jwks.json`.
+- Si `JWKS_METRICS_PUSH_URL` está definido, el script envía `auth_jwks_key_age_hours` al Pushgateway antes de cerrar la conexión a Postgres, reutilizando los mismos datos impresos en logs.
+- Variables `vars`/`secrets` recomendadas en GitHub Actions: `AUTH_SERVICE_BASE_URL`, `AUTH_SERVICE_PG*`, `AUTH_SERVICE_ADMIN_API_KEY`, `AUTH_SERVICE_ADMIN_API_HEADER`, `AUTH_ADMIN_RATE_LIMIT_*`, `JWKS_METRICS_PUSH_URL`.
+- Validación post-ejecución (cron o manual):
+  1. Revisar el run en GitHub Actions (debe aparecer con el nombre del entorno objetivo) y confirmar estado `success`.
+  2. Consultar el Pushgateway (`curl $JWKS_METRICS_PUSH_URL`) para asegurar que `auth_jwks_key_age_hours` se actualizó con timestamp reciente.
+  3. Ejecutar `curl $AUTH_BASE_URL/.well-known/jwks.json | jq '.keys[] | {kid,status}'` y verificar que el `kid` retornado por el workflow coincide con la clave `current` publicada.
 
 ## Endpoints principales
 - GET `/authorize`
