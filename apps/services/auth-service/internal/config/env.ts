@@ -1,3 +1,4 @@
+import { parseEnv as parseEnvironment } from '@smartedify/shared/env';
 import { z } from 'zod';
 
 export const EnvSchema = z.object({
@@ -61,8 +62,8 @@ export const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
-export function parseEnv(env: NodeJS.ProcessEnv): Env {
-  const parsed = EnvSchema.parse(env);
+export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
+  const parsed = parseEnvironment(EnvSchema, { source });
   // Validaciones de seguridad en producción (fail-fast)
   if (parsed.NODE_ENV === 'production') {
     if (!parsed.AUTH_ADMIN_API_KEY || !parsed.AUTH_ADMIN_API_KEY.trim()) {

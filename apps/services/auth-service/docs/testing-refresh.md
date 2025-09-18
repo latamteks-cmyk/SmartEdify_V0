@@ -4,12 +4,12 @@
 Validar la cadena de rotación de refresh tokens y el bloqueo de reutilización sin depender de Postgres ni Redis reales, garantizando firmas RS256 válidas.
 
 ## Componentes Mock
-- **DB (@db/pg.adapter)**: Mock in-memory (`__mocks__/pg.adapter.ts`) que:
+- **DB (@db/pg.adapter)**: Mock in-memory (`@smartedify/shared/mocks/auth-pg-adapter`) que:
   - Guarda usuarios, roles y signing keys en arrays.
   - Genera automáticamente una clave RSA 2048 (estado `current`) si no existe.
   - Implementa `query` con coincidencias por fragmentos para soportar SQL usado en `keys.ts`.
 - **Hashing**: Mock de `hashPassword` y `verifyPassword` en `tests/jest.setup.ts` que genera hashes `mock$<plain>` y compara por substring, acelerando tests.
-- **Redis**: Mock in-memory simple (`MockRedis`) que implementa `set/get/del/expire/incr` y almacenamiento TTL para refresh tokens y revocaciones.
+- **Redis**: Mock in-memory simple (`@smartedify/shared/mocks/ioredis`) que implementa `set/get/del/expire/incr` y almacenamiento TTL para refresh tokens y revocaciones.
 - **JWT Keys**: `keys.ts` usa `generateKeyPairPem()` que en test retorna un par estático si se invoca directamente. El mock DB usualmente evita esa ruta generando la clave RSA en su semilla.
 
 ## Flujo de Refresh Producido

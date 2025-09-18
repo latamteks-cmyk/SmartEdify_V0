@@ -12,7 +12,7 @@ const base = {
   moduleFileExtensions: ['ts', 'js', 'json'],
   transformIgnorePatterns: ['/node_modules/(?!uuid)/'],
   moduleNameMapper: {
-    '^ioredis$': '<rootDir>/__mocks__/ioredis.ts',
+    '^ioredis$': '@smartedify/shared/mocks/ioredis',
     '^@db/(.*)$': '<rootDir>/internal/adapters/db/$1'
   },
   modulePathIgnorePatterns: ['<rootDir>/tests/__mocks__/ioredis.ts','<rootDir>/tests/__mocks__/pg.ts','<rootDir>/dist']

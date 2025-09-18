@@ -4,3 +4,4 @@ export * from './migrations/index.js';
 export * from './mocks/index.js';
 export * from './security/index.js';
 export * from './tracing/index.js';
+export * from './postgres/index.js';

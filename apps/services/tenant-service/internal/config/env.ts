@@ -1,5 +1,6 @@
-import { z } from 'zod';
+import { parseEnv as parseEnvironment } from '@smartedify/shared/env';
 import 'dotenv/config';
+import { z } from 'zod';
 
 export const EnvSchema = z.object({
   NODE_ENV: z.enum(['test', 'development', 'production']).default('development'),
@@ -49,8 +50,8 @@ export const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema>;
 
-export function parseEnv(env: NodeJS.ProcessEnv): Env {
-  const parsed = EnvSchema.parse(env);
+export function parseEnv(source: NodeJS.ProcessEnv): Env {
+  const parsed = parseEnvironment(EnvSchema, { source });
   // fail-fast en producción si falta DB URL
   if (parsed.NODE_ENV === 'production' && !parsed.TENANT_DB_URL) {
     throw new Error('TENANT_DB_URL es obligatorio en producción');

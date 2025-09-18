@@ -38,6 +38,7 @@ OUTBOX_MAX_PAYLOAD_BYTES=65536
 ### Configuración de entorno (Zod)
 - El archivo `internal/config/env.ts` valida `process.env` con Zod y construye el objeto `config` usado por el servidor.
 - En `production` se exige `TENANT_DB_URL` (fail-fast si falta). En `development/test`, si no se define, se construye desde `PGHOST/PGPORT/POSTGRES_*`.
+- La validación de entorno, el tracing OTel y las métricas Prometheus se apoyan en el paquete compartido `@smartedify/shared`, lo que mantiene consistencia con otros servicios de la plataforma.
 - Publisher/Consumer:
 	- `TENANT_PUBLISHER` (`logging|kafka|rabbitmq`, default `logging`). Si se selecciona `kafka` pero `KAFKA_BROKERS` está vacío se hace fallback a logging con `warn`.
 	- `TENANT_CONSUMER` (`none|logging|kafka|rabbitmq`, default `none`).

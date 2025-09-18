@@ -10,7 +10,9 @@
     "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      "@db/*": ["internal/adapters/db/*"]
+      "@db/*": ["internal/adapters/db/*"],
+      "@smartedify/shared": ["../../../packages/shared/src/index.ts"],
+      "@smartedify/shared/*": ["../../../packages/shared/src/*"]
     },
     "types": ["node", "jest"]
   },

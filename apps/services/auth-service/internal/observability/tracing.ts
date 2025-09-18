@@ -1,28 +1,30 @@
+import { initializeNodeTracing, type TracingInitializationResult } from '@smartedify/shared/tracing';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
-import { Resource } from '@opentelemetry/resources';
-import { NodeSDK } from '@opentelemetry/sdk-node';
-import { SemanticResourceAttributes } from '@opentelemetry/semantic-conventions';
+import { registerInstrumentations } from '@opentelemetry/instrumentation';
 
-let sdk: NodeSDK | null = null;
+let tracing: TracingInitializationResult | null = null;
 
-export async function startTracing() {
-  if (sdk) return; // idempotente
+export async function startTracing(): Promise<void> {
+  if (tracing) return;
+
   const serviceName = process.env.AUTH_SERVICE_NAME || 'auth-service';
-  const exporterEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
+  const environment = process.env.NODE_ENV || 'development';
+  const exporterEndpoint =
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT || process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
 
   const exporter = new OTLPTraceExporter({
-    // si no definimos endpoint, el exporter usará default (localhost:4318)
     url: exporterEndpoint,
     headers: {}
   });
 
-  sdk = new NodeSDK({
-    resource: new Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: serviceName,
-      [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: process.env.NODE_ENV || 'dev'
-    }),
-    traceExporter: exporter,
+  tracing = initializeNodeTracing({
+    serviceName,
+    environment,
+    exporters: [exporter]
+  });
+
+  registerInstrumentations({
     instrumentations: [
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-http': { enabled: true },
@@ -31,11 +33,18 @@ export async function startTracing() {
       })
     ]
   });
-  await sdk.start();
 }
 
-export async function shutdownTracing() {
-  if (!sdk) return;
-  await sdk.shutdown().catch(() => {});
-  sdk = null;
+export async function shutdownTracing(): Promise<void> {
+  if (!tracing) return;
+  try {
+    await tracing.shutdown();
+  } catch (error) {
+    if (process.env.AUTH_TEST_LOGS) {
+      // eslint-disable-next-line no-console
+      console.error('[tracing] shutdown failed', error);
+    }
+  }
+  tracing = null;
 }
+
