@@ -1,0 +1,43 @@
+---
+title: SmartEdify - Tracing Span Map (Auth & Tenant)
+---
+flowchart TD
+    subgraph Auth[Auth Service]
+        A1[POST /login] --> S1[auth.login]
+        S1 --> E1[[Events<br/>login.success / login.failure]]
+        S1 --> Attr1[[Attributes<br/>auth.tenant_id<br/>auth.user_id<br/>auth.result]]
+        S1 --> M1[[Metrics<br/>login_success_total / login_fail_total]]
+
+        A2[POST /register] --> S2[auth.register]
+        S2 --> Attr2[[Attributes<br/>auth.tenant_id<br/>auth.user_id<br/>auth.result]]
+
+        A3[POST /refresh-token] --> S3[auth.refresh]
+        S3 --> E3[[Events<br/>refresh.success / refresh.failure]]
+        S3 --> Attr3[[Attributes<br/>auth.tenant_id<br/>auth.user_id<br/>auth.result]]
+
+        A4[POST /admin/rotate-keys] --> S4[auth.admin.rotate-keys]
+        S4 --> Attr4[[Attributes<br/>auth.result<br/>jwks.current_kid<br/>jwks.next_kid?]]
+        S4 --> E4[[Events<br/>admin.rotate.success / admin.rotate.failure]]
+
+        A5[POST /admin/revoke-kid] --> S5[auth.admin.revoke-kid]
+        S5 --> Attr5[[Attributes<br/>auth.result<br/>auth.kid]]
+        S5 --> E5[[Events<br/>admin.revoke.success / admin.revoke.failure]]
+    end
+
+    subgraph Tenant[Tenant Service]
+        T1[POST /tenants] --> TS1[tenant.create]
+        TS1 --> AttrT1[[Attributes<br/>tenant.id<br/>tenant.code<br/>tenant.result]]
+        TS1 --> OT1[(Outbox tenant.created<br/>payload.traceparent)]
+
+        T2[POST /tenants/:id/units] --> TS2[tenant.unit.create]
+        TS2 --> AttrT2[[Attributes<br/>tenant.id<br/>unit.id<br/>unit.code<br/>unit.result]]
+        TS2 --> OT2[(Outbox unit.created<br/>payload.traceparent)]
+
+        T3[POST /units/:unitId/memberships] --> TS3[tenant.membership.create]
+        TS3 --> AttrT3[[Attributes<br/>unit.id<br/>membership.id<br/>membership.user_id<br/>membership.result]]
+        TS3 --> OT3[(Outbox membership.added<br/>payload.traceparent)]
+    end
+
+    TS1 -->|traceparent| OT1
+    TS2 -->|traceparent| OT2
+    TS3 -->|traceparent| OT3
