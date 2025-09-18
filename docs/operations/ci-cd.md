@@ -146,12 +146,15 @@ Para reproducir los gates principales localmente:
   - Re-ejecutar suites unit/contract en el commit revertido.
 
 ## Validación post-despliegue
-- SLI/SLO por servicio. Alertas: error rate, p95, 5xx, *consumer lag*, DLQ > umbral.
+- SLI/SLO por servicio. Alertas: error rate, p95, 5xx, *consumer lag*, DLQ > umbral (ver [`docs/operations/daily-operations.md`](./daily-operations.md) para checklist detallado).
 - Validar que no existan nuevas alertas críticas en los dashboards durante al menos 15 minutos tras el despliegue.
 - Ejecutar pruebas de smoke test:
   ```bash
   ./scripts/smoke-test.sh --service <nombre>
   ```
+
+## Operación diaria
+Las rondas operativas (AM/PM) y cron jobs asociados a Auth/Tenant están descritos en [`docs/operations/daily-operations.md`](./daily-operations.md). Cualquier promoción debe actualizar evidencias en esa bitácora para mantener la trazabilidad ejecutiva.
 
 ## Contactos
 - **On-call Plataforma:** `#oncall-plataforma` / oncall@smartedify.com

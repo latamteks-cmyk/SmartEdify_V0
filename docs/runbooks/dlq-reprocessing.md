@@ -10,6 +10,7 @@ Restablecer el flujo de eventos movidos a la *dead letter queue* (DLQ) del Tenan
 ## Preconditions
 - Existe una alerta (`outbox_dlq_size > 0` o crecimiento acelerado) o un ticket operativo asignado.
 - Acceso a la base de datos del Tenant Service y permisos para invocar los endpoints `GET/POST/DELETE /outbox/dlq`.
+- Captura inicial del panel *Eventos DLQ por tipo* del dashboard [`Tenant Service · Outbox & Consumers`](../observability/dashboards/tenant-service.json) filtrado por `environment` correspondiente. Adjuntar screenshot en el ticket.
 - Snapshot inicial de la DLQ antes de cualquier acción.
 - Coordinación con el equipo de dominio afectado para validar que la causa raíz está mitigada.
 
@@ -21,6 +22,7 @@ Restablecer el flujo de eventos movidos a la *dead letter queue* (DLQ) del Tenan
    curl -s "$TENANT_API/outbox/dlq?limit=500" | jq '.' > dlq-snapshot.json
    ```
    - Métricas a observar: `outbox_dlq_size`, `outbox_event_age_seconds_bucket` (p95) y `outbox_reprocessed_total`.
+   - Adjunta en el ticket la captura previa del panel *Eventos DLQ por tipo (última hora)* filtrando por el mismo `environment`.
 
 2. **Agrupar eventos y detectar patrón.**
    ```sql
@@ -70,7 +72,7 @@ Restablecer el flujo de eventos movidos a la *dead letter queue* (DLQ) del Tenan
   SELECT count(*) FROM outbox_events_dlq;
   ```
   Asegura que sólo queden eventos con causa raíz abierta o aprobados para retenerse.
-- Revisa dashboards de consumidor downstream para confirmar que no hay nuevos errores asociados al lote reprocesado (por ejemplo, `broker_consumer_lag_max` estable).
+- Revisa dashboards de consumidor downstream para confirmar que no hay nuevos errores asociados al lote reprocesado (por ejemplo, panel *Lag consumidor* en `Tenant Service · Outbox & Consumers` mostrando `broker_consumer_lag_max` estable).
 - **Recuperación exitosa:** No deben generarse nuevas alertas de DLQ ni errores de reprocesamiento en los dashboards de monitoreo durante al menos 30 minutos tras la intervención.
 
 ## Rollback

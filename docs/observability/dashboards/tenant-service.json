@@ -1,0 +1,229 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "description": "Pipeline de eventos (outbox + consumer) del Tenant Service.",
+  "editable": true,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom-main"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "displayMode": "table"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(broker_consumer_lag_max{consumer_group=~\"$consumer\",environment=~\"$environment\"})",
+          "legendFormat": "Max lag",
+          "refId": "A"
+        },
+        {
+          "expr": "avg(broker_consumer_lag_sum{consumer_group=~\"$consumer\",environment=~\"$environment\"})",
+          "legendFormat": "Lag sum",
+          "refId": "B"
+        }
+      ],
+      "title": "Lag consumidor",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom-main"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "displayMode": "table"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(consumer_events_processed_total{status=\"error\",consumer_group=~\"$consumer\",environment=~\"$environment\"}[5m])",
+          "legendFormat": "Errores",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(consumer_events_processed_total{status=\"success\",consumer_group=~\"$consumer\",environment=~\"$environment\"}[5m])",
+          "legendFormat": "Éxitos",
+          "refId": "B"
+        }
+      ],
+      "title": "Procesamiento de eventos",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom-main"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "id": 12,
+      "targets": [
+        {
+          "expr": "outbox_pending{environment=~\"$environment\"}",
+          "legendFormat": "Pending",
+          "refId": "A"
+        },
+        {
+          "expr": "outbox_ready{environment=~\"$environment\"}",
+          "legendFormat": "Ready",
+          "refId": "B"
+        },
+        {
+          "expr": "outbox_failed{environment=~\"$environment\"}",
+          "legendFormat": "Failed",
+          "refId": "C"
+        }
+      ],
+      "title": "Estado de outbox",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom-main"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "id": 13,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(consumer_process_duration_seconds_bucket{consumer_group=~\"$consumer\",environment=~\"$environment\"}[5m])) by (le))",
+          "legendFormat": "p95 procesamiento",
+          "refId": "A"
+        }
+      ],
+      "title": "Latencia p95 consumidor",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom-main"
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 14,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "sum by (type) (increase(outbox_dlq_events_total{environment=~\"$environment\"}[1h]))",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "title": "Eventos DLQ por tipo (última hora)",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": [
+    "tenant-service",
+    "pipeline"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "production",
+          "value": "production"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prom-main"
+        },
+        "definition": "label_values(outbox_pending, environment)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Environment",
+        "multi": false,
+        "name": "environment",
+        "query": "label_values(outbox_pending, environment)",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "tenant-consumer",
+          "value": "tenant-consumer"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prom-main"
+        },
+        "definition": "label_values(consumer_events_processed_total, consumer_group)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Consumer group",
+        "multi": false,
+        "name": "consumer",
+        "query": "label_values(consumer_events_processed_total, consumer_group)",
+        "refresh": 1,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-12h",
+    "to": "now"
+  },
+  "timezone": "",
+  "title": "Tenant Service · Outbox & Consumers",
+  "uid": "tenant-outbox-consumers",
+  "version": 5
+}

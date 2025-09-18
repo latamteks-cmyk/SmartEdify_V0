@@ -1,0 +1,211 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom-main"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table"
+        }
+      },
+      "targets": [
+        {
+          "exemplar": true,
+          "expr": "rate(auth_login_success_total{environment=~\"$environment\",tenant_id=~\"$tenant\"}[5m]) / (rate(auth_login_success_total{environment=~\"$environment\",tenant_id=~\"$tenant\"}[5m]) + rate(auth_login_fail_total{environment=~\"$environment\",tenant_id=~\"$tenant\"}[5m]))",
+          "interval": "",
+          "legendFormat": "Success ratio",
+          "refId": "A"
+        }
+      ],
+      "title": "Login success ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom-main"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(auth_http_request_duration_seconds_bucket{route=\"/login\",environment=~\"$environment\",tenant_id=~\"$tenant\"}[5m])) by (le)) * 1000",
+          "legendFormat": "p95 /login",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency p95 /login",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prom-main"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          }
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "table"
+        }
+      },
+      "targets": [
+        {
+          "expr": "rate(auth_refresh_reuse_blocked_total{environment=~\"$environment\",tenant_id=~\"$tenant\"}[5m])",
+          "legendFormat": "Blocked reuse",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(auth_token_revoked_total{environment=~\"$environment\",type=\"access\",tenant_id=~\"$tenant\"}[5m])",
+          "legendFormat": "Access revoked",
+          "refId": "B"
+        },
+        {
+          "expr": "rate(auth_token_revoked_total{environment=~\"$environment\",type=\"refresh\",tenant_id=~\"$tenant\"}[5m])",
+          "legendFormat": "Refresh revoked",
+          "refId": "C"
+        }
+      ],
+      "title": "Token revocations & reuse",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "tempo",
+        "uid": "tempo-main"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "query": {
+          "query": "{service.name=\"auth-service\", auth.tenant_id=~\"$tenant\"} | unwrap duration | avg()"
+        },
+        "showTable": false
+      },
+      "title": "Trace duration (average)",
+      "type": "tempo-topology"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": [
+    "auth-service",
+    "slo"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "production",
+          "value": "production"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prom-main"
+        },
+        "definition": "label_values(auth_login_success_total, environment)",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Environment",
+        "multi": false,
+        "name": "environment",
+        "query": "label_values(auth_login_success_total, environment)",
+        "refresh": 1,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "All",
+          "value": "/.*/"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prom-main"
+        },
+        "definition": "label_values(auth_login_success_total, tenant_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Tenant",
+        "multi": true,
+        "name": "tenant",
+        "query": "label_values(auth_login_success_total, tenant_id)",
+        "refresh": 1,
+        "regex": "",
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "",
+  "title": "Auth Service · Negocio y SLO",
+  "uid": "auth-business-slo",
+  "version": 3
+}
