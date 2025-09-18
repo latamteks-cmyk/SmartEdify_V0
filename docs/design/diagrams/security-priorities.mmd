@@ -1,14 +1,18 @@
-
-
-
+---
+id: security-priorities
+title: "SmartEdify – Security Priorities Roadmap"
+description: "Priority chain outlining security deliverables from JWKS rotation through authentication hardening."
+updated: 2025-02-14
+tags: ["security", "roadmap", "flowchart"]
+---
 flowchart LR
-    P1["Priority 1\nJWKS Rotation"]
-    P2["Priority 1\nGateway Verification"]
-    P3["Priority 1\nBusiness Metrics"]
-    P4["Priority 2\nTracing Endpoints"]
-    P5["Priority 2\nOutbox Events Auth"]
-    P6["Priority 3\nLogout + Denylist"]
-    P7["Priority 3\nWebAuthn / TOTP"]
+    P1["Priority 1<br/>JWKS Rotation"]
+    P2["Priority 1<br/>Gateway Verification"]
+    P3["Priority 1<br/>Business Metrics"]
+    P4["Priority 2<br/>Tracing Endpoints"]
+    P5["Priority 2<br/>Outbox Events Auth"]
+    P6["Priority 3<br/>Logout + Denylist"]
+    P7["Priority 3<br/>WebAuthn / TOTP"]
 
     P1 --> P2 --> P3 --> P4 --> P5 --> P6 --> P7
 
