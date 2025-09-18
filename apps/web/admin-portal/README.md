@@ -1,6 +1,6 @@
-# Admin Portal
+# User Portal
 
-This is the administration and management application for the SmartEdify platform.
+This is the main application for user interaction with the SmartEdify platform.
 
 ## Getting Started
 

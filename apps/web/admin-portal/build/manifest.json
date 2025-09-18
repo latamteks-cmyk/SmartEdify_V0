@@ -1,6 +1,6 @@
 {
-  "short_name": "Admin Portal",
-  "name": "SmartEdify Admin Portal",
+  "short_name": "User Portal",
+  "name": "SmartEdify User Portal",
   "icons": [
     {
       "src": "assets/images/favicon.ico",
