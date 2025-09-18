@@ -21,6 +21,15 @@
     "test:contract:nix": "cd apps/services/auth-service && SKIP_DB_TESTS=1 NODE_ENV=test AUTH_ADMIN_API_KEY=test-admin-key npm run test:proj:contract --silent",
     "test:contract:win": "cd apps\\services\\auth-service && set SKIP_DB_TESTS=1&& set NODE_ENV=test&& set AUTH_ADMIN_API_KEY=test-admin-key&& npm run test:proj:contract --silent",
     "contract:auth:schemathesis": "node scripts/contracts/run-schemathesis.js auth",
-    "contract:tenant:schemathesis": "node scripts/contracts/run-schemathesis.js tenant"
-  }
+    "contract:tenant:schemathesis": "node scripts/contracts/run-schemathesis.js tenant",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspace @smartedify/shared",
+    "typecheck": "npm run typecheck --workspace @smartedify/shared",
+    "types": "npm run types --workspace @smartedify/shared",
+    "test": "npm run test --workspace @smartedify/shared"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/services/*"
+  ]
 }

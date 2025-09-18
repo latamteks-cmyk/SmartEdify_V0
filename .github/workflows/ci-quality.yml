@@ -16,6 +16,15 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Lint shared package
+        run: npm run lint --workspace @smartedify/shared
+
+      - name: Typecheck shared package
+        run: npm run typecheck --workspace @smartedify/shared
+
+      - name: Generate shared types
+        run: npm run types --workspace @smartedify/shared
+
       - name: Typecheck (if configured)
         run: |
           if [ -f tsconfig.json ]; then
