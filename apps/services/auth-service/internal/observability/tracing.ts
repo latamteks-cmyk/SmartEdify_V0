@@ -1,4 +1,4 @@
-import { initializeNodeTracing, type TracingInitializationResult } from '@smartedify/shared/tracing';
+import { initializeNodeTracing, type TracingInitializationResult } from '@smartedify/shared';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { registerInstrumentations } from '@opentelemetry/instrumentation';

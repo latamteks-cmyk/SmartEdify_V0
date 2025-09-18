@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 
 import { refreshRotatedCounter, refreshReuseBlockedCounter } from '../../../cmd/server/main';
 import { rotateRefresh } from '../../security/jwt';
-import { withSpan } from '@smartedify/shared/tracing';
+import { withSpan } from '@smartedify/shared';
 
 const AUTH_TRACER = process.env.AUTH_SERVICE_NAME || 'auth-service';
 

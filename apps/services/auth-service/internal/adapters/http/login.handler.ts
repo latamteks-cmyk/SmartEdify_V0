@@ -5,7 +5,7 @@ import { verifyPassword } from '../../security/crypto';
 import { issueTokenPair, verifyRefresh } from '../../security/jwt';
 import * as pgAdapter from '@db/pg.adapter';
 import { saveSession } from '../redis/redis.adapter';
-import { withSpan } from '@smartedify/shared/tracing';
+import { withSpan } from '@smartedify/shared';
 
 import { LoginRequestSchema } from './login.dto';
 
