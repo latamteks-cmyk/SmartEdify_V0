@@ -35,6 +35,9 @@ Conteo consolidado: 47 tests (18 suites) tras eliminar duplicados de password re
 
 ## Contratos y *snapshots*
 - Próximo hito: pruebas de contrato HTTP desde OpenAPI (`api/auth.yaml`) usando Spectral + Schemathesis.
+- Smoke test con Schemathesis disponible vía `npm run contract:auth:schemathesis` tras instalar `pip install -r requirements-schemathesis.txt`.
+  - El wrapper levanta el servidor con `SKIP_DB_TESTS=1`, espera `http://127.0.0.1:18080/health` y ejecuta Schemathesis contra ese endpoint.
+  - Los resultados quedan en `reports/contracts/auth-service-schemathesis.xml` (JUnit) para su publicación en CI.
 - Uso moderado de snapshots: sanitizar tokens (`<JWT>` / `<REFRESH>` / `<RESET_TOKEN>`).
  - Snapshots actuales alineados (0 obsoletos tras limpieza); el `contractSnapshot` normaliza headers (`x-request-id`) y números variables.
 
