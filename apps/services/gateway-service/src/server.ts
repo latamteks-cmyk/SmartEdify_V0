@@ -1,0 +1,84 @@
+import express from 'express';
+import helmet from 'helmet';
+import { config } from '@/config/env.js';
+import { corsMiddleware } from '@/middleware/cors.js';
+import { loggingMiddleware, requestIdMiddleware } from '@/middleware/logging.js';
+import { generalRateLimit } from '@/middleware/rate-limit.js';
+import routes from '@/routes/index.js';
+import { services } from '@/config/services.js';
+
+const app = express();
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  }
+}));
+
+// Request processing middleware
+app.use(requestIdMiddleware);
+app.use(loggingMiddleware);
+app.use(corsMiddleware);
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Apply general rate limiting
+app.use(generalRateLimit);
+
+// Trust proxy for accurate IP addresses
+app.set('trust proxy', 1);
+
+// Routes
+app.use('/', routes);
+
+// Global error handler
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err);
+  
+  if (res.headersSent) {
+    return next(err);
+  }
+  
+  res.status(500).json({
+    error: 'Internal server error',
+    requestId: req.headers['x-request-id'],
+    code: 'INTERNAL_ERROR'
+  });
+});
+
+// Graceful shutdown
+const server = app.listen(config.PORT, () => {
+  console.log(`🚀 Gateway Service running on port ${config.PORT}`);
+  console.log(`📊 Environment: ${config.NODE_ENV}`);
+  console.log(`🔗 Services configured: ${Object.keys(services).join(', ')}`);
+});
+
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+    process.exit(0);
+  });
+});
+
+export default app;
