@@ -1,14 +1,14 @@
 /**
  * @type {import('node-pg-migrate').ColumnDefinitions | undefined}
  */
-exports.shorthands = undefined;
+export const shorthands = undefined;
 
 /**
  * @param pgm {import('node-pg-migrate').MigrationBuilder}
  * @param run {() => void | undefined}
  * @returns {Promise<void> | void}
  */
-exports.up = (pgm) => {
+export const up = (pgm) => {
 	pgm.createExtension('pgcrypto', { ifNotExists: true });
 
 	pgm.createTable('users', {
@@ -52,7 +52,7 @@ exports.up = (pgm) => {
  * @param run {() => void | undefined}
  * @returns {Promise<void> | void}
  */
-exports.down = (pgm) => {
+export const down = (pgm) => {
 	pgm.dropTable('audit_security', { ifExists: true });
 	pgm.dropTable('user_roles', { ifExists: true });
 	pgm.dropTable('users', { ifExists: true });

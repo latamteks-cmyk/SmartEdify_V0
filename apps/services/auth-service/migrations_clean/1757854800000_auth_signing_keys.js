@@ -4,7 +4,7 @@
  * Usamos IF NOT EXISTS para idempotencia en entornos de prueba.
  * @param {import('node-pg-migrate').MigrationBuilder} pgm 
  */
-exports.up = (pgm) => {
+export const up = (pgm) => {
   pgm.sql(`CREATE TABLE IF NOT EXISTS auth_signing_keys (
     kid            VARCHAR(64) PRIMARY KEY,
     pem_private    TEXT        NOT NULL,
@@ -23,7 +23,7 @@ exports.up = (pgm) => {
     WHERE status IN ('current','next','retiring');`);
 };
 
-exports.down = (pgm) => {
+export const down = (pgm) => {
   pgm.sql('DROP VIEW IF EXISTS v_jwks_public;');
   pgm.sql('DROP TABLE IF EXISTS auth_signing_keys;');
 };
