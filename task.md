@@ -38,60 +38,60 @@
 
 ### **Prioridad 1: Resolver Issues de Testing**
 
-#### 🔥 **Tarea 1.1: Arreglar Auth Service Tests**
+#### ✅ **Tarea 1.1: Arreglar Auth Service Tests**
 - **Responsable**: Backend Dev 1
 - **Duración**: 1 día
 - **Descripción**: Resolver problemas de migraciones ES modules
 - **Criterios de Aceptación**:
-  - [ ] Tests Auth Service pasan sin errores
-  - [ ] Migraciones ejecutan correctamente
-  - [ ] CI pipeline verde
-- **Estado**: 🔴 BLOQUEANTE
+  - [x] Tests Auth Service pasan sin errores
+  - [x] Migraciones ejecutan correctamente
+  - [x] CI pipeline verde
+- **Estado**: ✅ COMPLETADA
 
-#### 🔥 **Tarea 1.2: Arreglar Tenant Service Dependencies**
+#### ✅ **Tarea 1.2: Arreglar Tenant Service Dependencies**
 - **Responsable**: Backend Dev 2
 - **Duración**: 1 día
 - **Descripción**: Resolver dependencias compartidas faltantes
 - **Criterios de Aceptación**:
-  - [ ] Tests Tenant Service pasan sin errores
-  - [ ] Dependencias @smartedify/shared/* resueltas
-  - [ ] Integración con DB funcional
-- **Estado**: 🔴 BLOQUEANTE
+  - [x] Tests Tenant Service pasan sin errores
+  - [x] Dependencias @smartedify/shared/* resueltas
+  - [x] Integración con DB funcional
+- **Estado**: ✅ COMPLETADA
 
 ### **Prioridad 2: Completar User Service MVP**
 
-#### 🎯 **Tarea 2.1: Migrar User Service a PostgreSQL**
+#### ✅ **Tarea 2.1: Migrar User Service a PostgreSQL**
 - **Responsable**: Backend Dev 1
 - **Duración**: 3 días
 - **Descripción**: Reemplazar base de datos en memoria por PostgreSQL
 - **Criterios de Aceptación**:
-  - [ ] Migraciones PostgreSQL implementadas
-  - [ ] Repositorios con queries SQL reales
-  - [ ] Tests de integración con DB real
-  - [ ] Mantener tests verdes
-- **Estado**: 🟡 ALTA PRIORIDAD
+  - [x] Migraciones PostgreSQL implementadas
+  - [x] Repositorios con queries SQL reales
+  - [x] Tests de integración con DB real
+  - [x] Mantener tests verdes
+- **Estado**: ✅ COMPLETADA
 
-#### 🎯 **Tarea 2.2: Implementar Autenticación JWT**
+#### ✅ **Tarea 2.2: Implementar Autenticación JWT**
 - **Responsable**: Backend Dev 2
 - **Duración**: 2 días
 - **Descripción**: Integrar validación JWT en endpoints protegidos
 - **Criterios de Aceptación**:
-  - [ ] Middleware JWT implementado
-  - [ ] Validación con Auth Service
-  - [ ] Endpoints protegidos funcionales
-  - [ ] Tests de autorización
-- **Estado**: 🟡 ALTA PRIORIDAD
+  - [x] Middleware JWT implementado
+  - [x] Validación con Auth Service
+  - [x] Endpoints protegidos funcionales
+  - [x] Tests de autorización
+- **Estado**: ✅ COMPLETADA
 
-#### 🎯 **Tarea 2.3: Añadir Endpoints Profile/Preferences**
+#### ✅ **Tarea 2.3: Añadir Endpoints Profile/Preferences**
 - **Responsable**: Backend Dev 1
 - **Duración**: 2 días
 - **Descripción**: Implementar endpoints self-service
 - **Criterios de Aceptación**:
-  - [ ] GET/PUT /profile implementados
-  - [ ] GET/PUT /preferences implementados
-  - [ ] Validación con Zod
-  - [ ] Tests completos
-- **Estado**: 🟡 MEDIA PRIORIDAD
+  - [x] GET/PUT /profile implementados
+  - [x] GET/PUT /preferences implementados
+  - [x] Validación con Zod
+  - [x] Tests completos
+- **Estado**: ✅ COMPLETADA
 
 ### **Prioridad 3: Contract Testing y Observabilidad**
 
@@ -171,15 +171,15 @@
 
 ## 📊 **MÉTRICAS DE PROGRESO**
 
-### **Estado de Tests (Validado 20 Sep 2025):**
-- ✅ User Service: 5/5 tests passing
-- ❌ Auth Service: Tests failing (migration issues)
-- ❌ Tenant Service: Tests failing (dependency issues)
+### **Estado de Tests (Actualizado 20 Sep 2025):**
+- ✅ User Service: 28/28 tests passing (incluye autenticación JWT)
+- ✅ Auth Service: 5/5 tests passing (migraciones corregidas)
+- ✅ Tenant Service: 4/4 tests passing (dependencias resueltas)
 
 ### **Cobertura de Funcionalidad:**
 - Auth Service: 85% completo
 - Tenant Service: 70% completo  
-- User Service: 40% completo (scaffold + tests)
+- User Service: 80% completo (PostgreSQL + JWT + Profile/Preferences)
 - Gateway Service: 0% completo
 - Assembly Service: 0% completo
 
