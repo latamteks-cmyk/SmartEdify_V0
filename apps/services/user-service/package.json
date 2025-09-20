@@ -4,6 +4,9 @@
   "main": "app.ts",
   "scripts": {
     "test": "jest",
+    "test:unit": "jest --testPathPattern=tests/unit",
+    "test:integration": "jest --testPathPattern=tests/integration",
+    "test:contract": "jest --testPathPattern=tests/contract",
     "test:postgres": "node scripts/test-migration.js",
     "migrate": "node-pg-migrate",
     "migrate:up": "node-pg-migrate up",
