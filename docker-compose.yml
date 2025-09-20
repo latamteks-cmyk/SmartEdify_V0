@@ -69,15 +69,16 @@ services:
     environment:
       PGHOST: db
       PGPORT: 5432
-      PGUSER: ${POSTGRES_USER:-CHANGE_ME_DB_USER}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DB_PASSWORD}
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       PGDATABASE: ${POSTGRES_DB:-smartedify}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      AUTH_PORT: ${AUTH_PORT:-9080}
+      AUTH_PORT: 9080
       AUTH_LOG_LEVEL: info
+      NODE_ENV: production
     ports:
-      - "${AUTH_PORT:-9080}:8080"
+      - "${AUTH_PORT:-3001}:9080"
     restart: unless-stopped
 
   user-service:
@@ -97,17 +98,52 @@ services:
       redis:
         condition: service_healthy
     environment:
-      PGHOST: db
-      PGPORT: 5432
-      PGUSER: ${POSTGRES_USER:-CHANGE_ME_DB_USER}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DB_PASSWORD}
-      PGDATABASE: ${POSTGRES_DB:-smartedify}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      USER_PORT: ${USER_PORT:-9081}
-      USER_LOG_LEVEL: info
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-smartedify}
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-smartedify}
+      DATABASE_USER: ${POSTGRES_USER:-postgres}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      NODE_ENV: production
+      PORT: 3002
+      LOG_LEVEL: info
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
     ports:
-      - "${USER_PORT:-9081}:8081"
+      - "${USER_PORT:-3002}:3002"
+    restart: unless-stopped
+
+  gateway-service:
+    build:
+      context: ./apps/services/gateway-service
+      dockerfile: Dockerfile
+    container_name: gateway-service
+    user: "1001:1001"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: "512M"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      user-service:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      LOG_LEVEL: info
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      JWKS_URL: http://auth-service:9080/.well-known/jwks.json
+      AUTH_SERVICE_URL: http://auth-service:9080
+      USER_SERVICE_URL: http://user-service:3002
+      TENANT_SERVICE_URL: http://tenant-service:3003
+      CORS_ORIGIN: "*"
+      CORS_CREDENTIALS: "false"
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX_REQUESTS: 100
+      HEALTH_CHECK_INTERVAL: 30000
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
     restart: unless-stopped
 
   otel-collector:

@@ -28,4 +28,14 @@ app.put('/profile', authenticateJWT, updateProfileHandler);
 app.get('/preferences', authenticateJWT, getPreferencesHandler);
 app.put('/preferences', authenticateJWT, updatePreferencesHandler);
 
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'user-service',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 export default app;

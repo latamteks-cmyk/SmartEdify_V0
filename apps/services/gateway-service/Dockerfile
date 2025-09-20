@@ -29,10 +29,9 @@ RUN addgroup -S -g 1001 app && adduser -S -G app -u 1001 app
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/.env.example ./.env
 
 USER app
-EXPOSE 3002
-HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD curl -f http://localhost:3002/health || exit 1
-CMD ["node", "dist/app.js"]
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD curl -f http://localhost:3000/health || exit 1
+CMD ["node", "dist/server.js"]

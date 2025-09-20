@@ -1,7 +1,6 @@
 import { createProxyMiddleware, Options } from 'http-proxy-middleware';
-import { Request, Response } from 'express';
-import { services, getServiceByPath } from '@/config/services.js';
-import { AuthenticatedRequest } from '@/types/auth.js';
+import { Request, Response, NextFunction } from 'express';
+import { services, getServiceByPath } from '../config/services';
 
 // Create proxy middleware for each service
 export const createServiceProxy = (serviceName: string) => {
@@ -18,7 +17,7 @@ export const createServiceProxy = (serviceName: string) => {
     pathRewrite: {
       [`^${service.path}`]: '', // Remove the gateway path prefix
     },
-    onProxyReq: (proxyReq, req: AuthenticatedRequest, res) => {
+    onProxyReq: (proxyReq, req: any, res) => {
       // Add user context headers for backend services
       if (req.user) {
         proxyReq.setHeader('X-User-ID', req.user.id);
@@ -32,9 +31,9 @@ export const createServiceProxy = (serviceName: string) => {
       }
       
       // Forward request ID
-      const requestId = req.headers['x-request-id'];
+      const requestId = req.get('x-request-id');
       if (requestId) {
-        proxyReq.setHeader('X-Request-ID', requestId as string);
+        proxyReq.setHeader('X-Request-ID', requestId);
       }
       
       // Add gateway identifier
@@ -46,12 +45,12 @@ export const createServiceProxy = (serviceName: string) => {
       proxyRes.headers['Access-Control-Allow-Credentials'] = 'true';
       
       // Forward request ID in response
-      const requestId = req.headers['x-request-id'];
+      const requestId = req.get('x-request-id');
       if (requestId) {
-        proxyRes.headers['X-Request-ID'] = requestId as string;
+        proxyRes.headers['X-Request-ID'] = requestId;
       }
     },
-    onError: (err, req, res) => {
+    onError: (err, _req, res) => {
       console.error(`Proxy error for ${service.name}:`, err.message);
       
       if (!res.headersSent) {
@@ -69,15 +68,16 @@ export const createServiceProxy = (serviceName: string) => {
 };
 
 // Dynamic proxy middleware that routes based on path
-export const dynamicProxy = (req: Request, res: Response, next: Function) => {
+export const dynamicProxy = (req: Request, res: Response, next: NextFunction): void => {
   const service = getServiceByPath(req.path);
   
   if (!service) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Service not found',
       path: req.path,
       code: 'SERVICE_NOT_FOUND'
     });
+    return;
   }
   
   // Create proxy middleware on-the-fly
@@ -96,7 +96,7 @@ export const createHealthCheckProxy = (serviceName: string) => {
       '^/health/.*': '/health',
     },
     timeout: 3000, // Shorter timeout for health checks
-    onError: (err, req, res) => {
+    onError: (err, _req, res) => {
       if (!res.headersSent) {
         res.status(503).json({
           status: 'unhealthy',

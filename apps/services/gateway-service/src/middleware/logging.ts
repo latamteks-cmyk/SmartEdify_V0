@@ -1,6 +1,6 @@
 import morgan from 'morgan';
 import { Request, Response } from 'express';
-import { config } from '@/config/env.js';
+import { config } from '../config/env';
 
 // Custom token for request ID
 morgan.token('request-id', (req: Request) => {

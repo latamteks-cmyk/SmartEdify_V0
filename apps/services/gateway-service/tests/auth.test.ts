@@ -1,7 +1,7 @@
 import request from 'supertest';
 import jwt from 'jsonwebtoken';
-import app from '../src/server.js';
-import { config } from '../src/config/env.js';
+import app from '../src/server';
+import { config } from '../src/config/env';
 
 const createTestToken = (payload: any) => {
   return jwt.sign(payload, config.JWT_SECRET, { expiresIn: '1h' });

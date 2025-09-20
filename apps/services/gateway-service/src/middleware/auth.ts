@@ -1,16 +1,17 @@
 import jwt from 'jsonwebtoken';
-import { Request, Response, NextFunction } from 'express';
-import { JWTPayload, AuthenticatedRequest } from '@/types/auth.js';
-import { config } from '@/config/env.js';
+import { Response, NextFunction } from 'express';
+import { JWTPayload, AuthenticatedRequest } from '../types/auth';
+import { config } from '../config/env';
 
-export function authenticateJWT(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
+export function authenticateJWT(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  const authHeader = req.get('authorization');
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ 
+    res.status(401).json({ 
       error: 'Missing or invalid authorization header',
       code: 'MISSING_TOKEN'
     });
+    return;
   }
 
   const token = authHeader.substring(7); // Remove 'Bearer ' prefix
@@ -29,17 +30,17 @@ export function authenticateJWT(req: AuthenticatedRequest, res: Response, next: 
     next();
   } catch (error) {
     if (error instanceof jwt.TokenExpiredError) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         error: 'Token expired',
         code: 'TOKEN_EXPIRED'
       });
     } else if (error instanceof jwt.JsonWebTokenError) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         error: 'Invalid token',
         code: 'INVALID_TOKEN'
       });
     } else {
-      return res.status(500).json({ 
+      res.status(500).json({ 
         error: 'Token validation failed',
         code: 'TOKEN_VALIDATION_ERROR'
       });
@@ -48,11 +49,12 @@ export function authenticateJWT(req: AuthenticatedRequest, res: Response, next: 
 }
 
 // Optional authentication - doesn't fail if no token provided
-export function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
+export function optionalAuth(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
+  const authHeader = req.get('authorization');
   
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(); // Continue without authentication
+    next(); // Continue without authentication
+    return;
   }
 
   const token = authHeader.substring(7);
@@ -76,19 +78,21 @@ export function optionalAuth(req: AuthenticatedRequest, res: Response, next: Nex
 
 // Authorization middleware - checks if user has required role
 export function requireRole(role: string) {
-  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      return res.status(401).json({ 
+      res.status(401).json({ 
         error: 'Authentication required',
         code: 'AUTH_REQUIRED'
       });
+      return;
     }
     
     if (!req.user.roles?.includes(role)) {
-      return res.status(403).json({ 
+      res.status(403).json({ 
         error: `Role '${role}' required`,
         code: 'INSUFFICIENT_PERMISSIONS'
       });
+      return;
     }
     
     next();
@@ -96,34 +100,38 @@ export function requireRole(role: string) {
 }
 
 // Check if user can access tenant resources
-export function requireTenantAccess(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export function requireTenantAccess(req: AuthenticatedRequest, res: Response, next: NextFunction): void {
   if (!req.user) {
-    return res.status(401).json({ 
+    res.status(401).json({ 
       error: 'Authentication required',
       code: 'AUTH_REQUIRED'
     });
+    return;
   }
   
-  const requestedTenantId = req.headers['x-tenant-id'] as string || req.params.tenantId;
+  const requestedTenantId = req.get('x-tenant-id') || req.params.tenantId;
   
   if (!requestedTenantId) {
-    return res.status(400).json({ 
+    res.status(400).json({ 
       error: 'Tenant ID required',
       code: 'TENANT_ID_REQUIRED'
     });
+    return;
   }
   
   // Admin users can access any tenant
   if (req.user.roles?.includes('admin')) {
-    return next();
+    next();
+    return;
   }
   
   // Regular users can only access their own tenant
   if (req.user.tenant_id !== requestedTenantId) {
-    return res.status(403).json({ 
+    res.status(403).json({ 
       error: 'Access denied to this tenant',
       code: 'TENANT_ACCESS_DENIED'
     });
+    return;
   }
   
   next();

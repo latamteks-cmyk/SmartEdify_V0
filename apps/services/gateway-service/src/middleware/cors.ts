@@ -1,5 +1,5 @@
 import cors from 'cors';
-import { config } from '@/config/env.js';
+import { config } from '../config/env';
 
 const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {

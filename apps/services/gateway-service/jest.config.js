@@ -15,6 +15,7 @@ export default {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1'
   },
+  resolver: undefined,
   collectCoverageFrom: [
     'src/**/*.ts',
     '!src/**/*.d.ts',

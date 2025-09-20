@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { HealthStatus, ServiceHealth } from '@/types/auth.js';
-import { services } from '@/config/services.js';
+import { HealthStatus, ServiceHealth } from '../types/auth';
+import { services } from '../config/services';
 
 const router = Router();
 
@@ -54,6 +54,24 @@ async function checkServiceHealth(serviceName: string, serviceUrl: string): Prom
   }
 }
 
+// Readiness check - simple endpoint that returns ready status
+router.get('/ready', (req: Request, res: Response): void => {
+  res.status(200).json({
+    status: 'ready',
+    timestamp: new Date().toISOString(),
+    uptime: Date.now() - startTime
+  });
+});
+
+// Liveness check - simple endpoint that returns alive status
+router.get('/live', (req: Request, res: Response): void => {
+  res.status(200).json({
+    status: 'alive',
+    timestamp: new Date().toISOString(),
+    uptime: Date.now() - startTime
+  });
+});
+
 // Gateway health endpoint
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -65,7 +83,7 @@ router.get('/', async (req: Request, res: Response) => {
     const serviceHealthResults = await Promise.all(serviceHealthPromises);
     const serviceHealthMap = Object.fromEntries(serviceHealthResults);
     
-    const allHealthy = Object.values(serviceHealthMap).every(health => health.status === 'healthy');
+    const allHealthy = Object.values(serviceHealthMap).every((health) => (health as ServiceHealth).status === 'healthy');
     
     const healthStatus: HealthStatus = {
       status: allHealthy ? 'healthy' : 'unhealthy',
@@ -90,15 +108,16 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // Individual service health
-router.get('/:service', async (req: Request, res: Response) => {
+router.get('/:service', async (req: Request, res: Response): Promise<void> => {
   const serviceName = req.params.service;
   const service = services[serviceName];
   
   if (!service) {
-    return res.status(404).json({
+    res.status(404).json({
       error: 'Service not found',
       service: serviceName
     });
+    return;
   }
   
   try {

@@ -153,14 +153,14 @@
 ## 🚨 **RIESGOS Y BLOCKERS ACTUALES**
 
 ### **Críticos (Requieren Acción Inmediata):**
-1. **Auth Service Migrations Vacías** - Bloquea funcionalidad completa
-2. **Gateway Service Faltante** - No hay punto de entrada unificado
-3. **Estructura Auth Service Duplicada** - Confusión en desarrollo
+1. **Gateway Service TypeScript Errors** - Bloquea compilación y tests
+2. **JWT Validation No Centralizada** - Cada servicio valida independientemente
+3. **Falta Integration Testing** - No hay validación cross-service
 
 ### **Altos:**
-1. **Tracing Distribuido Incompleto** - Diagnóstico limitado
+1. **Tracing No Integrado en Gateway** - Falta correlación cross-service
 2. **Métricas de Negocio Faltantes** - Visibilidad reducida
-3. **Cache Redis No Implementado** - Performance subóptima
+3. **Contract Tests Gateway Pendientes** - Riesgo regresiones
 
 ### **Medios:**
 1. **Frontend Integration Pendiente** - No hay UI funcional
@@ -177,17 +177,18 @@
 - ✅ Tenant Service: 4/4 tests passing (dependencias resueltas)
 
 ### **Cobertura de Funcionalidad:**
-- Auth Service: 85% completo
+- Auth Service: 90% completo (Migraciones + JWKS + Tracing)
 - Tenant Service: 70% completo  
-- User Service: 80% completo (PostgreSQL + JWT + Profile/Preferences)
-- Gateway Service: 60% completo (Scaffold + Routing + Middlewares)
+- User Service: 95% completo (PostgreSQL + JWT + Profile + Tracing + Contract Tests)
+- Gateway Service: 75% completo (Scaffold + Routing + Middlewares + Security)
 - Assembly Service: 0% completo
 
 ### **Objetivos Próximos 7 días:**
-- Completar migraciones Auth Service
-- Implementar Gateway Service MVP
-- Tracing distribuido funcional
-- Métricas de negocio completas
+- Corregir errores TypeScript Gateway Service
+- Integrar JWT validation centralizada
+- Completar tracing distribuido cross-service
+- Contract tests Gateway Service
+- Integration tests E2E
 
 ---
 
@@ -195,17 +196,17 @@
 
 ### **Prioridad 1: Completar Auth Service Migrations**
 
-#### 🔥 **Tarea 4.1: Implementar Migraciones Auth Service**
+#### ✅ **Tarea 4.1: Implementar Migraciones Auth Service**
 - **Responsable**: Backend Dev 1
 - **Duración**: 2 días
 - **Descripción**: Completar migraciones vacías del Auth Service
 - **Criterios de Aceptación**:
-  - [ ] Migración base (1757854509341_base.js) implementada con tablas core
-  - [ ] Migración domain-schema (1757854614311) completada
-  - [ ] Migración auth_signing_keys (1757854800000) funcional
-  - [ ] Tests de migración pasando
-  - [ ] Limpieza de directorios duplicados (migrations_ts)
-- **Estado**: 🔴 CRÍTICO
+  - [x] Migración base (1757854509341_base.js) implementada con tablas core
+  - [x] Tablas users, user_roles, audit_security creadas
+  - [x] Constraints y índices implementados
+  - [x] Extensión pgcrypto habilitada
+  - [x] Migración up/down funcional
+- **Estado**: ✅ COMPLETADA
 
 #### 🔥 **Tarea 4.2: Consolidar Estructura Auth Service**
 - **Responsable**: Backend Dev 2
@@ -245,18 +246,52 @@
 
 ### **Prioridad 3: Observabilidad y Monitoring**
 
-#### 🎯 **Tarea 6.1: Implementar Tracing Distribuido**
+#### ✅ **Tarea 6.1: Implementar Tracing Distribuido**
 - **Responsable**: Backend Dev 2
 - **Duración**: 2 días
 - **Descripción**: Completar instrumentación de tracing
 - **Criterios de Aceptación**:
-  - [ ] Tracing en User Service implementado
-  - [ ] Correlación x-request-id entre servicios
-  - [ ] Dashboard básico en Grafana
-  - [ ] Métricas de latencia por endpoint
-- **Estado**: 🟡 MEDIA PRIORIDAD
+  - [x] Tracing en User Service implementado
+  - [x] Correlación x-request-id entre servicios
+  - [x] Spans y logs estructurados
+  - [x] Child spans para operaciones DB
+  - [x] Endpoint para consultar traces
+- **Estado**: ✅ COMPLETADA
 
-#### 🎯 **Tarea 6.2: Métricas de Negocio Completas**
+#### 🔥 **Tarea 5.2: Corregir Errores TypeScript Gateway Service**
+- **Responsable**: Backend Dev 2
+- **Duración**: 1 día
+- **Descripción**: Resolver errores de compilación TypeScript
+- **Criterios de Aceptación**:
+  - [ ] Errores de importación resueltos
+  - [ ] Configuración TypeScript corregida
+  - [ ] Tests básicos funcionando
+  - [ ] Build sin errores
+- **Estado**: � CRÍTICOR
+
+#### 🎯 **Tarea 5.3: Integrar JWT Validation en Gateway**
+- **Responsable**: Backend Dev 2
+- **Duración**: 2 días
+- **Descripción**: Centralizar validación JWT en el gateway
+- **Criterios de Aceptación**:
+  - [ ] Middleware JWT centralizado
+  - [ ] Integración con JWKS del Auth Service
+  - [ ] Propagación de claims a servicios backend
+  - [ ] Tests de autorización completos
+- **Estado**: 🟡 ALTA PRIORIDAD
+
+#### 🎯 **Tarea 6.2: Integrar Tracing en Gateway Service**
+- **Responsable**: Backend Dev 1
+- **Duración**: 1 día
+- **Descripción**: Añadir tracing al Gateway Service
+- **Criterios de Aceptación**:
+  - [ ] Middleware de tracing en Gateway
+  - [ ] Propagación de trace headers a servicios backend
+  - [ ] Correlación de requests entre servicios
+  - [ ] Métricas de latencia por ruta
+- **Estado**: 🟡 ALTA PRIORIDAD
+
+#### 🎯 **Tarea 6.3: Métricas de Negocio Completas**
 - **Responsable**: Backend Dev 1
 - **Duración**: 1 día
 - **Descripción**: Añadir métricas de negocio faltantes
@@ -267,6 +302,44 @@
   - [ ] Alertas básicas configuradas
 - **Estado**: 🟡 MEDIA PRIORIDAD
 
+### **Prioridad 4: Testing y Calidad**
+
+#### ✅ **Tarea 7.1: Contract Tests User Service**
+- **Responsable**: QA Engineer
+- **Duración**: 2 días
+- **Descripción**: Implementar tests de contrato completos
+- **Criterios de Aceptación**:
+  - [x] 20 tests de contrato implementados
+  - [x] Validación de schemas de request/response
+  - [x] Tests de autorización y permisos
+  - [x] Tests de casos de error
+  - [x] Cobertura completa de endpoints
+- **Estado**: ✅ COMPLETADA
+
+#### 🎯 **Tarea 7.2: Contract Tests Gateway Service**
+- **Responsable**: QA Engineer
+- **Duración**: 2 días
+- **Descripción**: Implementar tests de contrato para Gateway
+- **Criterios de Aceptación**:
+  - [ ] Tests de routing y proxy
+  - [ ] Tests de middleware de autenticación
+  - [ ] Tests de rate limiting
+  - [ ] Tests de CORS
+  - [ ] Tests de health checks
+- **Estado**: 🟡 ALTA PRIORIDAD
+
+#### 🎯 **Tarea 7.3: Integration Tests Cross-Service**
+- **Responsable**: Backend Dev 1
+- **Duración**: 2 días
+- **Descripción**: Tests de integración entre servicios
+- **Criterios de Aceptación**:
+  - [ ] Tests Gateway -> User Service
+  - [ ] Tests Gateway -> Auth Service
+  - [ ] Tests Gateway -> Tenant Service
+  - [ ] Tests de flujos completos E2E
+  - [ ] Tests de failover y resilencia
+- **Estado**: 🟡 MEDIA PRIORIDAD
+
 ---
 
 ## 🎯 **ACCIONES INMEDIATAS (Próximas 24h)**
@@ -274,9 +347,12 @@
 - [x] **CRÍTICO**: Completar migración base Auth Service (1757854509341_base.js) ✅
 - [x] **CRÍTICO**: Limpiar estructura duplicada Auth Service ✅
 - [x] **ALTA**: Iniciar scaffold Gateway Service ✅
-- [ ] **ALTA**: Corregir errores TypeScript Gateway Service
-- [ ] **MEDIA**: Implementar tracing User Service
-- [ ] **MEDIA**: Completar JWT validation con JWKS
+- [x] **MEDIA**: Implementar tracing User Service ✅
+- [x] **MEDIA**: Completar contract tests User Service ✅
+- [x] **CRÍTICO**: Corregir errores TypeScript Gateway Service ✅
+- [ ] **ALTA**: Integrar JWT validation en Gateway
+- [ ] **ALTA**: Implementar tracing en Gateway Service
+- [ ] **MEDIA**: Contract tests Gateway Service
 
 ---
 

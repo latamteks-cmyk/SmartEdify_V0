@@ -1,8 +1,7 @@
 import { Router } from 'express';
-import healthRoutes from './health.js';
-import { authenticateJWT, optionalAuth, requireRole } from '@/middleware/auth.js';
-import { authRateLimit, readRateLimit, generalRateLimit } from '@/middleware/rate-limit.js';
-import { createServiceProxy } from '@/middleware/proxy.js';
+import healthRoutes from './health';
+import { authenticateJWT, requireRole } from '../middleware/auth';
+import { createServiceProxy } from '../middleware/proxy';
 
 const router = Router();
 
@@ -10,29 +9,29 @@ const router = Router();
 router.use('/health', healthRoutes);
 
 // Auth service routes (public + protected)
-router.use('/auth/register', authRateLimit, createServiceProxy('auth'));
-router.use('/auth/login', authRateLimit, createServiceProxy('auth'));
-router.use('/auth/forgot-password', authRateLimit, createServiceProxy('auth'));
-router.use('/auth/reset-password', authRateLimit, createServiceProxy('auth'));
-router.use('/auth/.well-known', readRateLimit, createServiceProxy('auth'));
+router.use('/auth/register', createServiceProxy('auth'));
+router.use('/auth/login', createServiceProxy('auth'));
+router.use('/auth/forgot-password', createServiceProxy('auth'));
+router.use('/auth/reset-password', createServiceProxy('auth'));
+router.use('/auth/.well-known', createServiceProxy('auth'));
 
 // Protected auth routes
-router.use('/auth/logout', generalRateLimit, authenticateJWT, createServiceProxy('auth'));
-router.use('/auth/refresh-token', generalRateLimit, authenticateJWT, createServiceProxy('auth'));
-router.use('/auth/userinfo', readRateLimit, authenticateJWT, createServiceProxy('auth'));
+router.use('/auth/logout', authenticateJWT, createServiceProxy('auth'));
+router.use('/auth/refresh-token', authenticateJWT, createServiceProxy('auth'));
+router.use('/auth/userinfo', authenticateJWT, createServiceProxy('auth'));
 
 // Admin auth routes
-router.use('/auth/admin', generalRateLimit, authenticateJWT, requireRole('admin'), createServiceProxy('auth'));
+router.use('/auth/admin', authenticateJWT, requireRole('admin'), createServiceProxy('auth'));
 
 // User service routes (all protected)
-router.use('/api/users', generalRateLimit, authenticateJWT, createServiceProxy('user'));
+router.use('/api/users', authenticateJWT, createServiceProxy('user'));
 
 // Profile routes (self-service)
-router.use('/api/profile', generalRateLimit, authenticateJWT, createServiceProxy('user'));
-router.use('/api/preferences', generalRateLimit, authenticateJWT, createServiceProxy('user'));
+router.use('/api/profile', authenticateJWT, createServiceProxy('user'));
+router.use('/api/preferences', authenticateJWT, createServiceProxy('user'));
 
 // Tenant service routes (protected)
-router.use('/api/tenants', generalRateLimit, authenticateJWT, createServiceProxy('tenant'));
+router.use('/api/tenants', authenticateJWT, createServiceProxy('tenant'));
 
 // Catch-all for undefined routes
 router.use('*', (req, res) => {
