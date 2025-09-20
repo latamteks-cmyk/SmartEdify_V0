@@ -89,14 +89,51 @@ flowchart LR
 
 ## Ejecución local
 
-1. Instala dependencias y configura variables de entorno usando `.env.example`.
-2. Ejecuta el servicio con el comando correspondiente (ejemplo: `go run cmd/server/main.go` o `npm start`).
+### Configuración de Base de Datos
+
+El servicio soporta dos modos:
+- **PostgreSQL**: Para producción y desarrollo (cuando `DATABASE_URL` está configurado)
+- **Memoria**: Para tests y cuando no hay `DATABASE_URL`
+
+1. Instala dependencias: `npm install`
+2. Copia `.env.example` a `.env` y configura las variables
+3. Para PostgreSQL, ejecuta las migraciones: `npm run migrate:up`
+4. Ejecuta el servicio: `npm start`
+
+### Migraciones
+
+```bash
+# Ejecutar migraciones
+npm run migrate:up
+
+# Revertir migraciones
+npm run migrate:down
+
+# Crear nueva migración
+npm run migrate:create nombre-migracion
+```
+
+### Tests
+
+```bash
+# Tests con base de datos en memoria
+npm test
+
+# Tests con PostgreSQL (requiere DATABASE_URL)
+npm run test:postgres
+```
 
 ## Variables de entorno
-- USER_PORT
-- USER_DB_URL
-- USER_JWT_SECRET
-- USER_LOG_LEVEL
+- `DATABASE_URL` - URL de conexión a PostgreSQL
+- `DATABASE_HOST` - Host de PostgreSQL (localhost)
+- `DATABASE_PORT` - Puerto de PostgreSQL (5432)
+- `DATABASE_NAME` - Nombre de la base de datos
+- `DATABASE_USER` - Usuario de PostgreSQL
+- `DATABASE_PASSWORD` - Contraseña de PostgreSQL
+- `TEST_DATABASE_URL` - URL de base de datos para tests
+- `NODE_ENV` - Entorno (development/production/test)
+- `PORT` - Puerto del servicio (3002)
+- `LOG_LEVEL` - Nivel de logging (info/debug/error)
 
 ## Endpoints principales
 - GET `/users` (listar usuarios)

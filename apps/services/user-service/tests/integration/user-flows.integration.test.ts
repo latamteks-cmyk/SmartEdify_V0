@@ -1,9 +1,8 @@
 import request from 'supertest';
 import app from '../../app';
-import { clearDb } from '../../internal/adapters/db/memory';
+import '../setup';
 
 describe('Flujo de integración: usuario', () => {
-  beforeEach(() => { clearDb(); });
   it('debe crear, consultar, actualizar y eliminar usuario', async () => {
     // Crear usuario
     const createRes = await request(app)
@@ -17,6 +16,13 @@ describe('Flujo de integración: usuario', () => {
       .get(`/users/${userId}`);
     expect(getRes.status).toBe(200);
     expect(getRes.body.user.email).toBe('flow@demo.com');
+    expect(getRes.body.user.password).toBeUndefined(); // Password should not be returned
+
+    // Listar usuarios
+    const listRes = await request(app).get('/users');
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.items).toHaveLength(1);
+    expect(listRes.body.items[0].email).toBe('flow@demo.com');
 
     // Actualizar usuario
     const updateRes = await request(app)
@@ -24,6 +30,7 @@ describe('Flujo de integración: usuario', () => {
       .send({ name: 'FlowUserUpdated', email: 'flowupdated@demo.com' });
     expect(updateRes.status).toBe(200);
     expect(updateRes.body.user.name).toBe('FlowUserUpdated');
+    expect(updateRes.body.user.email).toBe('flowupdated@demo.com');
 
     // Eliminar usuario
     const deleteRes = await request(app)
@@ -35,5 +42,10 @@ describe('Flujo de integración: usuario', () => {
     const getDeletedRes = await request(app)
       .get(`/users/${userId}`);
     expect(getDeletedRes.status).toBe(404);
+
+    // Verificar que la lista esté vacía
+    const listEmptyRes = await request(app).get('/users');
+    expect(listEmptyRes.status).toBe(200);
+    expect(listEmptyRes.body.items).toHaveLength(0);
   });
 });
