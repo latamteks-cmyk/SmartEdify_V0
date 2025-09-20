@@ -14,7 +14,6 @@
 El **Assembly Service** permite ejecutar asambleas mixtas (presenciales y virtuales) de forma legal, auditable y transparente, orquestando convocatorias, acreditación, quórum, votación unificada, actas y archivo inmutable dentro del ecosistema SmartEdify.
 
 ### Objetivos principales
-- Cumplir con la Ley N.° 27157 y sus modificatorias (D. Leg. 1527).
 - Garantizar igualdad de derechos entre participantes presenciales y virtuales.
 - Automatizar la generación de actas firmadas digitalmente con trazabilidad.
 - Integrar Auth, Tenant, Compliance, Finance, Document, Communication y Payments para ofrecer una experiencia end-to-end.

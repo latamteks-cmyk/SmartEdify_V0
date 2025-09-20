@@ -13,7 +13,7 @@
     "dev": "nodemon --watch internal --watch cmd --exec ts-node cmd/server/main.ts",
     "migrate": "node-pg-migrate up -m ./migrations_clean --verbose",
     "migrate:create": "node-pg-migrate create -m ./migrations_clean",
-  "test": "jest --config jest.config.cjs --runInBand",
+  "test": "jest --config jest.config.cjs --runInBand --coverage",
   "test:all": "jest --config jest.config.cjs --runInBand --forceExit",
   "test:security": "jest --config jest.config.cjs --runInBand tests/security --forceExit",
   "test:proj:security": "jest --config jest.config.cjs --selectProjects security --runInBand",
