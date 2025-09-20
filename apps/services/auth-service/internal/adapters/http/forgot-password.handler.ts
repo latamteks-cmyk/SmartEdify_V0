@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 
 import { passwordResetRequestedCounter } from '../../../cmd/server/main';
-import * as pgAdapter from '@db/pg.adapter';
+import * as pgAdapter from '../../adapters/db/pg.adapter';
 import { savePasswordResetToken } from '../redis/redis.adapter';
 
 import { ForgotPasswordRequestSchema } from './forgot-password.dto';

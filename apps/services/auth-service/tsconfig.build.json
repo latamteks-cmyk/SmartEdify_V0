@@ -10,6 +10,6 @@
       "@db/*": ["internal/adapters/db/*"]
     }
   },
-  "include": ["internal", "cmd", "jobs", "migrations_ts"],
+  "include": ["internal", "cmd", "jobs"],
   "exclude": ["tests", "dist", "node_modules"]
 }

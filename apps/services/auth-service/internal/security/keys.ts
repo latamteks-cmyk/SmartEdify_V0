@@ -1,7 +1,7 @@
 import { randomUUID, generateKeyPairSync, createPublicKey } from 'crypto';
 
 // Usar alias unificado para que Jest aplique el mock correctamente
-import * as pgAdapter from '@db/pg.adapter';
+import * as pgAdapter from '../adapters/db/pg.adapter';
 // El mock expone pool.query; en producción pgAdapter.pool es un Pool real
 const poolRef: any = (pgAdapter as any).pool || (pgAdapter as any).default?.pool;
 const execQuery = async (sql: string, params?: any[]) => {

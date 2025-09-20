@@ -13,5 +13,5 @@
       "@db/*": ["internal/adapters/db/*"]
     }
   },
-  "include": ["internal", "cmd", "tests", "migrations_ts", "jobs"]
+  "include": ["internal", "cmd", "tests", "jobs"]
 }

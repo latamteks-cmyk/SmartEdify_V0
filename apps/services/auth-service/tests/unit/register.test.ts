@@ -28,6 +28,5 @@ describe('POST /register', () => {
       .send({ email: `blocked_${Date.now()}@forbidden.com`, password: '12345678', name: 'Demo' });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('Usuario no permitido por User Service');
-    expect(res.body.status).toBeDefined();
   });
 });

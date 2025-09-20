@@ -1,5 +1,5 @@
-import { refreshRotatedCounter, refreshReuseBlockedCounter } from '../../../cmd/server/main';
-import { rotateRefresh } from '../../security/jwt';
+import { refreshRotatedCounter, refreshReuseBlockedCounter } from '../../cmd/server/main';
+import { rotateRefresh } from '../security/jwt';
 
 export async function refresh(token: string) {
     const pair = await rotateRefresh(token);

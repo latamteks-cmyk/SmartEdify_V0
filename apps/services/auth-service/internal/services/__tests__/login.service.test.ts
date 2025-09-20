@@ -1,5 +1,5 @@
 import { loginUser } from '../login.service';
-import * as pgAdapter from '@db/pg.adapter';
+import * as pgAdapter from '../../adapters/db/pg.adapter';
 import * as crypto from '../../security/crypto';
 import * as jwt from '../../security/jwt';
 import * as redis from '../../adapters/redis/redis.adapter';

@@ -32,7 +32,7 @@ import client from 'prom-client';
 import { initializePrometheusMetrics } from '@smartedify/shared/metrics';
 import { withSpan } from '@smartedify/shared';
 
-import * as pgAdapter from '@db/pg.adapter';
+import * as pgAdapter from '../../internal/adapters/db/pg.adapter';
 import { forgotPasswordHandler } from '../../internal/adapters/http/forgot-password.handler';
 import { loginHandler } from '../../internal/adapters/http/login.handler';
 import { logoutHandler } from '../../internal/adapters/http/logout.handler';

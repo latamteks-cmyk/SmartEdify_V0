@@ -1,6 +1,6 @@
 import { resetPassword } from '../reset-password.service';
 import * as redis from '../../adapters/redis/redis.adapter';
-import * as pg from '@db/pg.adapter';
+import * as pg from '../../adapters/db/pg.adapter';
 import * as crypto from '../../security/crypto';
 
 jest.mock('../../adapters/redis/redis.adapter');

@@ -1,7 +1,7 @@
-import { hashPassword } from '../../security/crypto';
-import * as pgAdapter from '@db/pg.adapter';
-import { consumePasswordResetToken, revokeAllUserSessions } from '../redis/redis.adapter';
-import { passwordResetCompletedCounter } from '../../../cmd/server/main';
+import { hashPassword } from '../security/crypto';
+import * as pgAdapter from '../adapters/db/pg.adapter';
+import { consumePasswordResetToken, revokeAllUserSessions } from '../adapters/redis/redis.adapter';
+import { passwordResetCompletedCounter } from '../../cmd/server/main';
 
 export async function resetPassword(token: string, newPassword: string) {
     const tokenObj = await consumePasswordResetToken(token);

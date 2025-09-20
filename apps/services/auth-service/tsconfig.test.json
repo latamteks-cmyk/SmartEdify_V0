@@ -10,6 +10,6 @@
     },
     "types": ["node", "jest"]
   },
-  "include": ["internal", "cmd", "tests", "migrations_ts", "jobs"],
+  "include": ["internal", "cmd", "tests", "jobs"],
   "exclude": ["dist", "node_modules"]
 }

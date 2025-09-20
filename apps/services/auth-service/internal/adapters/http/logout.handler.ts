@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 
 import { tokenRevokedCounter } from '../../../cmd/server/main';
 import { verifyRefresh, verifyAccess } from '../../security/jwt';
-import * as pgAdapter from '@db/pg.adapter';
+import * as pgAdapter from '../../adapters/db/pg.adapter';
 import {
   revokeRefreshToken,
   markRefreshRotated,

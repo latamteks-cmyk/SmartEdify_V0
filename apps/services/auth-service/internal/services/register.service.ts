@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
-import { getUserServiceClient } from '../user-service.client';
-import { hashPassword } from '../../security/crypto';
-import * as pgAdapter from '@db/pg.adapter';
+import { getUserServiceClient } from '../adapters/user-service.client';
+import { hashPassword } from '../security/crypto';
+import * as pgAdapter from '../adapters/db/pg.adapter';
 
 const DEFAULT_ROLE = process.env.AUTH_DEFAULT_ROLE || 'user';
 

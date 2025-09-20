@@ -1,8 +1,8 @@
-import { verifyPassword } from '../../security/crypto';
-import { issueTokenPair, verifyRefresh } from '../../security/jwt';
-import * as pgAdapter from '@db/pg.adapter';
-import { saveSession } from '../redis/redis.adapter';
-import { loginSuccessCounter, loginFailCounter } from '../../../cmd/server/main';
+import { verifyPassword } from '../security/crypto';
+import { issueTokenPair, verifyRefresh } from '../security/jwt';
+import * as pgAdapter from '../adapters/db/pg.adapter';
+import { saveSession } from '../adapters/redis/redis.adapter';
+import { loginSuccessCounter, loginFailCounter } from '../../cmd/server/main';
 
 const DEFAULT_ROLE = process.env.AUTH_DEFAULT_ROLE || 'user';
 

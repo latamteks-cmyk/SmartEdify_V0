@@ -47,6 +47,51 @@ Este servicio cubre la autenticación central de SmartEdify tras separar la gobe
 3. Ejecuta en modo desarrollo: `npm run dev`.
 4. Ejecuta la suite de pruebas: `npm test -- --runInBand`.
 
+## Estructura de Base de Datos
+
+### Migraciones
+
+El servicio utiliza `node-pg-migrate` para gestionar las migraciones de base de datos:
+
+```bash
+# Ejecutar migraciones
+npm run migrate
+
+# Crear nueva migración
+npm run migrate:create nombre-migracion
+```
+
+**Migraciones Implementadas:**
+- `1757854509341_base.js` - Tablas core (users, user_roles, audit_security)
+- `1757854614311_domain-schema.js` - Esquema de dominio completo
+- `1757854800000_auth_signing_keys.js` - Tabla para rotación JWKS
+
+**Esquema Principal:**
+- `users` - Información de usuarios con tenant_id
+- `user_roles` - Roles por tenant y usuario
+- `audit_security` - Log de eventos de seguridad
+- `auth_signing_keys` - Claves de firma JWT con rotación
+
+### Estructura de Directorios
+
+```
+apps/services/auth-service/
+├── cmd/server/          # Punto de entrada de la aplicación
+├── internal/            # Lógica de negocio
+│   ├── adapters/        # Adaptadores HTTP, Redis, DB
+│   ├── config/          # Configuración y validación
+│   ├── middleware/      # Middlewares de Express
+│   ├── security/        # JWT, claves, hashing
+│   └── services/        # Servicios de dominio
+├── migrations_clean/    # Migraciones de base de datos
+├── tests/              # Suite de pruebas
+│   ├── unit/           # Tests unitarios
+│   ├── integration/    # Tests de integración
+│   ├── security/       # Tests de seguridad
+│   └── contract/       # Tests de contrato
+└── jobs/               # Jobs y tareas programadas
+```
+
 ## Variables de entorno (parcial)
 | Variable | Descripción | Ejemplo |
 |----------|-------------|---------|

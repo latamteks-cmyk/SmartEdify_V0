@@ -1,5 +1,5 @@
 import { registerUser } from '../register.service';
-import * as pgAdapter from '@db/pg.adapter';
+import * as pgAdapter from '../../adapters/db/pg.adapter';
 import * as userService from '../../adapters/user-service.client';
 import * as crypto from '../../security/crypto';
 
