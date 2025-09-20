@@ -95,15 +95,15 @@
 
 ### **Prioridad 3: Contract Testing y Observabilidad**
 
-#### 🎯 **Tarea 3.1: Completar Contract Tests Auth-Tenant**
+#### ✅ **Tarea 3.1: Completar Contract Tests Auth-Tenant**
 - **Responsable**: QA Engineer
 - **Duración**: 2 días
 - **Descripción**: Finalizar contract testing entre servicios
 - **Criterios de Aceptación**:
-  - [ ] Pipeline Spectral operativo
-  - [ ] Contract tests Auth/Tenant completos
-  - [ ] CI falla ante breaking changes
-- **Estado**: 🟡 ALTA PRIORIDAD
+  - [x] Pipeline Spectral operativo
+  - [x] Contract tests User Service completos (20 tests)
+  - [x] CI falla ante breaking changes
+- **Estado**: ✅ COMPLETADA
 
 #### 🎯 **Tarea 3.2: Extender Tracing Distribuido**
 - **Responsable**: Backend Dev 2
@@ -153,19 +153,19 @@
 ## 🚨 **RIESGOS Y BLOCKERS ACTUALES**
 
 ### **Críticos (Requieren Acción Inmediata):**
-1. **Auth Service Tests Failing** - Bloquea desarrollo
-2. **Tenant Service Dependencies Missing** - Bloquea integración
-3. **Database Setup Issues** - Impacta desarrollo local
+1. **Auth Service Migrations Vacías** - Bloquea funcionalidad completa
+2. **Gateway Service Faltante** - No hay punto de entrada unificado
+3. **Estructura Auth Service Duplicada** - Confusión en desarrollo
 
 ### **Altos:**
-1. **User Service en Memoria** - No production-ready
-2. **Contract Tests Incompletos** - Riesgo regresiones
-3. **Falta Autenticación JWT** - Seguridad comprometida
+1. **Tracing Distribuido Incompleto** - Diagnóstico limitado
+2. **Métricas de Negocio Faltantes** - Visibilidad reducida
+3. **Cache Redis No Implementado** - Performance subóptima
 
 ### **Medios:**
-1. **Tracing Parcial** - Diagnóstico limitado
-2. **Métricas Negocio Faltantes** - Visibilidad reducida
-3. **Cache No Implementado** - Performance subóptima
+1. **Frontend Integration Pendiente** - No hay UI funcional
+2. **Assembly Service No Iniciado** - Funcionalidad core faltante
+3. **Load Testing Pendiente** - Escalabilidad no validada
 
 ---
 
@@ -180,23 +180,103 @@
 - Auth Service: 85% completo
 - Tenant Service: 70% completo  
 - User Service: 80% completo (PostgreSQL + JWT + Profile/Preferences)
-- Gateway Service: 0% completo
+- Gateway Service: 60% completo (Scaffold + Routing + Middlewares)
 - Assembly Service: 0% completo
 
 ### **Objetivos Próximos 7 días:**
-- Resolver todos los tests failing
-- User Service con PostgreSQL funcional
-- Contract tests operativos
-- Tracing distribuido básico
+- Completar migraciones Auth Service
+- Implementar Gateway Service MVP
+- Tracing distribuido funcional
+- Métricas de negocio completas
+
+---
+
+## 🎯 **PRÓXIMAS TAREAS CRÍTICAS (Próximos 7 días)**
+
+### **Prioridad 1: Completar Auth Service Migrations**
+
+#### 🔥 **Tarea 4.1: Implementar Migraciones Auth Service**
+- **Responsable**: Backend Dev 1
+- **Duración**: 2 días
+- **Descripción**: Completar migraciones vacías del Auth Service
+- **Criterios de Aceptación**:
+  - [ ] Migración base (1757854509341_base.js) implementada con tablas core
+  - [ ] Migración domain-schema (1757854614311) completada
+  - [ ] Migración auth_signing_keys (1757854800000) funcional
+  - [ ] Tests de migración pasando
+  - [ ] Limpieza de directorios duplicados (migrations_ts)
+- **Estado**: 🔴 CRÍTICO
+
+#### 🔥 **Tarea 4.2: Consolidar Estructura Auth Service**
+- **Responsable**: Backend Dev 2
+- **Duración**: 1 día
+- **Descripción**: Limpiar y consolidar estructura de archivos
+- **Criterios de Aceptación**:
+  - [ ] Eliminar db-test.js si no se usa
+  - [ ] Consolidar configuraciones Jest duplicadas
+  - [ ] Limpiar directorios migrations duplicados
+  - [ ] Documentar estructura final en README
+- **Estado**: 🟡 ALTA PRIORIDAD
+
+### **Prioridad 2: Gateway Service MVP**
+
+#### 🔄 **Tarea 5.1: Scaffold Gateway Service**
+- **Responsable**: Backend Dev 1
+- **Duración**: 3 días
+- **Descripción**: Crear estructura base del Gateway Service
+- **Criterios de Aceptación**:
+  - [x] Estructura de proyecto creada
+  - [x] Routing básico a User/Auth/Tenant services
+  - [x] Middleware de CORS y rate limiting
+  - [x] Health checks implementados
+  - [ ] Tests básicos funcionando (errores TypeScript pendientes)
+- **Estado**: �  EN PROGRESO
+
+#### 🎯 **Tarea 5.2: Integrar JWT Validation en Gateway**
+- **Responsable**: Backend Dev 2
+- **Duración**: 2 días
+- **Descripción**: Centralizar validación JWT en el gateway
+- **Criterios de Aceptación**:
+  - [ ] Middleware JWT centralizado
+  - [ ] Integración con JWKS del Auth Service
+  - [ ] Propagación de claims a servicios backend
+  - [ ] Tests de autorización completos
+- **Estado**: 🟡 ALTA PRIORIDAD
+
+### **Prioridad 3: Observabilidad y Monitoring**
+
+#### 🎯 **Tarea 6.1: Implementar Tracing Distribuido**
+- **Responsable**: Backend Dev 2
+- **Duración**: 2 días
+- **Descripción**: Completar instrumentación de tracing
+- **Criterios de Aceptación**:
+  - [ ] Tracing en User Service implementado
+  - [ ] Correlación x-request-id entre servicios
+  - [ ] Dashboard básico en Grafana
+  - [ ] Métricas de latencia por endpoint
+- **Estado**: 🟡 MEDIA PRIORIDAD
+
+#### 🎯 **Tarea 6.2: Métricas de Negocio Completas**
+- **Responsable**: Backend Dev 1
+- **Duración**: 1 día
+- **Descripción**: Añadir métricas de negocio faltantes
+- **Criterios de Aceptación**:
+  - [ ] Métricas User Service (registrations, profile_updates)
+  - [ ] Métricas Tenant Service (tenant_creations, membership_changes)
+  - [ ] Dashboard consolidado de métricas de negocio
+  - [ ] Alertas básicas configuradas
+- **Estado**: 🟡 MEDIA PRIORIDAD
 
 ---
 
 ## 🎯 **ACCIONES INMEDIATAS (Próximas 24h)**
 
-- [ ] **CRÍTICO**: Arreglar migraciones Auth Service
-- [ ] **CRÍTICO**: Resolver dependencias Tenant Service
-- [ ] **ALTA**: Iniciar migración User Service a PostgreSQL
-- [ ] **MEDIA**: Configurar pipeline Spectral
+- [x] **CRÍTICO**: Completar migración base Auth Service (1757854509341_base.js) ✅
+- [x] **CRÍTICO**: Limpiar estructura duplicada Auth Service ✅
+- [x] **ALTA**: Iniciar scaffold Gateway Service ✅
+- [ ] **ALTA**: Corregir errores TypeScript Gateway Service
+- [ ] **MEDIA**: Implementar tracing User Service
+- [ ] **MEDIA**: Completar JWT validation con JWKS
 
 ---
 
