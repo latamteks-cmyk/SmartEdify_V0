@@ -3,6 +3,7 @@ import { IntrospectionRequestSchema } from './introspection.dto';
 import { resolveClientAuthentication } from '../../oauth/clients';
 import { verifyAccess, verifyRefresh } from '../../security/jwt';
 import { getIssuer } from '../../config/issuer';
+import { isRevoked } from '../../adapters/redis/redis.adapter';
 
 export async function introspectionHandler(req: Request, res: Response) {
   const parseResult = IntrospectionRequestSchema.safeParse(req.body || {});
@@ -33,6 +34,11 @@ export async function introspectionHandler(req: Request, res: Response) {
     } catch (refreshErr) {
       return res.json({ active: false });
     }
+  }
+
+  // Check if token is revoked
+  if (decoded.jti && await isRevoked(decoded.jti)) {
+    return res.json({ active: false });
   }
 
   const response: Record<string, any> = {

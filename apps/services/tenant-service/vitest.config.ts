@@ -1,4 +1,5 @@
 import { defineConfig, configDefaults } from 'vitest/config';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 const skipIntegration = process.env.SKIP_DB_TESTS === '1';
 if (skipIntegration) {
@@ -7,6 +8,7 @@ if (skipIntegration) {
 }
 
 export default defineConfig({
+  plugins: [tsconfigPaths()],
   test: {
     setupFiles: ['tests/setup-env.ts'],
     globals: false,

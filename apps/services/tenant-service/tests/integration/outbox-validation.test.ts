@@ -7,7 +7,9 @@ import { config } from '../../internal/config/env.js';
 
 // Test fuerza payload que excede límite -> validación falla -> evento se marca failed_permanent y se mueve a DLQ.
 
-describe('outbox validation', () => {
+const skip = process.env.SKIP_DB_TESTS === '1';
+
+describe.skipIf(skip)('outbox validation', () => {
   let app: Awaited<ReturnType<typeof buildTestApp>>;
   let repo: PgOutboxRepository;
   beforeAll(async () => {

@@ -28,7 +28,6 @@ services:
   db:
     image: postgres:15-alpine
     container_name: smartedify-db
-    user: "999:999"
     deploy:
       resources:
         limits:
@@ -37,14 +36,12 @@ services:
     environment:
       # IMPORTANTE: NO usar credenciales reales por defecto. Definir en .env local/CI.
       POSTGRES_DB: ${POSTGRES_DB:-smartedify}
-      POSTGRES_USER: ${POSTGRES_USER:-CHANGE_ME_DB_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_DB_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
       - "${PGPORT:-5542}:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 10s
       timeout: 5s
       retries: 5

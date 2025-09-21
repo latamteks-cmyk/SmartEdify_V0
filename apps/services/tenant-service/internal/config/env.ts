@@ -14,7 +14,7 @@ export const EnvSchema = z.object({
   POSTGRES_PASSWORD: z.string().default('postgres').optional(),
   POSTGRES_DB: z.string().default('smartedify').optional(),
   // Otros toggles usados en tests
-  SKIP_DB_TESTS: z.enum(['0', '1']).default('0').optional(),
+  SKIP_DB_TESTS: z.preprocess((val) => String(val), z.enum(['0', '1'])).default('0').optional(),
   // Seguridad/JWT opcional (preferimos JWKS cuando se configure)
   TENANT_JWKS_URL: z.string().url().optional(),
   TENANT_JWKS_CACHE_TTL_MS: z.coerce.number().default(600000).optional(),

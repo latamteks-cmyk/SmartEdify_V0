@@ -32,7 +32,7 @@ export function createMockUserServiceClient(options: MockUserServiceOptions = {}
     };
   }
 
-  return {
+  const client: UserServiceClient & { __isMock?: boolean } = {
     async validateUser(request: UserValidationRequest): Promise<UserValidationResult> {
       const email = request.email?.toLowerCase();
       if (!email || !email.includes('@')) {
@@ -58,4 +58,9 @@ export function createMockUserServiceClient(options: MockUserServiceOptions = {}
       return buildDeniedResult();
     }
   };
+
+  // Add the __isMock property for testing purposes
+  client.__isMock = true;
+
+  return client;
 }
