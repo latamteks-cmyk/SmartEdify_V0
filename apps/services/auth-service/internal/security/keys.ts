@@ -36,11 +36,19 @@ const CACHE_TTL_MS = 30_000;
 
 async function loadKeysFromDb() {
   const res = await execQuery("SELECT * FROM auth_signing_keys WHERE status IN ('current','next')");
-  cachedCurrent = res.rows.find((r: SigningKey) => r.status === 'current') || null;
-  cachedNext = res.rows.find((r: SigningKey) => r.status === 'next') || null;
+  
+  // Limpiar claves cargadas de posibles caracteres corruptos de PostgreSQL
+  const cleanedRows = res.rows.map((row: SigningKey) => ({
+    ...row,
+    pem_private: row.pem_private.replace(/\+\s*$/gm, '').trim(),
+    pem_public: row.pem_public.replace(/\+\s*$/gm, '').trim()
+  }));
+  
+  cachedCurrent = cleanedRows.find((r: SigningKey) => r.status === 'current') || null;
+  cachedNext = cleanedRows.find((r: SigningKey) => r.status === 'next') || null;
   lastLoad = Date.now();
   byKid.clear();
-  for (const r of res.rows) byKid.set(r.kid, r);
+  for (const r of cleanedRows) byKid.set(r.kid, r);
 }
 
 function ensureFreshCachePromise(): Promise<void> | void {
@@ -69,8 +77,43 @@ function generateKeyPairPem(): { privateKey: string; publicKey: string } {
   if (process.env.NODE_ENV === 'test') {
     // Par RSA 2048 generado exclusivamente para tests (NO usar en producción)
     // Se mantiene estático para estabilidad determinista de snapshots / fixtures.
-    const privateKey = `-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDHRcr2QKPagPzp\nGyIO5NWMZZkLVzGm04Bmzn9m9ewzazf6RGjkH4eCy8mfQlwHgcUJKyRhKiTpUec7\nT6Ah+DsTF5pXydgRDL9T9qmj2Hktd1aw3mVZNeJItqAxWV7Zu1bM/j6WuGJi+jTO\nEThZXWbmZF7LhjkpZQxOfdPaeBmjhMYJ3tu3KMn7o28HMuqpEOcExja9bpBlpoxG\nPWptGy2k6ndxHgNK+xVIBGy/J36254OumJGz3mrNI/Z3xFUa9mxv+Hf0S/9Zp6zd\nqLUf2bQAZowwHU+VlXDxBrRT1ik3P/KjicqvUpJ7/fkY9cZvtQef640iXw/cjTrI\nHwlNU2GzAgMBAAECggEAEr0EM2gW22tik1Nap9XyrjaeclHSmvJodc1tG6ZjX8xP\nysQ8kte0QhqY9jmok/zaq8wkHxnrGJo1Uhts9AV+kbnMIWshuXyCn7uDRQ39bFrT\nYv9sxVPo7ered8hDXfve17qgeJRpmdgjS2/Z5EerABIaiuWw4vKR1Tna5nUfSYfF\n+kF1+IBitc+TDc8cgGVLEfR1zVwUMwR2KKAV1PEn5KLF7XD/hoSdSXth3N1INeCS\nMeST/Ioeq7xG/3USxJgrV5mJjQgmFMVa232YSZC2F2ywoSKIg9woQYGU+lMGOJ1G\nJ6kZqEUEP4bGsX0Ogx+IzYlQJyEq9QPgULFAYOgCeQKBgQD+iRzzCVHPdM4kDHrN\ni7Odd+vIfj4VpX1bhu6XfS3TgErrLbg8Sm4tanAGrMgxEmaXccxUBfHNm3YmAmPY\n3MXKLaXKQD94W2XjyBvx9mSML3uxTW6qoHZ3zd2VxgQ06AFWPbEQk6ZD1ijQTvYi\nCVCqQ26C+6S1TPNE5pTHMTjAhwKBgQDHbMpv2YNorxDwdKxLhrGhSF1DsrrNeyQd\ndlJj9/QkW2VOu0o5/4/lrMei7DgAh8APyFkpAEXlray5VikbkB5Ix6GxEZ8SIBvX\nEWEFdiqx8xQeFCZJRpkTFCTUjQGiy69exNaAxxAf2iJGQI3bznUzm98JceB9olEW\nzalJjwP6LwKBgDdOShL8PXxQKXYy1Q7SvfgOM8FDkUI4+TYRszD2csuw1rFdUTyi\nSu559ylGdDVJbM0xJGczbGVcKx2CnIuL8/6esu1ShG5qFlJrVOocj6Edp7/tz7db\nBhXR1w1QoQNYNS8fMLzlfCcACDe1Hf6a+rCE6kazzEexQLfrcvKe4TAxAoGAR/lM\n5GQjhoKYh2I2uL72ZHfJOiQNjIlFCAv8YfWZ8qtDZ+zPMA5URZlMs2F3UWO7G/ct\nNkM1+gLOiNfsNxQMM+SlZqC433nYZ4SRmvp9qn2SiADAuSL1MM6POQiiqy4Hcj17\ntJd2RdSiEEXMVmnoi5eYCGUvliIcM3Q9ljGCrH8CgYAviuSqMIpQYRgXstQ3WbrG\nmo08BUsOmcPGOAhNe6f1Tg9MboGpa5udfZk1ocGfYjaF3jrYjyx6+cUTrJ9sv/3C\nMmJdat+JiTOD7brpyUHuhrvhLR7VGGsaQSco0twjyRRMMBZrWSVaPAyoyARcyLEl\nMgTx5su/HM6sDfpmsBqcmw==\n-----END PRIVATE KEY-----`;
-    const publicKey = `-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAx0XK9kCj2oD86RsiDuTV\njGWZC1cxptOAZs5/ZvXsM2s3+kRo5B+HgsvJn0JcB4HFCSskYSok6VHnO0+gIfg7\nExe aV8nYEQy/U/apo9h5LXdWsN5lWTXiSLagMVle2btWzP4+lrhiYvo0zhE4WV1m\n5mRey4Y5KWUMTn3T2ngZo4TGCd7btyjJ+6NvBzLqqRDnBMY2vW6QZaacRj1qbRst\npOp3cR4DSvsVSARsvyd+tueDrpiRs95qzSP2d8RVGvZsb/h39Ev/Waes3ai1H9m0\nAGaMMB1PlZVw8Qa0U9YpNz/yo4nKr1KSe/35GPXGb7UHn+uNIl8P3I06yB8JTVNh\n swIDAQAB\n-----END PUBLIC KEY-----`.replace(/ Exe aV8n/,'Exe aV8n'); // Protección accidental de formateo
+    const privateKey = `-----BEGIN PRIVATE KEY-----
+MIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDgp0EfSRyTMNfP
+oosTktWB7lQ7ZCIQja+eCe7JFEfcQRtpQcsuogecmklLFbg07E8adeFXrxpPnmww
+QwahKm+WlwTS9lKA/zrwLHH1DXCQsGV6Bm4CutuDnmiRwiDs8Cldaq8MkVKa0Gzg
+8gIDObytIImdrJWA855cbb5HAEa9VF5/rYES2+buAZ+u1Vi5OH1AFe0SOcS0QkYa
+myOriPmtVtrOKYL0vMz6wCMnV0IQZ/K0Keu+xNsu9P/19prx/etu86P8RrbHI8JO
+RHVY6HQ4M40ZL1bLWsRw7OTEZEFB7nLAISw945jxsSv+OLtkWzz8VhXZ+3VRGzcM
+bqKbfBmlAgMBAAECggEANOjPWpnyg+wN99X1YV/Erzw9VFuJ9lIYWWVHes4u+n3P
+AeRAATSiDEz+FBQCdVxuaPH4Z5lS3guWuWsfxZdj/piEx1bCKaVy8RvWnvtSVpFk
+5O9cu4Hcr0wAnsuUy5jodRrqLVCQnuuVqQj2VmIjwLaYEq2R7HP0CRrDpJ85Cd/C
+8B6VRAuUiaV/4WKMWoHqxWBJ0R4ySJKtNWadXv5woCiqUrdv5V+Xr/WytIcOEcuK
+InLqx406If/jCIFuvUBocrYCvYgvZGOqSTs2F5R+j4XrPaK6ozxVxPy5ZzLAMmYc
+2XQHApaJETun4Rff+VRpCsEVICeDRx6FzU9ZwpcwJQKBgQD5qPaPT8X1Bc73vaOc
+AMyz5BCCjEtPyORrEwpyANgjTXFAx+XeUxvtc9e6BkLLGXtEqCQx3BM6XweKGeXZ
+9oViE8n1IYkyr4AWqjfh2DBbHytL1OeoMozU5ji0rx4y6puOorCDYkYFRT7n2j/h
+BjpgbRaLx+T1j6D187399YjcIwKBgQDmW7kglu/rv/5aRfkidL85eUs9FpdxCswS
+MTb8YAqwN7R3hRlSpsdI2n5I0QqaWCPDGCmH43TpyRPOUjbQXMsOJ9sPNVDhiwqj
+x+prwBmR25uF7BgtFHN+cE7PRhUwI+ct9i8OOCeTUATZO75SLeQNYpS1dHJtItr7
+uKgItexLlwKBgQD0+XFuMFXLVra+a4vGARbcEZaNswIXOMXBtz5RnTh4c34EleGd
+5SkLN9dfhtM1nTxSozZY4lzPsv2f6kebN4WsNkS+TvjkDkd+deo9prfUQeJnF3N0
+nJ2KLplH2mmkhoa7UDIpyV1xwH+4W3TA5i6T/ZbY8/1bY2MK0/AC6VIwxwKBgQDH
+gCyGkvHaJH7uQ6eONbne1rNYhpZFqmouXz0VuT/IeZXr5POXZyU0bTXtbk1WensO
+XYCqVU1No31ptD4QmiypZ88KDsyraLWgPmVBSC9c6Op6Q4x0jj+wAyfdzv5OoOl4
+HruF/xAXPrfUQy+DEIdvKC9OLzliV0t7seKlGJk6pQKBgQCDo1Y3vTuijzUFZgIa
+yfDAXIeVb/wUmNn3rGY5YSLBBBQyMZ85sH/8udcbpFPNJ2eEmSIL0vsinnLUNrbS
+T57FQUR0+dglzMx65R2G+Hrc4x/GmhYL6xMODQbtcmpnwHsCk9zgKmVYz7nPja6b
+FLP8wjGPPR/Wcbw7O1p4Esr6NQ==
+-----END PRIVATE KEY-----`;
+    const publicKey = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA4KdBH0kckzDXz6KLE5LV
+ge5UO2QiEI2vngnuyRRH3EEbaUHLLqIHnJpJSxW4NOxPGnXhV68aT55sMEMGoSpv
+lpcE0vZSgP868Cxx9Q1wkLBlegZuArrbg55okcIg7PApXWqvDJFSmtBs4PICAzm8
+rSCJnayVgPOeXG2+RwBGvVRef62BEtvm7gGfrtVYuTh9QBXtEjnEtEJGGpsjq4j5
+rVbazimC9LzM+sAjJ1dCEGfytCnrvsTbLvT/9faa8f3rbvOj/Ea2xyPCTkR1WOh0
+ODONGS9Wy1rEcOzkxGRBQe5ywCEsPeOY8bEr/ji7ZFs8/FYV2ft1URs3DG6im3wZ
+pQIDAQAB
+-----END PUBLIC KEY-----`;
     return { privateKey, publicKey };
   }
   const { privateKey, publicKey } = generateKeyPairSync('rsa', {
@@ -84,15 +127,25 @@ function generateKeyPairPem(): { privateKey: string; publicKey: string } {
 async function insertNewKey(status: KeyStatus): Promise<SigningKey> {
   const kid = randomUUID();
   const { privateKey, publicKey } = generateKeyPairPem();
+  
+  // Sanitizar las claves para evitar corrupción por PostgreSQL
+  const cleanPrivateKey = privateKey.replace(/\+\s*$/gm, '').trim();
+  const cleanPublicKey = publicKey.replace(/\+\s*$/gm, '').trim();
+  
   const res = await execQuery(
     'INSERT INTO auth_signing_keys(kid, pem_private, pem_public, status) VALUES ($1,$2,$3,$4) RETURNING *',
-    [kid, privateKey, publicKey, status]
+    [kid, cleanPrivateKey, cleanPublicKey, status]
   );
   let row = res.rows[0];
   if (!row) {
     // Fallback defensivo para mock débil
-    row = { kid, pem_private: privateKey, pem_public: publicKey, status, created_at: new Date(), promoted_at: null } as any;
+    row = { kid, pem_private: cleanPrivateKey, pem_public: cleanPublicKey, status, created_at: new Date(), promoted_at: null } as any;
   }
+  
+  // Asegurar que las claves en cache también estén limpias
+  row.pem_private = row.pem_private.replace(/\+\s*$/gm, '').trim();
+  row.pem_public = row.pem_public.replace(/\+\s*$/gm, '').trim();
+  
   byKid.set(row.kid, row);
   return row;
 }

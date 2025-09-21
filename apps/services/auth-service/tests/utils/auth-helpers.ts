@@ -55,7 +55,7 @@ export async function loginUser(app: Express, email: string, password: string) {
   return {
     accessToken: response.body.access_token as string,
     refreshToken: response.body.refresh_token as string,
-    roles: response.body.user.roles as string[],
+    roles: response.body.roles as string[],
   };
 }
 

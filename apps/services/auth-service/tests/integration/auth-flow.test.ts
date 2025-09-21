@@ -42,6 +42,9 @@ describe('Flujo de autenticación completo', () => {
       .post('/login')
       .send({ email: TEST_EMAIL, password: 'S3gur0_P@ss', tenant_id: TEST_TENANT });
     
+    console.log('Login response status:', res.status);
+    console.log('Login response body:', res.body);
+    
     expect(res.status).toBe(200);
     expect(res.body.access_token).toBeDefined();
     expect(res.body.refresh_token).toBeDefined();

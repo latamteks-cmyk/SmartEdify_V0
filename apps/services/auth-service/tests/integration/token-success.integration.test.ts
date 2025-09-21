@@ -35,7 +35,7 @@ describe('POST /token - Success Flows', () => {
 
   describe('Authorization Code Flow', () => {
     const user = {
-      email: 'token-success-test@example.com',
+      email: 'token-success-test@demo.com',
       password: 'password123',
       name: 'Test User'
     };
@@ -82,7 +82,7 @@ describe('POST /token - Success Flows', () => {
 
   describe('Refresh Token Flow', () => {
     const user = {
-      email: 'token-refresh-test@example.com',
+      email: 'token-refresh-test@demo.com',
       password: 'password123',
       name: 'Refresh User'
     };
