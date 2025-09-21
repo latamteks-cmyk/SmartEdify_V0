@@ -32,7 +32,7 @@ describe('Flujo de integración: recuperación y cambio de contraseña', () => {
       .post('/reset-password')
       .send({ token: forgotRes.body.token, newPassword: 'nuevoPass123' });
     expect(resetRes.status).toBe(200);
-    expect(resetRes.body.message).toBe('Contraseña actualizada');
+    expect(resetRes.body.message).toBe('Contraseña actualizada y todas las sesiones han sido cerradas.');
   });
 
   it('rechaza tokens inválidos o reutilizados en el flujo de reset', async () => {
