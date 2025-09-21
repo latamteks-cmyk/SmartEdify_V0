@@ -1,83 +1,77 @@
-<a id="documento-rector--smartedify_v0"></a>
-# Índice Operativo y de Referencia — SmartEdify_V0
+# Documentación SmartEdify
 
-Este documento sirve como índice vivo para la operación, referencia y seguimiento de la plataforma. El documento rector de arquitectura y alcance es `ARCHITECTURE.md`.
+> Última actualización: 21 de septiembre de 2025
 
-## 1. Panorama y dominios
-- **Visión y alcance**: ver `../ARCHITECTURE.md` (visión, principios, dominios, alcances y dependencias).
-- **Interfaces**: Web y móvil en backlog, gestionadas en `docs/tareas.md`.
-- **Diagramas**: `docs/design/diagrams/*` (ver `architecture-overview.mmd`, `network-ports.mmd`, etc.).
+Bienvenido a la documentación centralizada de SmartEdify. Este índice es el punto de entrada para desarrolladores, operadores, seguridad y stakeholders. Aquí encontrarás navegación por rol, referencias rápidas y guías de tareas comunes.
 
-## 2. Guías y lineamientos clave
-- [Lineamientos de arquitectura](architecture/guidelines.md)
-- [Guía de CI/CD y operaciones](operations/ci-cd.md)
-- Pipeline CI/CD obliga verificación de firmas y attestations (Cosign) antes de publicar imágenes y documenta la promoción/rollback de Auth Service.
+---
+
+## Navegación por persona
+
+### 👩‍💻 Desarrollador
+- [Arquitectura y patrones](architecture.md)
+- [Especificación API y contratos](spec.md)
+- [Estrategia de testing](testing.md)
+- [Guía Docker y despliegue local](docker.md)
+- [Operaciones CI/CD](operations/ci-cd.md)
+- [Status y roadmap](status.md)
+
+### 🛡️ Seguridad
+- [Política de seguridad](security/policy.md)
+- [Hardening de seguridad](security/hardening.md)
+- [Runbooks de incidentes](runbooks/)
+
+### ⚙️ Operaciones
+- [Runbooks operativos](runbooks/)
+- [Observabilidad y métricas](observability/)
+- [Operaciones diarias](operations/daily-operations.md)
+
+### 📈 Stakeholder
+- [Status y roadmap](status.md)
+- [Plan técnico y decisiones](architecture/backend-blueprint.md)
+- [Registro de decisiones técnicas](architecture/decision-log.md)
+
+---
+
+## Referencias rápidas
+- [ADR y decisiones de diseño](design/adr/)
+- [Diagramas y flujos](design/diagrams/)
+- [Guía OpenAPI](openapi-guidelines.md)
 - [Guía de eventos y contratos](eventing-guidelines.md)
-- [Guía de seguridad y hardening](security-hardening.md)
-- Lint OpenAPI automatizado: `npm run lint:openapi` (Spectral con `.spectral.yaml`) y job `ci.yml` → `OpenAPI Lint`.
+- [Plan de optimización](../plan.md)
+- [Tareas y tracking](../task.md)
 
-## 3. Estado y dependencias
-- **Áreas críticas**: ver sección de riesgos y pendientes en `ARCHITECTURE.md` y `docs/tareas.md`.
-- **Dominios activos**:
-  | Dominio       | Estado actual | Dependencias actuales |
-  |--------------|---------------|----------------------|
-  | User Portal  | Sin interfaz desplegada; consumo de flujos vía servicios Auth/Tenant mientras se define UI en backlog. | Auth Service, Tenant Service |
-  | Admin Portal | UI en definición; operaciones de gobierno disponibles vía Tenant Service (`/tenants`, `/governance`). | Auth Service, Tenant Service |
-  | Mobile App   | No iniciada; alcance y navegación documentados en backlog móvil. | Auth Service, Tenant Service |
+---
 
-## 4. Catálogo de endpoints y contratos
-- **Contratos OpenAPI**:
-  - **Auth Service** (`v1.2.0`): `api/openapi/auth.yaml`. Incluye los flujos `/authorize`, `/token`, `/userinfo`, `/introspection`, `/revocation`, los alias `/oauth/*`, discovery `/.well-known/*`, métricas y rotación manual de JWKS. Se añadieron los campos opcionales de discovery (`service_documentation`, métodos de autenticación por endpoint) y ejemplos de error consistentes con la implementación actual.
-  - **Tenant Service** (`v0.4.x`): contrato en consolidación (ver `docs/openapi-guidelines.md` y backlog en `docs/tareas.md`).
-  - **Assembly Service** (`v1.1.0`): `api/openapi/assembly.yaml` con descripciones enriquecidas, respuestas de error estandarizadas y ejemplos para flujos de convocatoria, check-in y voto.
-  - **User Service** (`v1.0.0`): `api/openapi/user.yaml` con contrato CRUD completo, ejemplos y respuestas estandarizadas.
-- **Documentos de descubrimiento OIDC** (mantener sincronizados con despliegues):
-  - `/.well-known/openid-configuration` y `/.well-known/jwks.json` contienen la instantánea canonical del proveedor.
-  - `docs/oidc/openid-configuration.json` y `docs/oidc/jwks.json` replican los valores publicados para referencia offline.
-- **Hallazgos de auditoría — Auth Service**:
-  1. El contrato previo sólo cubría el MVP (`/register`, `/login`, `/refresh-token`) → se añadieron todos los endpoints públicos activos y alias `/oauth/*`.
-  2. No se documentaban los códigos de error ni los payloads de respuesta → se normalizaron respuestas JSON, `operationId` y esquemas reutilizables.
-  3. Los documentos `/.well-known/*` no estaban versionados → se añadieron snapshots en `docs/oidc/` para discovery y JWKS.
-  4. No existía automatización formal de rotación JWKS → se agregó el job `npm run jwks:rotate` con verificación y métricas de edad.
-- **Ejemplos de endpoints activos**:
-  - **Auth Service**: `/register`, `/login`, `/refresh-token`, `/logout`, `/forgot-password`, `/reset-password`, `/roles`, `/permissions`, `/authorize`, `/oauth/authorize`, `/token`, `/oauth/token`, `/userinfo`, `/oauth/userinfo`, `/introspection`, `/oauth/introspection`, `/revocation`, `/oauth/revocation`, `/.well-known/openid-configuration`, `/.well-known/jwks.json`, `/health`, `/metrics`.
-  - **Tenant Service**: `/tenants`, `/tenants/{id}`, `/tenants/{id}/units`, `/units/{id}/memberships`, `/tenant-context`, `/governance/transfer-admin`.
-- Para detalles y seguridad, consulta los archivos OpenAPI y la documentación de cada servicio.
+## Guías de tareas comunes
+- Cómo ejecutar todos los tests: consulta [testing.md](testing.md)
+- Cómo desplegar localmente: consulta [docker.md](docker.md)
+- Cómo reportar vulnerabilidades: consulta [security/policy.md](security/policy.md)
+- Cómo consultar el roadmap: consulta [status.md](status.md)
 
-### Referencia rápida OIDC / ejemplos
-- **Authorization Code + PKCE**:
-  ```bash
-  curl -G "https://auth.smartedify.com/authorize" \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    --data-urlencode "response_type=code" \
-    --data-urlencode "client_id=squarespace" \
-    --data-urlencode "redirect_uri=https://www.smart-edify.com/auth/callback" \
-    --data-urlencode "scope=openid profile email offline_access" \
-    --data-urlencode "code_challenge=<CODE_CHALLENGE>" \
-    --data-urlencode "code_challenge_method=S256"
-  ```
-- **Authorization Code + PKCE (alias `/oauth/authorize`)**:
-  ```bash
-  curl -G "https://auth.smartedify.com/oauth/authorize" \
-    -H "Authorization: Bearer <ACCESS_TOKEN>" \
-    --data-urlencode "response_type=code" \
-    --data-urlencode "client_id=squarespace" \
-    --data-urlencode "redirect_uri=https://www.smart-edify.com/auth/callback" \
-    --data-urlencode "scope=openid profile email offline_access" \
-    --data-urlencode "code_challenge=<CODE_CHALLENGE>" \
-    --data-urlencode "code_challenge_method=S256"
-  ```
-- **Intercambio de tokens**:
-  ```bash
-  curl -X POST https://auth.smartedify.com/token \
-    -H "Content-Type: application/x-www-form-urlencoded" \
-    -d "grant_type=authorization_code" \
-    -d "code=<CODE>" \
-    -d "redirect_uri=https://www.smart-edify.com/auth/callback" \
-    -d "client_id=squarespace" \
-    -d "code_verifier=<CODE_VERIFIER>"
-  ```
-- **Intercambio de tokens (alias `/oauth/token`)**:
+---
+
+## Estructura de carpetas
+```
+docs/
+├── README.md                 # Este índice
+├── architecture.md           # Guía de arquitectura consolidada
+├── spec.md                   # Especificación API y contratos
+├── testing.md                # Estrategia de testing
+├── docker.md                 # Guía Docker y despliegue
+├── status.md                 # Status y roadmap
+├── operations/
+│   └── ci-cd.md             # CI/CD y despliegue
+├── runbooks/                # Runbooks operativos
+├── observability/           # Métricas y trazabilidad
+├── security/
+│   ├── policy.md            # Política de seguridad
+│   └── hardening.md         # Hardening y mejores prácticas
+└── design/                  # ADRs y diagramas
+```
+
+---
+> Este README es el punto de entrada oficial. Todas las referencias internas deben actualizarse para apuntar aquí tras la consolidación.
   ```bash
   curl -X POST https://auth.smartedify.com/oauth/token \
     -H "Content-Type: application/x-www-form-urlencoded" \

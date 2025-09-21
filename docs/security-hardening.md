@@ -1,19 +1,8 @@
-# Hardening de seguridad
 
-## Contenedores
-- `USER` no root, FS `read_only`, `tmpfs` para `/tmp`.
-- *Seccomp* y *AppArmor* perfiles restrictivos.
+> [!WARNING]
+> **Este archivo ha sido consolidado y movido.**
+> Las prácticas de hardening y seguridad ahora se encuentran en:
+> 
+> [`docs/security/hardening.md`](docs/security/hardening.md)
 
-## Comms
-- CORS: solo `https://smart-edify.com` y `https://www.smart-edify.com`.
-- mTLS interno entre gateway y microservicios (fase posterior).
-
-## Autenticación y autorización
-- Rotación de JWKS programada y de emergencia.
-- Revocación de *refresh tokens* y *token introspection* para admins.
-
-## Dependencias y CI
-- Dependabot, CodeQL, Trivy, Syft. Bloquear PRs con vulnerabilidades críticas.
-
-## Política de contraseñas y secretos
-- Longitud mínima 16. Rotación 90 días si aplica. Nunca en repositorio.
+Por favor, actualiza tus referencias y enlaces internos. Este archivo se mantiene solo como aviso de redirección tras la consolidación de la documentación.
