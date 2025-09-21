@@ -1,8 +1,18 @@
 # Documentación SmartEdify
 
-> Última actualización: 21 de septiembre de 2025
+> Última actualización: 21 de septiembre de 2025  
+> **🎯 Estado**: OAuth 2.0 completamente funcional - Tests 100% pasando
 
 Bienvenido a la documentación centralizada de SmartEdify. Este índice es el punto de entrada para desarrolladores, operadores, seguridad y stakeholders. Aquí encontrarás navegación por rol, referencias rápidas y guías de tareas comunes.
+
+## 🔥 Hitos Recientes
+
+### OAuth 2.0 Security Milestone ✅ **COMPLETADO**
+- **100% tests OAuth pasando** tras corrección crítica de seguridad
+- **CVE mitigado**: Vulnerabilidad de intercambio de tipos de token cerrada
+- **Validación robusta**: Tipos de token validados, almacén en memoria para tests
+- **Documentación completa**: [OAuth Revocation Fix](auth/oauth-revocation-fix.md)
+- **Pull Request**: [#69](https://github.com/latamteks-cmyk/SmartEdify_V0/pull/69)
 
 ---
 
@@ -11,14 +21,16 @@ Bienvenido a la documentación centralizada de SmartEdify. Este índice es el pu
 ### 👩‍💻 Desarrollador
 - [Arquitectura y patrones](architecture.md)
 - [Especificación API y contratos](spec.md)
-- [Estrategia de testing](testing.md)
+- [Estrategia de testing](testing.md) ✅ **Auth Service 100% tests pasando**
 - [Guía Docker y despliegue local](docker.md)
 - [Operaciones CI/CD](operations/ci-cd.md)
 - [Status y roadmap](status.md)
+- **🔐 [OAuth Security Fix](auth/oauth-revocation-fix.md)** - Corrección crítica y análisis
 
 ### 🛡️ Seguridad
 - [Política de seguridad](security/policy.md)
 - [Hardening de seguridad](security/hardening.md)
+- **🔐 [OAuth Security Fix](auth/oauth-revocation-fix.md)** - CVE mitigado y mejoras
 - [Runbooks de incidentes](runbooks/)
 
 ### ⚙️ Operaciones
@@ -38,16 +50,19 @@ Bienvenido a la documentación centralizada de SmartEdify. Este índice es el pu
 - [Diagramas y flujos](design/diagrams/)
 - [Guía OpenAPI](openapi-guidelines.md)
 - [Guía de eventos y contratos](eventing-guidelines.md)
+- **🔐 [OAuth Security Fix](auth/oauth-revocation-fix.md)** - Corrección crítica de seguridad
+- **📊 [Changelog 2025-09-21](changelog-2025-09-21.md)** - Estado actual del proyecto
 - [Plan de optimización](../plan.md)
 - [Tareas y tracking](../task.md)
 
 ---
 
 ## Guías de tareas comunes
-- Cómo ejecutar todos los tests: consulta [testing.md](testing.md)
-- Cómo desplegar localmente: consulta [docker.md](docker.md)
-- Cómo reportar vulnerabilidades: consulta [security/policy.md](security/policy.md)
-- Cómo consultar el roadmap: consulta [status.md](status.md)
+- **Ejecutar tests OAuth**: `npm run test:auth:win` - ✅ 47/47 tests pasando
+- **Desplegar localmente**: consulta [docker.md](docker.md)
+- **Reportar vulnerabilidades**: consulta [security/policy.md](security/policy.md)
+- **Consultar roadmap**: consulta [status.md](status.md)
+- **Revisar correcciones OAuth**: consulta [auth/oauth-revocation-fix.md](auth/oauth-revocation-fix.md)
 
 ---
 

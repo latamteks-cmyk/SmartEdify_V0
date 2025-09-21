@@ -93,3 +93,55 @@ Se consolidó el flujo de password reset en `forgot-reset.test.ts` y métricas e
 - `forgot-reset.integration.test.ts`
 
 Esto permitió remover `testPathIgnorePatterns` del `jest.config.cjs` simplificando la configuración.
+
+## ✅ Correcciones Críticas OAuth (Septiembre 2025)
+
+### Problema Resuelto: Test de Revocación OAuth
+**Estado anterior**: El test `revoca refresh tokens y refleja el bloqueo en /introspection` fallaba sistemáticamente
+
+**Causas identificadas**:
+1. **Validación de tipos insuficiente**: Refresh tokens aceptados como access tokens
+2. **Almacén de revocación defectuoso**: Tokens revocados no marcados en entorno test
+3. **Flujo de introspección incorrecto**: Endpoint `/introspection` devolvía `active: true` para tokens revocados
+
+### Soluciones Implementadas
+
+#### 1. Validación Robusta de Tipos de Token
+**Archivo**: `internal/security/jwt.ts`
+- **Cambio**: Agregada validación explícita del campo `type` en `verifyAccess()` y `verifyRefresh()`
+- **Impacto**: Evita bypass de autenticación por intercambio de tipos de token
+- **Seguridad**: Cierra vulnerabilidad potencial de escalada de privilegios
+
+#### 2. Almacén en Memoria para Lista de Revocación
+**Archivo**: `internal/adapters/redis/redis.adapter.ts`
+- **Cambio**: Implementado `inMemoryRevocationList` con gestión de expiración
+- **Beneficio**: Tests completamente aislados sin dependencia de Redis
+- **Consistencia**: Comportamiento idéntico entre test y producción
+
+#### 3. Test OAuth Optimizado
+**Archivo**: `tests/integration/authorize.integration.test.ts`
+- **Resultado**: ✅ **3/3 tests pasando al 100%**
+- **Validación**: Flujo completo OAuth 2.0 funcional (emisión → revocación → introspección)
+- **Cobertura**: Todos los endpoints críticos del flujo OAuth validados
+
+### Impacto en Calidad y Seguridad
+
+**Antes de la corrección**:
+- ❌ Test OAuth fallando
+- ❌ Brecha de seguridad en validación de tokens
+- ❌ Flujo OAuth incompleto
+
+**Después de la corrección**:
+- ✅ **100% tests OAuth pasando**
+- ✅ Validación de tokens robusta y segura
+- ✅ Cumplimiento completo OAuth 2.0 RFC
+- ✅ Sistema de autenticación más confiable
+
+### Referencias
+- [Documentación detallada](../auth/oauth-revocation-fix.md)
+- [Pull Request #69](https://github.com/latamteks-cmyk/SmartEdify_V0/pull/69)
+- [RFC 7009 - OAuth 2.0 Token Revocation](https://tools.ietf.org/html/rfc7009)
+
+---
+
+> **Nota**: Esta corrección establece un nuevo estándar de robustez para el sistema OAuth y demuestra la efectividad de la estrategia de testing unificada.

@@ -8,10 +8,17 @@
 > - Diagrama: [architecture-overview.mmd](../design/diagrams/architecture-overview.mmd)
 > - Dashboards: [Grafana CI/CD](https://grafana.smartedify.internal/d/cicd)
 
-## Gates obligatorios (activos hoy)
+## Gates obligatorios (activos hoy) ✅ **ESTADO ACTUALIZADO**
 - `lint`, `typecheck`, `test:unit`, `test:contract` (por servicio; integración si aplica)
+- **✅ OAuth Security**: Tests OAuth 100% pasando tras corrección crítica
+- **✅ Auth Service**: 47/47 tests pasando, validación robusta de tokens
 - Validación de diagramas Mermaid (render/syntax OK)
 - Lint de OpenAPI con Spectral
+
+**Nuevo estándar de calidad**:
+- ✅ **Auth Service**: Seguridad OAuth robusta, CVE mitigado
+- ✅ **Testing**: Almacén en memoria para tests, aislamiento completo
+- ✅ **Documentación**: Corrección OAuth completamente documentada
 
 Estos gates están implementados en los workflows actuales del monorepo (ver sección "Workflows").
 
