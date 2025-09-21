@@ -38,7 +38,7 @@
 
 ### **Prioridad 1: Resolver Issues de Testing**
 
-#### ✅ **Tarea 1.1: Arreglar Auth Service Tests**
+#### 🎯 **Tarea 1.1: Arreglar Auth Service Tests**
 - **Responsable**: Backend Dev 1
 - **Duración**: 1 día
 - **Descripción**: Resolver problemas de migraciones ES modules
@@ -48,7 +48,7 @@
   - [x] CI pipeline verde
 - **Estado**: ✅ COMPLETADA
 
-#### ✅ **Tarea 1.2: Arreglar Tenant Service Dependencies**
+#### 🎯 **Tarea 1.2: Arreglar Tenant Service Dependencies**
 - **Responsable**: Backend Dev 2
 - **Duración**: 1 día
 - **Descripción**: Resolver dependencias compartidas faltantes

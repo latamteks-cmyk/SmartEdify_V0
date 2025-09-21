@@ -9,8 +9,9 @@ const envSchema = z.object({
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
   
   // JWT Configuration
-  JWT_SECRET: z.string().min(32),
   JWKS_URL: z.string().url(),
+  ISSUER: z.string().url(),
+  AUDIENCE: z.string(),
   
   // Service URLs
   AUTH_SERVICE_URL: z.string().url(),

@@ -1,5 +1,14 @@
 # Estrategia de testing del Auth Service
 
+> [!WARNING]
+> **Este archivo ha sido consolidado y reemplazado.**
+> La estrategia de testing y cobertura ahora se encuentra en:
+> 
+> [`../testing.md`](../testing.md)
+
+Por favor, actualiza tus referencias. Este archivo se mantiene solo como aviso de deprecación tras la consolidación.
+# Estrategia de testing del Auth Service
+
 Esta guía recoge la arquitectura de pruebas multi-proyecto, estado consolidado (47 tests / 18 suites) y compromisos de cobertura para el servicio de autenticación. La suite actual está totalmente aislada de infraestructura física (DB/Redis) mediante mocks deterministas para acelerar el ciclo CI y reducir flakiness inicial.
 
 ## Objetivos transversales de calidad

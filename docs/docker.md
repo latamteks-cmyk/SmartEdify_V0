@@ -6,7 +6,7 @@ Este documento centraliza la información necesaria para ejecutar la persistenci
 
 ### Requisitos
 - Docker y Docker Compose instalados.
-- Puertos libres en el host para Redis y Postgres (por defecto 6380 y 5433).
+- Puertos libres en el host para Redis y Postgres (por defecto 6380 y 5542).
 - Fichero `.env` creado a partir de `.env.example` con credenciales válidas (sustituye `CHANGE_ME_*`).
 
 ### Arranque rápido con Docker Compose
@@ -55,7 +55,7 @@ Flags disponibles:
 #### Mapeo de puertos recomendado
 | Servicio   | Puerto contenedor | Puerto host | Variable `.env` |
 |------------|-------------------|-------------|-----------------|
-| Postgres   | 5432              | 5433        | `PGPORT` / `HOST_DB_PORT` |
+| Postgres   | 5432              | 5542        | `PGPORT` / `HOST_DB_PORT` |
 | Redis      | 6379              | 6380        | `REDIS_PORT` |
 | Auth API   | 8080 (interno)    | 9080        | `AUTH_PORT` |
 | User API   | 8081 (interno)    | 9081        | `USER_PORT` |

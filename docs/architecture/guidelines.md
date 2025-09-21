@@ -1,5 +1,14 @@
 # Guía de Arquitectura — Buenas prácticas y correcciones
 
+> [!WARNING]
+> **Este archivo ha sido consolidado y reemplazado.**
+> La guía de arquitectura y lineamientos ahora se encuentra en:
+> 
+> [`../architecture.md`](../architecture.md)
+
+Por favor, actualiza tus referencias. Este archivo se mantiene solo como aviso de deprecación tras la consolidación.
+# Guía de Arquitectura — Buenas prácticas y correcciones
+
 ## Principios
 - Un servicio = una responsabilidad.
 - Contratos primero: OpenAPI por HTTP, esquemas por eventos.

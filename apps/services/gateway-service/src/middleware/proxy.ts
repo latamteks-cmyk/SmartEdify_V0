@@ -1,5 +1,6 @@
 import { createProxyMiddleware, Options } from 'http-proxy-middleware';
 import { Request, Response, NextFunction } from 'express';
+import { trace, context, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { services, getServiceByPath } from '../config/services';
 
 // Create proxy middleware for each service
@@ -38,6 +39,16 @@ export const createServiceProxy = (serviceName: string) => {
       
       // Add gateway identifier
       proxyReq.setHeader('X-Gateway-Source', 'smartedify-gateway');
+      
+      // Add tracing headers if available
+      const currentSpan = trace.getSpan(context.active());
+      if (currentSpan) {
+        const spanContext = currentSpan.spanContext();
+        proxyReq.setHeader('traceparent', `00-${spanContext.traceId}-${spanContext.spanId}-01`);
+        if (spanContext.traceState) {
+          proxyReq.setHeader('tracestate', spanContext.traceState.serialize());
+        }
+      }
     },
     onProxyRes: (proxyRes, req, res) => {
       // Add CORS headers if needed

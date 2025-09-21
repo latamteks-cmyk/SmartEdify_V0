@@ -3,11 +3,17 @@ import helmet from 'helmet';
 import { config } from './config/env';
 import { corsMiddleware } from './middleware/cors';
 import { loggingMiddleware, requestIdMiddleware } from './middleware/logging';
-
+import { tracingMiddleware } from './middleware/tracing';
+import { initializeTracing } from './config/tracing';
 import routes from './routes/index';
 import { services } from './config/services';
 
 const app = express();
+
+// Initialize tracing
+initializeTracing().catch(err => {
+  console.error('Failed to initialize tracing:', err);
+});
 
 // Security middleware
 app.use(helmet({
@@ -28,6 +34,7 @@ app.use(helmet({
 
 // Request processing middleware
 app.use(requestIdMiddleware);
+app.use(tracingMiddleware);
 app.use(loggingMiddleware);
 app.use(corsMiddleware);
 app.use(express.json({ limit: '10mb' }));
