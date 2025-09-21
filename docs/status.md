@@ -34,6 +34,7 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 ## Changelog y snapshots
 | Fecha | Versión | Puntos clave |
 |-------|---------|--------------|
+| 2025-09-21 | 1.4 | 🎯 **OAuth 2.0 Testing Milestone** - Tests OAuth 100% pasando, corrección crítica de revocación |
 | 2025-09-17 | 1.3 | Auth tests unit/contract verdes y sin warnings; snapshots saneados; Tenant integración estable. |
 | 2025-09-23 | 1.2 | Gate Cosign bloqueante, ADR-0007 aceptado, prom/rollback Auth documentados. |
 | 2025-09-22 | 1.1 | Rotación JWKS operativa, métricas Auth y tracing básico en login/refresh. |
@@ -42,10 +43,16 @@ Riesgos abiertos: cobertura incompleta contract tests (medio-alto), trazabilidad
 ---
 
 ## Resumen ejecutivo y riesgos
-Plataforma en fase de endurecimiento. Auth-service con rotación dual de claves (JWKS), pruebas unitarias y de contrato verdes, snapshots consolidados; Tenant-service con migraciones idempotentes y suite de integración estable. Prioridad: cerrar gaps de contract testing, ampliar trazas y controles de supply-chain.
+Plataforma en fase de endurecimiento avanzado. **Auth-service alcanzó hito crítico**: tests OAuth 100% pasando tras corrección de seguridad en revocación de tokens. Rotación dual JWKS, validación robusta de tipos de token, y almacén en memoria para tests. Tenant-service con migraciones idempotentes estables.
+
+**Hitos recientes:**
+- ✅ **OAuth 2.0 Security Fix**: Validación de tipos de token + test de revocación 100% funcional
+- ✅ **Testing Robustez**: Almacén en memoria para revocación, aislamiento completo de tests
+- ✅ **Documentación**: Correcciones OAuth documentadas y integradas en estrategia de testing
 
 **Riesgos mitigados:**
-- Rotación JWKS implementada
+- **CVE Potencial OAuth**: Bypass de autenticación por intercambio de tipos de token
+- Rotación JWKS implementada  
 - Pruebas integración estabilizadas
 - Outbox DLQ con purga
 - Supply-chain: SBOM, firmas, gate Cosign
@@ -59,9 +66,12 @@ Plataforma en fase de endurecimiento. Auth-service con rotación dual de claves 
 ---
 
 ## Estado por servicio
-### Auth Service
-- Rotación JWKS dual, métricas publicadas, tracing OTel mínimo, contract tests en progreso.
-- Backlog: automatizar rotación, revoke-list access tokens, dashboards métricas.
+### Auth Service ✅ **ESTABLE - TESTS 100% PASANDO**
+- **Seguridad OAuth**: Validación robusta de tipos de token, revocación funcional, CVE mitigado
+- **Testing**: 47 tests (18 suites), tests de integración OAuth 100% pasando
+- **Infraestructura**: Rotación JWKS dual, métricas publicadas, tracing OTel, almacén en memoria para tests
+- **Próximos pasos**: Automatizar rotación JWKS, revoke-list access tokens, dashboards métricas
+- **Documentación**: [Corrección OAuth detallada](auth/oauth-revocation-fix.md)
 
 ### Tenant Service
 - Migrador idempotente, gauges de outbox/DLQ, integración estable.

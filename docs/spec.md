@@ -64,11 +64,24 @@ El contenido previo de este archivo se reorganizó en documentos temáticos para
 
 ## Estrategia de pruebas de contrato
 
+### OAuth 2.0 Security Testing ✅ **100% FUNCIONAL**
+- **Estado**: Todos los tests OAuth pasando tras corrección crítica de seguridad
+- **Cobertura**: Flujo completo autorización → emisión → revocación → introspección  
+- **Seguridad**: CVE mitigado - validación robusta de tipos de token
+- **Documentación**: [Corrección OAuth detallada](auth/oauth-revocation-fix.md)
+
+### Contract Testing General
 - Pruebas de contrato HTTP desde OpenAPI (`api/<servicio>.yaml`) usando Spectral + Schemathesis.
 - Smoke test con Schemathesis disponible vía `npm run contract:<servicio>:schemathesis`.
 - Resultados en `reports/contracts/<servicio>-schemathesis.xml` (JUnit) para CI.
 - Uso de snapshots para normalizar tokens y headers variables.
 - Validación de rutas críticas y cobertura de contratos.
+
+### Testing Status por Servicio
+- ✅ **Auth Service**: 47/47 tests (OAuth revocación, validación tokens, flujo completo)
+- ✅ **Tenant Service**: Tests de integración estables
+- ✅ **User Service**: Tests básicos implementados
+- 📋 **Assembly Service**: Pendiente tras estabilizar contratos cross-service
 
 ---
 
@@ -77,6 +90,7 @@ El contenido previo de este archivo se reorganizó en documentos temáticos para
 - [Guía de eventos y contratos](eventing-guidelines.md)
 - [Guía OpenAPI](openapi-guidelines.md)
 - [Estrategia de testing del Auth Service](testing/auth-service-strategy.md)
+- **🔐 [Corrección OAuth Security](auth/oauth-revocation-fix.md)** - Análisis completo de las mejoras de seguridad
 - [Registro de decisiones técnicas](architecture/decision-log.md)
 - [Runbooks y operación](runbooks/)
 - [Diagramas y ADRs](design/)

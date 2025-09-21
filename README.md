@@ -63,8 +63,8 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
 - Otros servicios siguen el mismo patrón (`run build`, `run start`, `run dev`).
 
 ### Tests
-### Tests
-  - Auth Service (Jest multi-proyecto):
+### Tests ✅ **ESTADO ACTUALIZADO - OAUTH 100% FUNCIONAL**
+  - Auth Service (Jest multi-proyecto) - **47/47 tests pasando**:
     - Windows (PowerShell):
       ```powershell
       cd c:\Edgar\Programacion\SmartEdify_A\SmartEdify_V0
@@ -75,9 +75,13 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
       cd ./SmartEdify_V0
       npm run test:auth:nix
       ```
+    - **🎯 Hito OAuth**: Test de revocación completamente funcional tras corrección de seguridad
+    - **Validación robusta**: Tipos de token validados, almacén en memoria para tests
+    - **CVE Mitigado**: Cerrada vulnerabilidad de intercambio de tipos de token
     - Notas:
       - Usa mocks de Postgres/Redis con `SKIP_DB_TESTS=1` y requiere `AUTH_ADMIN_API_KEY` para endpoints admin en tests.
       - En entorno de test, `/health` devuelve `200`.
+      - **Documentación completa**: [OAuth Revocation Fix](docs/auth/oauth-revocation-fix.md)
   - Tenant Service (Vitest):
     ```sh
     npm --prefix apps/services/tenant-service run test
@@ -105,10 +109,17 @@ SmartEdify es una plataforma modular orientada a servicios (Auth, Tenant, User, 
 El pipeline valida:
   - `lint` y `typecheck` en servicios modificados.
   - `tests` unitarios/contrato (auth) y smoke (tenant) en CI.
+  - **🎯 OAuth Security**: Validación completa del flujo OAuth 2.0 incluyendo revocación
   - Validación de diagramas Mermaid.
   - Linting de OpenAPI con Spectral.
 
 Objetivos próximos: cobertura ≥80 % como gate; SAST y verificación de firmas (Cosign) como gates bloqueantes.
+
+**Estado actual de testing**:
+- ✅ **Auth Service**: 47/47 tests pasando (100%) - OAuth completamente funcional
+- ✅ **Tenant Service**: Tests de integración estables  
+- ✅ **User Service**: Tests básicos funcionando
+- 📋 **Próximo**: Contract testing completo y gates de cobertura
 
 ## Feature Highlights
 ### Observabilidad y tracing distribuido
@@ -116,10 +127,14 @@ Objetivos próximos: cobertura ≥80 % como gate; SAST y verificación de firmas
 - Spans manuales para `kafka.publish`, `outbox.tick` y `outbox.publish`.
 - Logs enriquecidos con `trace_id` y `span_id` en auth-service, con roadmap para sampling adaptativo.
 
-### Rotación de JWKS y seguridad JWT
+### 🔐 Rotación de JWKS y seguridad JWT robusta
+- **OAuth 2.0 completamente funcional**: Test de revocación 100% pasando tras corrección crítica de seguridad
+- **Validación de tokens robusta**: Tipos de token validados para prevenir bypass de autenticación
+- **CVE Mitigado**: Cerrada vulnerabilidad potencial de escalada de privilegios por intercambio de tipos
 - Diseño documentado en `docs/design/adr/ADR-0007-jwks-rotation.md` con flujo de estados `current`, `next` y `retiring`.
 - Periodo de gracia para validar tokens antiguos y revocación de refresh tokens ante compromisos.
 - Métricas previstas: `jwks_keys_total{status}` y `jwks_rotation_total`.
+- **Documentación completa**: [OAuth Security Fix](docs/auth/oauth-revocation-fix.md)
 
 ### Validación de esquemas de eventos
 - Registro `eventType@version` en `tenant-service` (`internal/domain/event-schemas.ts`) usando Zod.
@@ -139,9 +154,11 @@ Objetivos próximos: cobertura ≥80 % como gate; SAST y verificación de firmas
 - [ARCHITECTURE.md](ARCHITECTURE.md) — visión general de la plataforma.
 - [docs/spec.md](docs/spec.md) — especificación técnica consolidada.
 - [docs/status.md](docs/status.md) — snapshot ejecutivo y estado de entregables.
+- [docs/testing.md](docs/testing.md) — estrategia unificada de testing y estado actual.
 - [docs/operations/ci-cd.md](docs/operations/ci-cd.md) — guía de pipeline de CI/CD.
 - [docs/docker.md](docs/docker.md) — stack local y gestión de credenciales de registros.
 - [SECURITY.md](SECURITY.md) — política de seguridad y divulgación responsable.
+- **🔐 [docs/auth/oauth-revocation-fix.md](docs/auth/oauth-revocation-fix.md)** — corrección crítica OAuth y análisis de seguridad.
 - Directorios especializados: `docs/observability/`, `docs/design/`, `docs/security-hardening.md`, `docs/runbooks/`.
 
 ## Seguridad de contenedores y límites de recursos

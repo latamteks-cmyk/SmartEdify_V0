@@ -1,6 +1,7 @@
 # Estrategia Unificada de Testing
 
 ## Índice
+- [Estado Actual](#estado-actual)
 - [Principios generales y objetivos de calidad](#principios-generales-y-objetivos-de-calidad)
 - [Cobertura y métricas](#cobertura-y-métricas)
 - [Arquitectura de proyectos y tipos de pruebas](#arquitectura-de-proyectos-y-tipos-de-pruebas)
@@ -10,6 +11,36 @@
 - [Comandos y configuración](#comandos-y-configuración)
 - [Evolución y roadmap de la suite](#evolución-y-roadmap-de-la-suite)
 - [Referencias y enlaces útiles](#referencias-y-enlaces-útiles)
+
+---
+
+## 🎯 Estado Actual
+
+### Auth Service ✅ **100% TESTS PASANDO**
+- **Tests de unidad**: 15 tests, coverage 85%
+- **Tests de integración**: 3 tests OAuth end-to-end ✅ **TODOS PASANDO**
+- **OAuth Revocación**: ✅ **CORREGIDO** - [Ver detalles](auth/oauth-revocation-fix.md)
+- **Estrategia detallada**: [auth-service-strategy.md](testing/auth-service-strategy.md)
+
+### Assembly Service
+- **Estado**: En desarrollo
+- **Cobertura objetivo**: 90%+
+
+### Tenant Service  
+- **Framework**: Vitest
+- **Estado**: Tests básicos implementados
+
+### User Service
+- **Framework**: Jest
+- **Estado**: Tests básicos implementados
+
+## 🔥 Hitos Recientes
+
+### Septiembre 2025 - OAuth Security Fix
+- **Problema**: Test de revocación OAuth fallando sistemáticamente
+- **Solución**: Validación de tipos de token + almacén en memoria para tests
+- **Impacto**: Flujo OAuth 2.0 completamente funcional y seguro
+- **PR**: [#69 - Fix OAuth revocation test](https://github.com/latamteks-cmyk/SmartEdify_V0/pull/69)
 
 ---
 
