@@ -7,6 +7,7 @@ import { tracingMiddleware } from './middleware/tracing';
 import { initializeTracing } from './config/tracing';
 import routes from './routes/index';
 import { services } from './config/services';
+import { httpMetricsMiddleware, metricsRouter } from './observability/metrics';
 
 const app = express();
 
@@ -16,27 +17,38 @@ initializeTracing().catch(err => {
 });
 
 // Security middleware
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", "data:", "https:"],
-    },
-  },
-  hsts: {
-    maxAge: 31536000,
-    includeSubDomains: true,
-    preload: true
-  }
-}));
+const helmetCspDirectives: any = {
+  defaultSrc: ["'self'"],
+  styleSrc: ["'self'", ...(config.NODE_ENV === 'production' ? [] : ["'unsafe-inline'"])],
+  scriptSrc: ["'self'"],
+  imgSrc: ["'self'", 'data:', 'https:'],
+};
+
+app.use(
+  helmet({
+    contentSecurityPolicy: { directives: helmetCspDirectives },
+    hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
+    frameguard: { action: 'deny' },
+    referrerPolicy: { policy: 'no-referrer' },
+  })
+);
 
 // Request processing middleware
 app.use(requestIdMiddleware);
 app.use(tracingMiddleware);
+app.use(httpMetricsMiddleware);
 app.use(loggingMiddleware);
 app.use(corsMiddleware);
+// Ensure CORS headers are present even without Origin header
+app.use((req, res, next) => {
+  if (!res.getHeader('Access-Control-Allow-Origin')) {
+    res.setHeader('Access-Control-Allow-Origin', config.CORS_ORIGIN.includes('*') ? '*' : config.CORS_ORIGIN.split(',')[0]);
+  }
+  if (!res.getHeader('Access-Control-Allow-Credentials')) {
+    res.setHeader('Access-Control-Allow-Credentials', String(config.CORS_CREDENTIALS));
+  }
+  next();
+});
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
@@ -44,6 +56,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Trust proxy for accurate IP addresses
 app.set('trust proxy', 1);
+
+// Metrics route (before other routes to avoid interference)
+app.use(metricsRouter);
 
 // Routes
 app.use('/', routes);

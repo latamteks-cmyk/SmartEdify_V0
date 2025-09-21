@@ -1,0 +1,85 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "fiscalYearStartMonth": 1,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Request Rate (req/s)",
+      "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {"expr": "sum(rate(gateway_http_requests_total[5m]))", "legendFormat": "all"}
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+    },
+    {
+      "type": "stat",
+      "title": "Error Rate (4xx/5xx req/s)",
+      "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+      "targets": [
+        {"expr": "sum(rate(gateway_http_requests_total{status_code=~\"4..|5..\"}[5m]))", "legendFormat": "errors"}
+      ],
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}}
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests by Route/Method",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum by (route,method)(rate(gateway_http_requests_total[5m]))", "legendFormat": "{{route}} {{method}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "req/s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP Latency p50/p95/p99 (s)",
+      "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.5, sum by (le)(rate(gateway_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p50"},
+        {"expr": "histogram_quantile(0.95, sum by (le)(rate(gateway_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p95"},
+        {"expr": "histogram_quantile(0.99, sum by (le)(rate(gateway_http_request_duration_seconds_bucket[5m])))", "legendFormat": "p99"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "timeseries",
+      "title": "Backend Latency p95 by Service (s)",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum by (service,le)(rate(gateway_backend_request_duration_seconds_bucket[5m])))", "legendFormat": "{{service}} p95"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "type": "bargauge",
+      "title": "Rate Limit Hits by Route",
+      "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum by (route)(rate(gateway_rate_limit_hits_total[5m]))", "legendFormat": "{{route}}"}
+      ]
+    },
+    {
+      "type": "piechart",
+      "title": "Auth Failures by Reason",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum by (reason)(rate(gateway_auth_failures_total[5m]))", "legendFormat": "{{reason}}"}
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["gateway", "prometheus"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timepicker": {},
+  "timezone": "",
+  "title": "SmartEdify Gateway Service",
+  "version": 1
+}
+

@@ -52,7 +52,8 @@ if (includeIntegration) {
       globalTeardown: '<rootDir>/tests/global-teardown.ts',
       // setupFiles se ejecuta antes que cualquier import de test -> mock temprano
       setupFiles: ['<rootDir>/tests/integration/jest.integration.setup.ts'],
-      setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.ts'],
+      // NO usar jest.setup.ts para integración porque mockea la DB
+      // setupFilesAfterEnv: ['<rootDir>/tests/jest.setup.ts'],
       // Nota: timeouts y cobertura se gestionan fuera de la config para evitar warnings
     });
 }

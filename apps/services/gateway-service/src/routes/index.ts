@@ -1,7 +1,8 @@
-import { Router } from 'express';
+import { Router, type RequestHandler } from 'express';
 import healthRoutes from './health';
 import { authenticateJWT, requireRole } from '../middleware/auth';
 import { createServiceProxy } from '../middleware/proxy';
+import { authRateLimit, generalRateLimit, readRateLimit } from '../middleware/rate-limit';
 
 const router = Router();
 
@@ -9,29 +10,36 @@ const router = Router();
 router.use('/health', healthRoutes);
 
 // Auth service routes (public + protected)
-router.use('/auth/register', createServiceProxy('auth'));
-router.use('/auth/login', createServiceProxy('auth'));
-router.use('/auth/forgot-password', createServiceProxy('auth'));
-router.use('/auth/reset-password', createServiceProxy('auth'));
-router.use('/auth/.well-known', createServiceProxy('auth'));
+router.use('/auth/register', authRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+router.use('/auth/login', authRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+router.use('/auth/forgot-password', authRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+router.use('/auth/reset-password', authRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+router.use('/auth/.well-known', readRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+
+// OAuth 2.0/OpenID Connect proxy routes
+router.use('/oauth/authorize', authRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+router.use('/oauth/token', authRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+router.use('/oauth/introspect', authRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+router.use('/oauth/revoke', authRateLimit as unknown as RequestHandler, createServiceProxy('auth'));
+router.use('/oauth/userinfo', readRateLimit as unknown as RequestHandler, authenticateJWT, createServiceProxy('auth'));
 
 // Protected auth routes
-router.use('/auth/logout', authenticateJWT, createServiceProxy('auth'));
-router.use('/auth/refresh-token', authenticateJWT, createServiceProxy('auth'));
-router.use('/auth/userinfo', authenticateJWT, createServiceProxy('auth'));
+router.use('/auth/logout', authRateLimit as unknown as RequestHandler, authenticateJWT, createServiceProxy('auth'));
+router.use('/auth/refresh-token', authRateLimit as unknown as RequestHandler, authenticateJWT, createServiceProxy('auth'));
+router.use('/auth/userinfo', readRateLimit as unknown as RequestHandler, authenticateJWT, createServiceProxy('auth'));
 
 // Admin auth routes
-router.use('/auth/admin', authenticateJWT, requireRole('admin'), createServiceProxy('auth'));
+router.use('/auth/admin', generalRateLimit as unknown as RequestHandler, authenticateJWT, requireRole('admin'), createServiceProxy('auth'));
 
 // User service routes (all protected)
-router.use('/api/users', authenticateJWT, createServiceProxy('user'));
+router.use('/api/users', generalRateLimit as unknown as RequestHandler, authenticateJWT, createServiceProxy('user'));
 
 // Profile routes (self-service)
-router.use('/api/profile', authenticateJWT, createServiceProxy('user'));
-router.use('/api/preferences', authenticateJWT, createServiceProxy('user'));
+router.use('/api/profile', generalRateLimit as unknown as RequestHandler, authenticateJWT, createServiceProxy('user'));
+router.use('/api/preferences', generalRateLimit as unknown as RequestHandler, authenticateJWT, createServiceProxy('user'));
 
 // Tenant service routes (protected)
-router.use('/api/tenants', authenticateJWT, createServiceProxy('tenant'));
+router.use('/api/tenants', generalRateLimit as unknown as RequestHandler, authenticateJWT, createServiceProxy('tenant'));
 
 // Catch-all for undefined routes
 router.use('*', (req, res) => {

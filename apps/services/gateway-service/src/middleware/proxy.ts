@@ -2,6 +2,9 @@ import { createProxyMiddleware, Options } from 'http-proxy-middleware';
 import { Request, Response, NextFunction } from 'express';
 import { trace, context, SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { services, getServiceByPath } from '../config/services';
+import { getOutgoingHttpsAgent } from '../config/tls';
+import { backendRequestCounter, startBackendTimer } from '../observability/metrics';
+import https from 'https';
 
 // Create proxy middleware for each service
 export const createServiceProxy = (serviceName: string) => {
@@ -11,14 +14,24 @@ export const createServiceProxy = (serviceName: string) => {
     throw new Error(`Service ${serviceName} not found`);
   }
 
+  const targetUrl = new URL(service.url);
+  const isHttps = targetUrl.protocol === 'https:';
+  const httpsAgent = isHttps ? getOutgoingHttpsAgent() : undefined;
+
   const proxyOptions: Options = {
     target: service.url,
     changeOrigin: true,
     timeout: service.timeout,
+    ...(isHttps ? { secure: true, agent: httpsAgent as unknown as https.Agent } : {}),
     pathRewrite: {
       [`^${service.path}`]: '', // Remove the gateway path prefix
     },
     onProxyReq: (proxyReq, req: any, res) => {
+      // Start backend latency timer
+      const method = req.method;
+      const timer = startBackendTimer(service.name, method);
+      (req as any)._gwBackendTimer = timer;
+
       // Add user context headers for backend services
       if (req.user) {
         proxyReq.setHeader('X-User-ID', req.user.id);
@@ -50,7 +63,7 @@ export const createServiceProxy = (serviceName: string) => {
         }
       }
     },
-    onProxyRes: (proxyRes, req, res) => {
+    onProxyRes: (proxyRes, req: any, res) => {
       // Add CORS headers if needed
       proxyRes.headers['Access-Control-Allow-Origin'] = res.getHeader('Access-Control-Allow-Origin') as string;
       proxyRes.headers['Access-Control-Allow-Credentials'] = 'true';
@@ -60,6 +73,13 @@ export const createServiceProxy = (serviceName: string) => {
       if (requestId) {
         proxyRes.headers['X-Request-ID'] = requestId;
       }
+
+      // Record backend metrics
+      const status = proxyRes.statusCode?.toString() || '0';
+      const method = req.method;
+      backendRequestCounter.labels({ service: service.name, method, status_code: status }).inc();
+      const timer = (req as any)._gwBackendTimer as { end: (labels?: Record<string, string>) => void } | undefined;
+      timer?.end({ status_code: status });
     },
     onError: (err, _req, res) => {
       console.error(`Proxy error for ${service.name}:`, err.message);

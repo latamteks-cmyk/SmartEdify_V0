@@ -20,6 +20,7 @@ export interface AuthenticatedRequest extends Request {
 
 export interface HealthStatus {
   status: 'healthy' | 'unhealthy';
+  service?: string;
   timestamp: string;
   uptime: number;
   services: Record<string, ServiceHealth>;

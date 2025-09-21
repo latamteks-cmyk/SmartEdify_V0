@@ -350,3 +350,32 @@ export async function revokeAllUserSessions(userId: string): Promise<void> {
         await redis.del(...tokensToDelete);
     }
 }
+
+// Test utility function to clear all stores
+export async function clearAllStores() {
+    if (isTestEnv) {
+        // Clear in-memory stores
+        inMemoryAccessDeny.clear();
+        
+        // Clear Redis stores (safely handle mocked Redis)
+        try {
+            if (redis && typeof redis.keys === 'function') {
+                const keys = await redis.keys('*');
+                if (keys && keys.length > 0) {
+                    await redis.del(...keys);
+                }
+            } else if (redis && typeof redis.flushall === 'function') {
+                // Alternative approach if keys() is not available
+                await redis.flushall();
+            }
+            // If neither method is available, just continue (Redis is likely fully mocked)
+        } catch (error) {
+            // In test environment, Redis operations might be mocked and could throw
+            console.log('[clearAllStores] Redis clear skipped (likely mocked):', error instanceof Error ? error.message : error);
+        }
+        
+        console.log('[clearAllStores] All test stores cleared');
+    } else {
+        console.warn('[clearAllStores] Not in test environment - operation skipped');
+    }
+}

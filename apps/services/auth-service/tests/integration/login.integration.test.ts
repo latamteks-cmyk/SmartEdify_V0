@@ -21,7 +21,7 @@ async function reset() {
 
 describe('POST /login - Integration Tests', () => {
   const testUser = {
-    email: 'login-test@example.com',
+    email: 'login-test@demo.com',
     password: 'password123',
     name: 'Login Test User'
   };
@@ -53,7 +53,7 @@ describe('POST /login - Integration Tests', () => {
     expect(response.body).toHaveProperty('access_token');
     expect(response.body).toHaveProperty('refresh_token');
     expect(response.body.token_type).toBe('Bearer');
-    expect(response.body.user.email).toBe(testUser.email);
+    expect(response.body.roles).toEqual(expect.arrayContaining(['user']));
   });
 
   it('should return 401 for a non-existent user', async () => {

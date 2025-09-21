@@ -68,9 +68,13 @@ NODE_ENV=development
 PORT=3000
 LOG_LEVEL=info
 
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-in-production
+# JWT / OIDC
 JWKS_URL=http://localhost:3001/.well-known/jwks.json
+JWKS_URLS=http://localhost:3001/.well-known/jwks.json
+JWKS_CACHE_MAX_AGE=600000
+JWKS_COOLDOWN_MS=30000
+ISSUER=http://localhost:3001
+AUDIENCE=smartedify-gateway
 
 # Service URLs
 AUTH_SERVICE_URL=http://localhost:3001
@@ -84,6 +88,20 @@ CORS_CREDENTIALS=true
 # Rate Limiting
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
+
+# Tracing (OTLP)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
+# OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=
+# OTEL_EXPORTER_OTLP_HEADERS=x-otlp-token=your-token
+
+# Metrics
+METRICS_ENABLED=true
+METRICS_ROUTE=/metrics
+METRICS_PREFIX=gateway_
+
+# Outgoing TLS
+OUTGOING_TLS_REJECT_UNAUTHORIZED=true
+# OUTGOING_TLS_CA_FILE=/path/to/custom-ca.pem
 ```
 
 ## API Routes
@@ -94,11 +112,15 @@ RATE_LIMIT_MAX_REQUESTS=100
 - `POST /auth/forgot-password` - Password reset request
 - `POST /auth/reset-password` - Password reset
 - `GET /auth/.well-known/jwks.json` - JWKS public keys
+ - `GET /metrics` - Prometheus metrics (if enabled)
 
 ### Protected Routes (Authentication Required)
 - `POST /auth/logout` - User logout
 - `POST /auth/refresh-token` - Token refresh
 - `GET /auth/userinfo` - User information
+ - `POST /oauth/token` - OAuth2 token endpoint (proxied)
+ - `POST /oauth/introspect` - OAuth2 introspection (proxied)
+ - `POST /oauth/revoke` - OAuth2 token revocation (proxied)
 - `GET /api/users` - List users (admin only)
 - `GET /api/users/:id` - Get user (owner or admin)
 - `PUT /api/users/:id` - Update user (owner or admin)
@@ -117,6 +139,7 @@ RATE_LIMIT_MAX_REQUESTS=100
 - `GET /health/:service` - Individual service health
 - `GET /health/ready` - Readiness probe
 - `GET /health/live` - Liveness probe
+ - `GET /metrics` - Prometheus metrics exposition
 
 ## Development
 
