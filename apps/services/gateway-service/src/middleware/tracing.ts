@@ -30,6 +30,7 @@ export function tracingMiddleware(req: Request, res: Response, next: NextFunctio
   res.locals.span = span;
   
   // Capture response details when the request finishes
+  let ended = false;
   res.on('finish', () => {
     span.setAttributes({
       'http.status_code': res.statusCode,
@@ -46,11 +47,12 @@ export function tracingMiddleware(req: Request, res: Response, next: NextFunctio
     }
     
     span.end();
+    ended = true;
   });
   
   // Also end span on close (connection closed)
   res.on('close', () => {
-    if (!span.ended) {
+    if (!ended) {
       span.setAttributes({
         'http.status_code': res.statusCode,
         'error': 'Connection closed unexpectedly'

@@ -1,5 +1,6 @@
 import rateLimit from 'express-rate-limit';
 import { config } from '../config/env';
+import { rateLimitHitCounter } from '../observability/metrics';
 
 // General rate limiting
 export const generalRateLimit = rateLimit({
@@ -17,6 +18,10 @@ export const generalRateLimit = rateLimit({
     const userId = (req as any).user?.id;
     return userId ? `${ip}:${userId}` : ip;
   },
+  handler: (req, res, _next, options) => {
+    try { rateLimitHitCounter.labels({ route: req.path }).inc(); } catch {}
+    res.status(options.statusCode || 429).json(options.message);
+  },
 });
 
 // Strict rate limiting for auth endpoints
@@ -30,6 +35,10 @@ export const authRateLimit = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful requests
+  handler: (req, res, _next, options) => {
+    try { rateLimitHitCounter.labels({ route: req.path }).inc(); } catch {}
+    res.status(options.statusCode || 429).json(options.message);
+  },
 });
 
 // Lenient rate limiting for read operations
@@ -42,4 +51,8 @@ export const readRateLimit = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  handler: (req, res, _next, options) => {
+    try { rateLimitHitCounter.labels({ route: req.path }).inc(); } catch {}
+    res.status(options.statusCode || 429).json(options.message);
+  },
 });

@@ -2,7 +2,8 @@
 import request from 'supertest';
 
 import { app } from '../../cmd/server/main';
-// import pool from '../../internal/adapters/db/pg.adapter';
+import { clearAllStores } from '../../internal/adapters/redis/redis.adapter';
+import { pool } from '../../internal/adapters/db/pg.adapter';
 
 // Nota: reutilizamos la app exportada. No levantamos server real.
 // Aseguramos limpieza básica de usuario de prueba antes de iniciar.
@@ -10,6 +11,8 @@ const TEST_EMAIL = 'integration@demo.com';
 const TEST_TENANT = 'default';
 
 async function cleanup() {
+  await pool.query(`DELETE FROM users WHERE email = $1`, [TEST_EMAIL]);
+  await clearAllStores();
 }
 
 beforeAll(async () => {
@@ -18,7 +21,6 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await cleanup();
-  // pool.end() removido porque el mock no implementa end
 });
 
 describe('Flujo de autenticación completo', () => {
@@ -29,6 +31,7 @@ describe('Flujo de autenticación completo', () => {
     const res = await request(app)
       .post('/register')
       .send({ email: TEST_EMAIL, password: 'S3gur0_P@ss', name: 'Test User', tenant_id: TEST_TENANT });
+    
     expect(res.status).toBe(201);
     expect(res.body.user).toBeDefined();
     expect(res.body.user.email).toBe(TEST_EMAIL);
@@ -38,6 +41,7 @@ describe('Flujo de autenticación completo', () => {
     const res = await request(app)
       .post('/login')
       .send({ email: TEST_EMAIL, password: 'S3gur0_P@ss', tenant_id: TEST_TENANT });
+    
     expect(res.status).toBe(200);
     expect(res.body.access_token).toBeDefined();
     expect(res.body.refresh_token).toBeDefined();

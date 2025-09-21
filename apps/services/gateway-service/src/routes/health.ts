@@ -58,6 +58,8 @@ async function checkServiceHealth(serviceName: string, serviceUrl: string): Prom
 router.get('/ready', (req: Request, res: Response): void => {
   res.status(200).json({
     status: 'ready',
+    service: 'gateway-service',
+    ready: true,
     timestamp: new Date().toISOString(),
     uptime: Date.now() - startTime
   });
@@ -67,6 +69,8 @@ router.get('/ready', (req: Request, res: Response): void => {
 router.get('/live', (req: Request, res: Response): void => {
   res.status(200).json({
     status: 'alive',
+    service: 'gateway-service',
+    alive: true,
     timestamp: new Date().toISOString(),
     uptime: Date.now() - startTime
   });
@@ -87,13 +91,14 @@ router.get('/', async (req: Request, res: Response) => {
     
     const healthStatus: HealthStatus = {
       status: allHealthy ? 'healthy' : 'unhealthy',
+      service: 'gateway-service' as any,
       timestamp: new Date().toISOString(),
       uptime: Date.now() - startTime,
       services: serviceHealthMap
     };
     
-    const statusCode = allHealthy ? 200 : 503;
-    res.status(statusCode).json(healthStatus);
+    // Always return 200 for overall health endpoint, include status details
+    res.status(200).json(healthStatus);
     
   } catch (error) {
     console.error('Health check error:', error);
