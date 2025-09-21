@@ -175,10 +175,20 @@ describe('OAuth authorize/token/introspection/revocation', () => {
   it('revoca refresh tokens y refleja el bloqueo en /introspection', async () => {
     const result = await performAuthorizationCodeFlow({ roles: ['user', 'admin'] });
 
+    // Verificar que el token está activo antes de la revocación
+    const introspectionBefore = await request(app)
+      .post('/introspection')
+      .send({ token: result.refreshToken, client_id: CLIENT_ID });
+    expect(introspectionBefore.status).toBe(200);
+    expect(introspectionBefore.body.active).toBe(true);
+
     const revoke = await request(app)
       .post('/revocation')
       .send({ token: result.refreshToken, client_id: CLIENT_ID });
     expect(revoke.status).toBe(200);
+
+    // Pequeña pausa para asegurar que la revocación se procese
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     const introspection = await request(app)
       .post('/introspection')

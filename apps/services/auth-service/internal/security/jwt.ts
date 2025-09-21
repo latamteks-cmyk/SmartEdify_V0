@@ -159,6 +159,12 @@ export async function verifyAccess(token: string) {
   const key = await getKeyByKid(kid);
   if (!key) throw new Error('Clave no encontrada para kid');
   const verified = jwt.verify(token, key.pem_public, { algorithms: ['RS256'] }) as jwt.JwtPayload;
+  
+  // Validar que es un token de acceso
+  if (verified && typeof verified === 'object' && verified.type !== 'access') {
+    throw new Error('Token no es de tipo access');
+  }
+  
   if (verified && typeof verified === 'object' && verified.jti) {
     if (await isRevoked(verified.jti)) throw new Error('token_revocado');
     if (await isAccessTokenDenied(verified.jti)) throw new Error('token_deny_list');
@@ -176,6 +182,12 @@ export async function verifyRefresh(token: string) {
   const key = await getKeyByKid(kid);
   if (!key) throw new Error('Clave no encontrada para kid');
   const verified = jwt.verify(token, key.pem_public, { algorithms: ['RS256'] }) as jwt.JwtPayload;
+  
+  // Validar que es un token de refresh
+  if (verified && typeof verified === 'object' && verified.type !== 'refresh') {
+    throw new Error('Token no es de tipo refresh');
+  }
+  
   if (verified && typeof verified === 'object' && verified.jti) {
     if (await isRevoked(verified.jti)) throw new Error('token_revocado');
   }

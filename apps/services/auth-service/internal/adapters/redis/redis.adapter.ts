@@ -12,6 +12,9 @@ const isTestEnv = process.env.NODE_ENV === 'test';
 const inMemoryAccessDeny: Map<string, { reason: string; expiresAt: number | null }> = (global as any).__ACCESS_DENY__ || new Map();
 (global as any).__ACCESS_DENY__ = inMemoryAccessDeny;
 
+const inMemoryRevocationList: Map<string, { type: 'access' | 'refresh'; reason: string; expiresAt: number | null }> = (global as any).__REVOCATION_LIST__ || new Map();
+(global as any).__REVOCATION_LIST__ = inMemoryRevocationList;
+
 // Tip: el mock compartido implementa incr/expire/ttl.
 // Para robustez tipada (aunque no usamos types estricto aquí) agregamos wrappers opcionales
 // que delegan a la instancia real/mocked.
@@ -134,9 +137,22 @@ export async function isRefreshRotated(jti: string) {
 
 // Lista de revocación
 export async function addToRevocationList(jti: string, type: 'access' | 'refresh', reason: string, expires: number) {
+  if (isTestEnv) {
+    inMemoryRevocationList.set(jti, { type, reason, expiresAt: expires > 0 ? Date.now() + expires * 1000 : null });
+    return;
+  }
   await redis.set(`revoked:${jti}`, JSON.stringify({ type, reason }), 'EX', expires);
 }
 export async function isRevoked(jti: string) {
+  if (isTestEnv) {
+    const entry = inMemoryRevocationList.get(jti);
+    if (!entry) return false;
+    if (entry.expiresAt && Date.now() > entry.expiresAt) {
+      inMemoryRevocationList.delete(jti);
+      return false;
+    }
+    return true;
+  }
   return !!(await redis.get(`revoked:${jti}`));
 }
 
