@@ -84,6 +84,16 @@ export async function signAccessToken(payload: Record<string, any>): Promise<{ t
   const jti = randomUUID();
   const expSeconds = parseHumanSeconds(ACCESS_TTL);
   const key = await getCurrentKey();
+  
+  // Debug: intentar validar la clave con crypto
+  try {
+    const crypto = await import('crypto');
+    const keyObject = crypto.createPrivateKey(key.pem_private);
+    console.log('[DEBUG] Private key validation: OK - asymmetric:', keyObject.asymmetricKeyType);
+  } catch (err) {
+    console.log('[DEBUG] Private key validation: FAILED -', (err as Error).message);
+  }
+  
   const accessPayload: jwt.JwtPayload = { ...payload, jti, type: 'access' };
   const token = jwt.sign(accessPayload, key.pem_private, { expiresIn: ACCESS_TTL, algorithm: 'RS256', keyid: key.kid } as jwt.SignOptions);
   return { token, jti, expSeconds, kid: key.kid };
